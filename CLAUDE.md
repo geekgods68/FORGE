@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** the current phase is 0 (foundation), recorded in docs/DEVELOPMENT_ROADMAP.md. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
+- **Phase discipline:** the current phase is 1 (engineering core, pending owner review), recorded in docs/DEVELOPMENT_ROADMAP.md. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).
@@ -8,6 +8,7 @@
   - Commit secrets.
   - Rewrite git history.
 - **Architecture:**
+  - `ForgeEngine` in `@forge/engineering-core` holds the single authoritative scene graph. Every engineering change goes through `engine.execute(command)`. Never mutate state from React, three.js objects or the Zustand store.
   - Domain logic lives in `packages/*` and must not import React, three or any UI code (enforced by ESLint).
   - The UI lives in `apps/desktop`.
   - Persisted data is validated with Zod schemas from `@forge/engineering-core`.

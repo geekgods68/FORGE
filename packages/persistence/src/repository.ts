@@ -1,22 +1,24 @@
-import { PROJECT_SCHEMA_VERSION, validateProject, type Project } from '@forge/engineering-core';
+import {
+  loadProjectDocument,
+  serializeProject,
+  validateProject,
+  type DocumentError,
+  type Project,
+} from '@forge/engineering-core';
 
 /**
- * Persistence boundary. The browser adapter below is Phase 0's only implementation;
- * a future desktop filesystem adapter implements the same interface.
+ * Persistence boundary. The browser-storage adapter below is the local quick-save
+ * store; durable copies are `.forge.json` files (export/import, see engineering-core
+ * project/file.ts). A future desktop filesystem adapter implements the same interface.
  *
- * Browser storage is a convenience store, NOT a production-grade backup:
- * it is per-browser-profile, can be cleared by the user or browser, and is size-limited.
+ * Browser storage is NOT a backup: it is per-browser-profile, user-clearable and size-limited.
  */
-export type LoadError =
-  | { code: 'not-found'; message: string }
-  | { code: 'corrupt'; message: string }
-  | { code: 'unsupported-version'; message: string }
-  | { code: 'invalid'; message: string; details: string[] };
+export type LoadError = { code: 'not-found'; message: string } | DocumentError;
 
 export type SaveError =
   { code: 'invalid'; message: string; details: string[] } | { code: 'storage'; message: string };
 
-export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+export type Result<T, E> = { ok: true; value: T; migratedFrom?: number } | { ok: false; error: E };
 
 export interface ProjectSummary {
   id: string;
@@ -38,48 +40,6 @@ export interface StorageLike {
   removeItem(key: string): void;
   key(index: number): string | null;
   readonly length: number;
-}
-
-/**
- * Upgrade older persisted documents to the current schema. Only v1 exists, so the
- * table is empty; adding v2 means adding `1: (doc) => v2Doc` here plus tests.
- */
-const MIGRATIONS: Record<number, (doc: Record<string, unknown>) => Record<string, unknown>> = {};
-
-export function migrate(doc: unknown): Result<unknown, LoadError> {
-  if (typeof doc !== 'object' || doc === null || Array.isArray(doc))
-    return { ok: false, error: { code: 'corrupt', message: 'Saved data is not a project object.' } };
-  let current = doc as Record<string, unknown>;
-  let version = current.schemaVersion;
-  if (typeof version !== 'number' || !Number.isInteger(version))
-    return {
-      ok: false,
-      error: {
-        code: 'invalid',
-        message: 'Saved project has no valid schemaVersion.',
-        details: ['schemaVersion: missing'],
-      },
-    };
-  if (version > PROJECT_SCHEMA_VERSION)
-    return {
-      ok: false,
-      error: {
-        code: 'unsupported-version',
-        message: `This project was saved with schema v${version}; this build of FORGE supports up to v${PROJECT_SCHEMA_VERSION}.`,
-      },
-    };
-  while (version < PROJECT_SCHEMA_VERSION) {
-    const step = MIGRATIONS[version];
-    if (!step)
-      return {
-        ok: false,
-        error: { code: 'unsupported-version', message: `No migration from schema v${version}.` },
-      };
-    current = step(current);
-    version = current.schemaVersion;
-    if (typeof version !== 'number') break;
-  }
-  return { ok: true, value: current };
 }
 
 export class BrowserStorageProjectRepository implements ProjectRepository {
@@ -104,6 +64,7 @@ export class BrowserStorageProjectRepository implements ProjectRepository {
     return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
+  /** Parses, migrates (v1 → v2) and validates. Never returns an unvalidated project. */
   load(id: string): Result<Project, LoadError> {
     const raw = this.storage.getItem(this.key(id));
     if (raw === null)
@@ -114,19 +75,11 @@ export class BrowserStorageProjectRepository implements ProjectRepository {
     } catch {
       return { ok: false, error: { code: 'corrupt', message: 'Saved project is not valid JSON.' } };
     }
-    const migrated = migrate(parsed);
-    if (!migrated.ok) return migrated;
-    const v = validateProject(migrated.value);
-    if (!v.ok)
-      return {
-        ok: false,
-        error: {
-          code: 'invalid',
-          message: `Saved project failed validation (${v.errors.length} problem${v.errors.length === 1 ? '' : 's'}).`,
-          details: v.errors,
-        },
-      };
-    return { ok: true, value: v.project };
+    const r = loadProjectDocument(parsed);
+    if (!r.ok) return { ok: false, error: r.error };
+    return r.migratedFrom
+      ? { ok: true, value: r.project, migratedFrom: r.migratedFrom }
+      : { ok: true, value: r.project };
   }
 
   save(project: Project): Result<ProjectSummary, SaveError> {
@@ -137,7 +90,7 @@ export class BrowserStorageProjectRepository implements ProjectRepository {
         error: { code: 'invalid', message: 'Refusing to save an invalid project.', details: v.errors },
       };
     try {
-      this.storage.setItem(this.key(project.id), JSON.stringify(v.project));
+      this.storage.setItem(this.key(project.id), serializeProject(v.project));
     } catch (e) {
       return {
         ok: false,

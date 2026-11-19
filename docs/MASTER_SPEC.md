@@ -33,12 +33,12 @@ The planned facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 enviro
 
 ## Interfaces and their distinctions
 
-| Concern                | Meaning                                                                                        | Status                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Phase 0 demo scene only                             |
-| VR (Meta Quest 2)      | The same domain model through WebXR. VR is a rendering and input layer, not a separate product | Future                                              |
-| Engineering simulation | Models with an explicit validity status (SIMULATION_VALIDITY.md). Rendering ≠ simulation       | Future; physics engine installed, no simulation yet |
-| Vey integration        | Typed, validated, permissioned commands (VEY_INTEGRATION.md). No LLM inside FORGE              | Contracts proposed only                             |
+| Concern                | Meaning                                                                                        | Status                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Phase 1 engineering editor (hierarchy, inspector, gizmos, primitives, import/export)                               |
+| VR (Meta Quest 2)      | The same domain model through WebXR. VR is a rendering and input layer, not a separate product | Future                                                                                                             |
+| Engineering simulation | Models with an explicit validity status (SIMULATION_VALIDITY.md). Rendering ≠ simulation       | Future; physics engine installed, no simulation yet                                                                |
+| Vey integration        | Typed, validated, permissioned commands (VEY_INTEGRATION.md). No LLM inside FORGE              | The engine command/query API that Vey will use exists (Phase 1); the Vey permission layer and exposure are Phase 9 |
 
 ## Principles
 
@@ -46,4 +46,5 @@ The planned facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 enviro
 - **Explicit units.** Imported geometry is never trusted to have correct dimensions until it is validated.
 - **Definitions are separate from instances.**
 - **Domain logic is independent of the UI and the renderer.**
+- **The engineering scene graph is the single source of truth.** The 3D view renders it, and every change is a validated, undoable command.
 - **No simulation claims more validity than its evidence supports.**

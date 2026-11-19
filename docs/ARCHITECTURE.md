@@ -1,105 +1,184 @@
-# FORGE architecture (Phase 0)
+# FORGE architecture (Phase 1)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
-| Area               | Choice                                                                        |
-| ------------------ | ----------------------------------------------------------------------------- |
-| Language           | TypeScript 6.0.3 (strict)                                                     |
-| Application        | React 19.3.1, Vite 8.3.8 (`@vitejs/plugin-react` 6.3.0)                       |
-| 3D                 | three 0.187.0, @react-three/fiber 9.8.2, @react-three/drei 10.7.9             |
-| Physics foundation | @react-three/rapier 2.2.0 (bundles @dimforge/rapier3d-compat 0.19.2)          |
-| UI                 | Tailwind CSS 4.3.5, shadcn/ui-style copy-in components, lucide-react 1.76.0   |
-| State / validation | zustand 5.1.0, zod 4.6.7                                                      |
-| Tooling            | pnpm 12.21.0 workspaces, ESLint 10.15 + typescript-eslint 8.73, Prettier 3.10 |
-| Testing            | Vitest 5.1.1, Testing Library (React 16.3.3), jsdom 29.1.1, Playwright 1.65.1 |
+| Area               | Choice                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Language           | TypeScript 6.0.3 (strict)                                                                                                      |
+| Application        | React 19.3.1, Vite 8.3.8 (`@vitejs/plugin-react` 6.3.0)                                                                        |
+| 3D                 | three 0.187.0, @react-three/fiber 9.8.2, @react-three/drei 10.7.9 (OrbitControls, TransformControls, Grid, Edges, GizmoHelper) |
+| Physics foundation | @react-three/rapier 2.2.0 (bundles @dimforge/rapier3d-compat 0.19.2). Paused world, no simulation                              |
+| UI                 | Tailwind CSS 4.3.5, shadcn/ui-style copy-in components, lucide-react 1.76.0                                                    |
+| State / validation | zustand 5.1.0 (UI mirror only), zod 4.6.7                                                                                      |
+| Tooling            | pnpm 12.21.0 workspaces, ESLint 10.15 + typescript-eslint 8.73, Prettier 3.10                                                  |
+| Testing            | Vitest 5.1.1, Testing Library, jsdom 29.1.1, Playwright 1.65.1                                                                 |
 
-### Version decisions and their evidence
+**Phase 1 adds no dependencies.** Matrix math, Euler conversion and snapping are implemented in `engineering-core`, so the domain stays independent of three.js.
 
-| Decision                                         | Evidence                                                                                                                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **TypeScript 6.0.3, not 7.0.2**                  | typescript-eslint 8.73 declares a peer range of `typescript >=4.8.4 <6.1.0`                                                                                        |
-| **React 19.3.1**                                 | @react-three/fiber 9.8.2 requires `react >=19 <19.4`                                                                                                               |
-| **jsdom 29.1.1, not 31**                         | jsdom 30+ requires Node `^24.15`; this machine runs Node 24.2.0                                                                                                    |
-| **No separate `@dimforge/rapier3d-compat`**      | @react-three/rapier pins its own (0.19.2), so a second copy would risk duplication. A third copy (0.12.0) arrives only through `@types/three` and is never bundled |
-| **pnpm installed with `npm i -g`, not Corepack** | Corepack 0.33 cannot run pnpm 12's native-binary package layout                                                                                                    |
+### Version decisions (from Phase 0, unchanged)
 
-## Module boundaries
+| Decision                       | Reason                                              |
+| ------------------------------ | --------------------------------------------------- |
+| TypeScript 6.0.3, not 7        | typescript-eslint supports only TypeScript `<6.1.0` |
+| React 19.3.1                   | R3F 9.8.2 requires `<19.4`                          |
+| jsdom 29.1.1                   | jsdom 30+ needs Node ≥ 24.15; this Mac has 24.2.0   |
+| pnpm through npm, not Corepack | Corepack 0.33 cannot run pnpm 12                    |
 
-```text
-apps/desktop ──▶ @forge/persistence ──▶ @forge/engineering-core ──▶ zod
-      │                                          ▲
-      └──────────────────────────────────────────┘
-@forge/vey-api (types only; no runtime dependencies)
-```
-
-- **`@forge/engineering-core`:** units, transforms, the 28 category ids, and Zod schemas for every persisted structure, with types inferred from those schemas. It has **no DOM, React or three imports**; ESLint `no-restricted-imports` enforces this for all of `packages/*`.
-- **`@forge/persistence`:** the `ProjectRepository` interface, the browser-storage adapter, and migrations.
-- **`@forge/vey-api`:** proposed command contracts only (see VEY_INTEGRATION.md).
-- **`apps/desktop`:** React UI, R3F scene and a Zustand store. It renders _from_ the project document and never stores renderer objects in it.
-
-Workspace packages export TypeScript source (`"exports": "./src/index.ts"`), which Vite and Vitest compile directly; there is no package build step yet.
-
-## Data flow
+## Single source of truth
 
 ```text
-user input ─▶ store action ─▶ new immutable Project ─▶ React re-render ─▶ R3F meshes
-                         └─▶ ProjectRepository.save/load (validated both ways)
+┌──────────── @forge/engineering-core (no React, no three, no DOM) ────────────┐
+│ ForgeEngine                                                                   │
+│   project (deep-frozen) ── scene graph (nodes, root, hierarchy)               │
+│   execute(command) → zod validation → policy → revision check →               │
+│     GraphTransaction(handler) → integrity check → commit + history            │
+│   undo()/redo() → replay recorded inverse/forward ops                         │
+│   queries: getProject · queryScene · getNode · getWorldTransform ·            │
+│            getHistory · getCapabilities · getSelection                        │
+└───────────────────────────────────────────────────────────────────────────────┘
+        ▲ commands (all writers)                       │ subscribe → snapshots
+        │                                              ▼
+ desktop UI · keyboard · TransformSession       zustand editor store (UI mirror +
+ scripts/tests · (Phase 9: Vey)                 tool mode, snap prefs, status)
+                                                       │
+                                                       ▼
+                                  React panels + R3F viewport (render only)
 ```
 
-- The camera is view state, not project data.
-- From Phase 1, project edits will move to validated commands with history; Phase 0 store actions are a minimal stand-in.
+- **The scene graph in `ForgeEngine` is authoritative.** Three.js objects are a projection of it.
+- **The engine's `execute` is the only engineering mutation path.** Returned data is deeply frozen, so callers cannot mutate state by accident.
+- **Gizmo drags are previews.** The renderer object and a `TransformSession` hold intermediate poses; release submits one `scene.node.transform` command. If the command is rejected, the rendered object is re-synced from engine state.
+- **Selection is ephemeral engine state:** an array, ready for multi-select. It isn't in history, isn't persisted, and is pruned automatically when nodes disappear.
 
-## Coordinate and unit conventions (mandatory)
+## Module map
 
-- **Units:**
-  - World unit is the **metre**.
-  - Angles are **radians** internally; degrees only at the UI boundary (`degToRad` / `radToDeg`).
-  - Mass is kg, time is s, temperature is K.
-  - Every project stores its `units` explicitly (schema-validated literals).
-- **Axes:** **right-handed, +Y up**, −Z forward. This matches three.js and WebXR, so the document needs no axis conversion.
-- **Transforms:** `Transform = { position [x,y,z] m, rotation unit quaternion [x,y,z,w] }`, relative to the scene origin.
-  - **No scale on instances.** Physical size belongs to the definition.
-  - Visual magnification will be a view concern.
-- **Origins:** primitive components use their geometric centre as the origin. Imported models must declare their origin convention once import exists (Phase 3).
-- **Definitions vs instances:**
-  - `ComponentDefinition` is what a part _is_: geometry, material, interfaces, capabilities, provenance.
-  - `ComponentInstance` is one placement: its own id, `definitionId`, transform and configuration.
-  - Definitions also carry a revision number.
+| Path                                                | Responsibility                                                                                                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engineering-core/src/math/`                        | `mat4.ts` (column-major compose/decompose/invert, shear detection), `euler.ts` (XYZ ↔ quaternion for the UI), `snapping.ts`                                                         |
+| `engineering-core/src/scene/`                       | `schemas.ts` (node taxonomy, geometry, limits), `graph.ts` (validation, ancestry, world matrices, world-preserving local transforms), `transaction.ts` (copy-on-write ops recorder) |
+| `engineering-core/src/commands/`                    | `schemas.ts` (command contract v1, discriminated union), `handlers.ts` (one typed handler per command), `build.ts` (envelope helper)                                                |
+| `engineering-core/src/engine.ts`                    | ForgeEngine: dispatcher, history, queries, capabilities, selection                                                                                                                  |
+| `engineering-core/src/editing/transform-session.ts` | One continuous manipulation, committed as one command                                                                                                                               |
+| `engineering-core/src/project/`                     | `schema.ts` (v2), `create.ts`, `migrate.ts` (v1 → v2), `file.ts` (`.forge.json`)                                                                                                    |
+| `persistence/`                                      | `ProjectRepository` + browser quick-save adapter (loads through the same migrate/validate pipeline)                                                                                 |
+| `vey-api/`                                          | Proposed Vey contracts (still non-operational; see VEY_INTEGRATION.md)                                                                                                              |
+| `apps/desktop/src/app/store.ts`                     | Zustand mirror of engine snapshots + UI state; `run()` wraps `engine.execute`                                                                                                       |
+| `apps/desktop/src/scenes/EngineeringViewport.tsx`   | R3F renderer, selection, highlight, gizmo, camera                                                                                                                                   |
+| `apps/desktop/src/features/`                        | Hierarchy, inspector, create menu, top bar, status bar                                                                                                                              |
+| `apps/desktop/src/hooks/useShortcuts.ts`            | Keyboard shortcuts (ignored while typing)                                                                                                                                           |
 
-### GLB/glTF import convention (defined now; implemented in Phase 3)
+## Scene graph design
 
-- Assets live under `assets/…` and are referenced by relative URI only (schema-enforced). Remote URLs are rejected.
-- Each model declares `unitScaleToMetres` (e.g. 0.001 for millimetre-authored CAD exports) and `upAxis` (`Y` or `Z`).
-- `dimensionsValidated: false` by default. Import must compare the model's bounding box against the definition's declared dimensions before it may be marked validated. FORGE never silently assumes an imported model is to scale.
-- glTF is right-handed and Y-up by specification. Z-up sources are converted at import, not at render time.
+**Node fields:**
 
-### Lighting and materials
+| Field               | Meaning                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `id`                | Stable identifier                                                    |
+| `name`              | 1–200 characters                                                     |
+| `kind`              | Node type (taxonomy below)                                           |
+| `parentId`          | `null` only for the root                                             |
+| `childIds`          | Ordered; must mirror the children's `parentId`                       |
+| `transform`         | `{position m, rotation unit quaternion, scale}`, local to the parent |
+| `visible`, `locked` | Booleans                                                             |
+| `metadata`          | Key → number / string / boolean                                      |
 
-- Phase 0 uses `meshStandardMaterial` (physically based) with a hemisphere light and a directional light, and no environment maps.
-- `MaterialDefinition.renderColor` is display-only. Physical properties (e.g. `densityKgPerM3`) are separate and carry a validity status.
+**Kinds:**
+
+| Kind                 | Status                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `root`               | Exactly one; protected                                                                                                           |
+| `group`              | Implemented                                                                                                                      |
+| `primitive`          | Implemented: `geometry` is box / sphere / cylinder / cone / plane / torus with real dimensions in metres, plus a display `color` |
+| `reference`          | Implemented: datum axes or point                                                                                                 |
+| `component-instance` | **Extension point** for Phase 3 (`definitionId`); used today only for migrated Phase 0 cubes                                     |
+| `assembly`           | **Extension point** for Phase 4; behaves as a group container                                                                    |
+
+**Structural validation (`validateGraph`) checks:**
+
+- one root;
+- `key === id`;
+- parent ↔ child links are consistent in both directions;
+- no child is listed twice;
+- every node is reachable from the root, which catches both cycles and orphans;
+- depth ≤ 64 and node count ≤ 20,000.
+
+Schema validation additionally enforces finite numbers, position ≤ ±10 km, unit quaternions, scale in [1e-6, 1e6], and dimensions in [1 µm, 1 km] with torus tube < major radius.
+
+**Hierarchical transforms:** world = parent world × local, composed from the root.
+
+- Reparenting keeps the world transform by default. The new local is computed as parent world⁻¹ × node world.
+- **If that would need shear** (a rotated child under a non-uniformly scaled parent), the command is refused with `unrepresentable-transform` rather than silently distorting the object.
+
+**Lock semantics:**
+
+- A node is _effectively locked_ if it or any ancestor is locked.
+- Effectively locked nodes reject transform, rename, delete, reparent and group. Their parents reject new or removed children.
+- Visibility and lock/unlock are always allowed (they are view and safety properties).
+- The root can't be deleted, transformed, reparented, hidden, locked or duplicated.
+
+## Command architecture
+
+See PHASE_1_REPORT.md §5 for the envelope and examples.
+
+**Dispatch order:**
+
+1. Known type (`unknown-command`).
+2. Zod envelope + payload (`invalid-command`, with field-level issues).
+3. Source policy (`permission-denied`; source `vey` is denied until Phase 9).
+4. Optional `expectedRevision` (`stale-revision`).
+5. Handler inside a `GraphTransaction`, which throws typed `CommandError`s (`not-found`, `locked`, `protected`, `cycle`, `duplicate-id`, `invalid-transform`, `invalid-operation`, `unrepresentable-transform`).
+6. Integrity re-validation of every touched node plus the whole graph.
+7. Commit.
+
+Any failure discards the transaction, so there is **no partial mutation**. No-op commands succeed with `noop: true`; they don't bump the revision or add history.
+
+**Extensibility:** a new command adds a payload schema to `PAYLOAD_SCHEMAS` and the envelope union, a handler to `HANDLERS`, and a case in `run`. TypeScript ensures handler and payload types match.
+
+## Undo/redo
+
+- **History entries:** each records `{forward ops, inverse ops, affectedIds, label}`. Ops are `put(node)` / `remove(id)` with full node states, captured by the transaction as the command runs. Only the changed nodes are stored, never whole-project snapshots.
+- **Undo/redo** replay ops, re-validate graph integrity, and advance the revision. They never create history entries of their own.
+- **Branching:** a new command clears the redo stack.
+- **Limits:** history is configurable (default 200; the oldest entries are dropped).
+- **Drags:** a continuous drag produces one entry via `TransformSession`. It is pinned to the revision at drag start, so a drag that overlaps another change is rejected as stale instead of clobbering it.
+- **Revision semantics:** every applied change (command, undo, redo) increments `project.revision`, so undo can't make an old revision-pinned request valid again.
+- **Ids:** they are generated once and stored in the ops, so redo restores identical ids.
+
+## Coordinates, units, precision
+
+- **Units:** metres, radians, kilograms, seconds and kelvin internally. Right-handed, +Y up, −Z forward, matching three.js and WebXR, so no axis conversion exists anywhere.
+- **The UI shows** millimetres (position and dimensions), degrees (rotation, XYZ intrinsic order like three.js) and ratios (scale).
+- **Rotation is stored as a quaternion.** Editing one Euler field rebuilds the quaternion from the full-precision Euler angles of the current rotation, not from the rounded display.
+- **Display rounding never reaches stored data.** An inspector field commits only if its text actually changed. Values are set absolutely, never by accumulating deltas, so repeated edits don't drift.
+- **Snapping** is an editor preference (UI store + `localStorage`, not the project): 10 mm translation and 15° rotation by default, applied to gizmo manipulation. `snap()` cleans binary noise at 15 significant digits, so radian steps aren't distorted. Numeric entry is exact and unsnapped.
 
 ## Persistence
 
-- **Interface:** `ProjectRepository { list, load, save, remove }`.
-- **Phase 0 adapter:** `BrowserStorageProjectRepository`, using `localStorage` under the key `forge:project:<id>`, with readable JSON.
-- **Saves:** the project is validated before writing; invalid data is refused.
-- **Loads:** JSON parse → migration by `schemaVersion` → Zod validation. Failures return typed errors (`not-found` / `corrupt` / `unsupported-version` / `invalid`) with field paths, and **never replace the open project**.
-- **Migration:** a table keyed by source version, empty while only v1 exists. Newer versions are refused rather than guessed.
-- **Not a backup.** Browser storage is per-profile, user-clearable and size-limited. A filesystem adapter (file export/import, later a desktop wrapper) implements the same interface.
+- **Format:** schema v2 (`.forge.json`) holds `{schemaVersion 2, id, name, createdAt, updatedAt, revision, units, materials, definitions, scene{rootId, nodes}}`.
+  - Canonical JSON: keys sorted recursively and 2-space indentation, so the same state gives byte-identical files.
+  - Editor UI state (selection, camera, tool, snap) is not stored.
+- **Loading pipeline** (quick-save, open and import alike): a 10 MiB size guard, then JSON parse, version check, migration, and full Zod and graph validation.
+  - Failures return `corrupt` / `invalid` (with paths) / `unsupported-version` / `too-large`, and **never touch the active project**.
+- **Migration:** v1 (Phase 0) → v2 is the only migration, because it is the only earlier format that existed.
+  - The v1 scene becomes the root, and instances become `component-instance` nodes with scale 1. Ids, names, transforms, definitions and materials are preserved.
+  - It is tested against a fixture produced by the genuine Phase 0 code.
+- **Storage:**
+  - _Quick-save:_ browser `localStorage`, which is not a backup.
+  - _Durable copy:_ Export (download) and Import (file picker).
+  - Import asks for confirmation before discarding unsaved changes.
 
-## Extension points
+## Rendering conventions
 
-| Area                 | Plan                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| WebXR                | A future `@react-three/xr` layer renders the same project; input adapters translate to the same store/command API |
-| Commands and history | Phase 1 adds a validated command dispatcher with undo/redo. Vey's API will call the same dispatcher               |
-| Catalogue            | Phase 3 fills `ComponentDefinition` data per category                                                             |
-| Simulation           | Each capability declares `{domain, status, model, assumptions}`                                                   |
-
-Future packages are documented, not scaffolded: `component-catalog`, `parametric-geometry`, `assembly`, `physics`, `robotics`, `electronics`, `experiments` and `rendering`.
+- Groups mirror nodes one-to-one; primitives use real geometry dimensions.
+  - Plane: XZ ground orientation.
+  - Torus: axis along +Y.
+  - Cylinder and cone: along +Y.
+- Selected meshes get an emissive tint and edge lines; selected groups get a bounding box.
+- The gizmo is shown only for single, visible, unlocked, non-root selections. Orbit is disabled while dragging (verified in e2e).
+- The viewport sits inside an error boundary, so renderer failures can't take down the panels.
 
 ## Security posture (local)
 
-- The CSP is `default-src 'self'`. `'wasm-unsafe-eval'` exists only for Rapier's WebAssembly. Same-origin is verified by the e2e test (0 requests to other origins).
-- The dev and preview servers bind to 127.0.0.1.
-- `window.__forge` exposes read-only diagnostics for tests (project snapshot, render counters, camera position). It provides no mutation path.
+- The CSP is same-origin, plus `'wasm-unsafe-eval'` for Rapier only. The e2e test verifies there are 0 requests to other origins.
+- The servers bind to 127.0.0.1.
+- `window.__forge` exposes **query methods only**: no execute, undo or replace.

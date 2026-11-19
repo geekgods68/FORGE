@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "f47ae6e4-5775-42df-adcc-17d399a79519",
+  "name": "Phase 0 fixture",
+  "createdAt": "2026-11-19T20:00:00.000Z",
+  "updatedAt": "2026-11-19T20:00:00.000Z",
+  "units": { "length": "m", "angle": "rad", "mass": "kg", "time": "s", "temperature": "K" },
+  "materials": [
+    {
+      "id": "forge.material.demo-neutral",
+      "name": "Demo neutral (display only)",
+      "renderColor": "#8a93a3",
+      "source": "Authored for the Phase 0 scene; no physical properties declared.",
+      "status": "illustrative"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "forge.demo.reference-cube",
+      "revision": 1,
+      "name": "Reference cube 300 mm",
+      "categoryId": "experimental-environments-test-objects",
+      "description": "Temporary Phase 0 test object used to verify rendering, transforms and persistence.",
+      "geometry": { "kind": "box", "sizeM": [0.3, 0.3, 0.3] },
+      "materialId": "forge.material.demo-neutral",
+      "interfaces": [],
+      "capabilities": [
+        {
+          "domain": "rigid-body",
+          "status": "unsupported",
+          "model": "none",
+          "assumptions": ["No simulation in Phase 0"]
+        }
+      ],
+      "provenance": "FORGE Phase 0 placeholder"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "86fb94eb-08c9-433f-a527-bf5caeebf92c",
+      "name": "Main scene",
+      "instances": [
+        {
+          "id": "15d9e37f-5b46-4ca6-beae-4da7cf45bb7c",
+          "definitionId": "forge.demo.reference-cube",
+          "name": "Reference cube",
+          "transform": {
+            "position": [0, 0.15, 0],
+            "rotation": [0, 0.2588190451025208, 0, 0.9659258262890684]
+          },
+          "configuration": {}
+        }
+      ],
+      "assemblies": []
+    }
+  ],
+  "activeSceneId": "86fb94eb-08c9-433f-a527-bf5caeebf92c"
+}

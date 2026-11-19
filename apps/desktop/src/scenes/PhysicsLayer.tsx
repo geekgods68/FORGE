@@ -1,6 +1,6 @@
 import { CuboidCollider, Physics, useRapier } from '@react-three/rapier';
 import { useEffect } from 'react';
-import { useForge } from '@/app/store';
+import { useEditor } from '@/app/store';
 
 /**
  * Physics foundation only (lazy-loaded chunk: Rapier ships its WASM inline).
@@ -18,7 +18,7 @@ export default function PhysicsLayer() {
 
 function PhysicsProbe() {
   const { rapier, world } = useRapier();
-  const setPhysics = useForge((s) => s.setPhysics);
+  const setPhysics = useEditor((s) => s.setPhysics);
   useEffect(() => {
     setPhysics({
       state: 'ready',

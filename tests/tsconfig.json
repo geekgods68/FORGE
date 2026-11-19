@@ -9,6 +9,8 @@
     "end-to-end",
     "../playwright.config.ts",
     "../vitest.config.ts",
-    "../eslint.config.js"
+    "../eslint.config.js",
+    "../packages/*/src/**/*.test.ts",
+    "../packages/*/src/__tests__/**/*.ts"
   ]
 }

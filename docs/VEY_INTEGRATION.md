@@ -6,7 +6,34 @@
 - `AVAILABLE_COMMANDS` is empty, and a test enforces that.
 - No LLM is integrated, and there is no network endpoint.
 
-## Envelope
+## Phase 1: the engine API Vey will use
+
+`ForgeEngine` (in `@forge/engineering-core`) is the application-level interface shared by the desktop UI and any programmatic client. It provides:
+
+- `execute(command)`
+- `undo()` / `redo()`
+- `getProject()`, `queryScene()`, `getNode(id)`, `getWorldTransform(id)`, `getHistory()`, `getCapabilities()`, `getSelection()`
+
+Commands from source `vey` are **refused** by the engine's policy (`permission-denied`) until Phase 9 adds confirmation, permissions and audit. `getCapabilities()` lists the 10 implemented scene commands separately from planned operations.
+
+Example (works today with source `api`, e.g. in tests):
+
+```ts
+const r = forge.execute({
+  commandId: crypto.randomUUID(),
+  type: 'scene.node.transform',
+  payload: { nodeId, position: [0.15, 0.05, 0.1] }, // metres
+  metadata: {
+    source: 'api',
+    timestamp: new Date().toISOString(),
+    expectedRevision: forge.getProject().revision,
+  },
+});
+// r = { ok: true, commandId, type, revision, affectedIds: [nodeId], noop: false }
+//   | { ok: false, commandId, type, revision, error: { code, message, issues? } }
+```
+
+## Envelope (Vey layer, proposed)
 
 | Field              | Purpose                                                                          |
 | ------------------ | -------------------------------------------------------------------------------- |
@@ -36,7 +63,7 @@ The result carries `commandId`, `status` (`accepted` · `rejected` · `awaiting-
 
 ## Requirements before any contract becomes `implemented` (Phase 9)
 
-1. Phase 1 adds the validated command dispatcher with undo history. Vey commands must use the **same** dispatcher as the UI; there is no separate mutation path.
+1. Done in Phase 1: the validated command dispatcher with undo history (`ForgeEngine.execute`). Vey commands must use this **same** dispatcher as the UI; there is no separate mutation path.
 2. Each contract has an input schema, implementation and tests, including the rejection paths.
 3. A permission and confirmation layer exists. The user approves destructive and compute operations.
 4. An audit log records `commandId`, caller, inputs, outcome and timestamp, kept locally.

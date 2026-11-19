@@ -2,7 +2,17 @@
 
 Engineering research simulation platform within Project VEYRIS. It is local-first and desktop-first; Meta Quest 2 (WebXR) support comes later.
 
-**Status: Phase 0 (foundation).** The app currently shows a temporary demonstration scene: a grid, axes and one reference cube, plus project create/save/load. None of the laboratories, component library or simulations exist yet. See [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md).
+**Status: Phase 1 (engineering core), pending owner review.**
+
+The app is a desktop engineering editor with:
+
+- a scene hierarchy, inspector and 3D viewport with transform gizmos;
+- primitives with real dimensions;
+- validated, undoable commands;
+- millimetre/degree precision entry and snapping;
+- `.forge.json` import/export.
+
+The laboratories, component library and simulations don't exist yet. See [docs/DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md).
 
 ## Requirements
 
@@ -30,7 +40,7 @@ On the Mac, open `http://127.0.0.1:5173`. The server listens on IPv4 loopback on
 
 ```text
 apps/desktop/                 React + React Three Fiber application
-packages/engineering-core/    units, transforms, component definitions/instances, Zod schemas (no UI)
+packages/engineering-core/    ForgeEngine: scene graph, commands, undo/redo, math, project schema/files (no UI)
 packages/persistence/         ProjectRepository interface + browser-storage adapter
 packages/vey-api/             PROPOSED Vey command contracts (types only; nothing executable)
 tests/integration/            cross-package Vitest tests

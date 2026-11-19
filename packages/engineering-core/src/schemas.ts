@@ -2,11 +2,12 @@ import { z } from 'zod';
 import { COMPONENT_CATEGORY_IDS } from './categories';
 
 /**
- * Persisted FORGE project format, schema version 1.
+ * Shared engineering schemas, plus the Phase 0 (v1) project format kept for migration.
  * Every persisted structure is validated at runtime with these schemas;
  * TypeScript types are inferred from them so the two cannot drift apart.
  */
-export const PROJECT_SCHEMA_VERSION = 1 as const;
+/** Phase 0 project format. Still validated so genuine v1 files can be migrated. */
+export const PROJECT_V1_SCHEMA_VERSION = 1 as const;
 
 /** Workshop-scale coordinate bound (metres) to catch corrupt or absurd values. */
 export const MAX_COORDINATE_M = 10_000;
@@ -124,16 +125,16 @@ export const AssemblySchema = z.object({
   memberInstanceIds: z.array(IdSchema),
 });
 
-export const SceneSchema = z.object({
+export const SceneV1Schema = z.object({
   id: IdSchema,
   name: z.string().min(1),
   instances: z.array(ComponentInstanceSchema),
   assemblies: z.array(AssemblySchema),
 });
 
-export const ProjectSchema = z
+export const ProjectV1Schema = z
   .object({
-    schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
+    schemaVersion: z.literal(PROJECT_V1_SCHEMA_VERSION),
     id: IdSchema,
     name: z.string().min(1).max(200),
     createdAt: isoDate,
@@ -141,7 +142,7 @@ export const ProjectSchema = z
     units: EngineeringUnitsSchema,
     materials: z.array(MaterialDefinitionSchema),
     definitions: z.array(ComponentDefinitionSchema),
-    scenes: z.array(SceneSchema).min(1),
+    scenes: z.array(SceneV1Schema).min(1),
     activeSceneId: IdSchema,
   })
   .superRefine((p, ctx) => {
@@ -204,5 +205,5 @@ export type Geometry = z.infer<typeof GeometrySchema>;
 export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
 export type ComponentInstance = z.infer<typeof ComponentInstanceSchema>;
 export type Assembly = z.infer<typeof AssemblySchema>;
-export type Scene = z.infer<typeof SceneSchema>;
-export type Project = z.infer<typeof ProjectSchema>;
+export type SceneV1 = z.infer<typeof SceneV1Schema>;
+export type ProjectV1 = z.infer<typeof ProjectV1Schema>;

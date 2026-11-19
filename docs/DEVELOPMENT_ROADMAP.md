@@ -2,16 +2,25 @@
 
 Each phase ends at an owner review. A later phase starts only with explicit approval.
 
-| Phase | Scope                                                                                                                                  | Status                                                     |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **0** | Foundation reset and initialisation: monorepo, stack, conventions, data model, local persistence, docs, tests                          | **Complete, pending owner review** (see PHASE_0_REPORT.md) |
-| 1     | Core architecture: validated command dispatcher, undo/redo, selection and transform tools, file export/import, scene graph conventions | Not started                                                |
-| 2     | Complete laboratory environment: 5 wings, 22 labs                                                                                      | Not started                                                |
-| 3     | Component conjuring library: catalogue UI, 28 categories, GLB import with dimensional validation                                       | Not started                                                |
-| 4     | Mechanical assembly and CAD: interfaces, mates, assemblies                                                                             | Not started                                                |
-| 5     | Physical simulation and robotics: Rapier rigid bodies, kinematics, robots                                                              | Not started                                                |
-| 6     | Electronics and embedded systems                                                                                                       | Not started                                                |
-| 7     | Research experimentation: experiments, results, provenance                                                                             | Not started                                                |
-| 8     | Specialised research facilities: the 6 configurable environments                                                                       | Not started                                                |
-| 9     | Vey integration: implement and permission the command API                                                                              | Not started                                                |
-| 10    | Optimisation and release, including WebXR/Quest 2 hardening                                                                            | Not started                                                |
+| Phase | Scope                                                                                                                                                                                                    | Status                                                                                        |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 0     | Foundation reset and initialisation: monorepo, stack, conventions, data model, local persistence, docs, tests                                                                                            | **Complete** (merged to `main`, `c8dc95e`)                                                    |
+| **1** | Engineering core: scene graph, validated commands, undo/redo, selection and manipulation, precision transforms and snapping, primitives, `.forge.json` import/export with v1 migration, programmatic API | **Complete, pending owner review** (branch `phase-1/engineering-core`; see PHASE_1_REPORT.md) |
+| 2     | Complete laboratory environment: 5 wings, 22 labs, visual direction                                                                                                                                      | Not started                                                                                   |
+| 3     | Component conjuring library: catalogue UI, 28 categories, GLB import with dimensional validation                                                                                                         | Not started                                                                                   |
+| 4     | Mechanical assembly and CAD: interfaces, mates, assemblies                                                                                                                                               | Not started                                                                                   |
+| 5     | Physical simulation and robotics: Rapier rigid bodies, kinematics, robots                                                                                                                                | Not started                                                                                   |
+| 6     | Electronics and embedded systems                                                                                                                                                                         | Not started                                                                                   |
+| 7     | Research experimentation: experiments, results, provenance                                                                                                                                               | Not started                                                                                   |
+| 8     | Specialised research facilities: the 6 configurable environments                                                                                                                                         | Not started                                                                                   |
+| 9     | Vey integration: permission layer, audit log, exposing the engine API                                                                                                                                    | Not started                                                                                   |
+| 10    | Optimisation and release, including WebXR/Quest 2 hardening                                                                                                                                              | Not started                                                                                   |
+
+## Carried forward from Phase 1
+
+These are deferred, not forgotten:
+
+- Multi-selection: the API accepts arrays; the UI selects one node.
+- Drag-and-drop reparenting: an explicit parent picker exists today.
+- Editing primitive dimensions after creation: needs a `scene.node.geometry` command.
+- A desktop filesystem adapter (overwrite-in-place save).
