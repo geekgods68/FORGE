@@ -1,0 +1,13 @@
+{
+  "name": "@forge/vey-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PROPOSED Forge↔Vey command contracts (types and registry only; no executor in Phase 0).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

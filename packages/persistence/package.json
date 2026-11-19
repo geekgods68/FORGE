@@ -1,0 +1,16 @@
+{
+  "name": "@forge/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first project persistence behind a replaceable repository interface.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/engineering-core": "workspace:*"
+  }
+}

@@ -1,26 +1,53 @@
 {
-  "name": "mindspace-vr-workshop",
+  "name": "forge",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
+  "description": "FORGE \u2014 engineering research simulation platform (Project VEYRIS). Phase 0 foundation.",
   "type": "module",
-  "description": "Private WebXR engineering workshop (Mindspace). W0.1 foundation.",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:browser": "playwright test"
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=22.12.0"
   },
-  "dependencies": {
-    "@babylonjs/core": "9.37.0",
-    "@babylonjs/gui": "9.37.0"
+  "scripts": {
+    "dev": "pnpm --filter @forge/desktop dev",
+    "build": "pnpm typecheck && pnpm --filter @forge/desktop build",
+    "preview": "pnpm --filter @forge/desktop preview",
+    "typecheck": "pnpm -r typecheck && tsc -p tests/tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "eslint --max-warnings=0 --no-warn-ignored",
+      "prettier --check"
+    ],
+    "*.{json,md,css,html,yaml,yml}": "prettier --check"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@forge/engineering-core": "workspace:*",
+    "@forge/persistence": "workspace:*",
+    "@forge/vey-api": "workspace:*",
     "@playwright/test": "1.65.1",
-    "@types/node": "24.19.2",
-    "typescript": "7.0.2",
-    "vite": "8.3.8",
-    "vitest": "5.1.0"
+    "@types/node": "^24.19.2",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.8",
+    "globals": "17.14.0",
+    "jsdom": "29.1.1",
+    "lint-staged": "17.6.1",
+    "prettier": "3.10.1",
+    "simple-git-hooks": "2.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "5.1.1"
   }
 }

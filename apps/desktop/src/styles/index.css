@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+
+/* shadcn/ui-style design tokens (neutral). System fonts only — no remote font loading. */
+:root {
+  --background: oklch(0.2 0.006 260);
+  --foreground: oklch(0.96 0.003 260);
+  --card: oklch(0.24 0.008 260 / 0.9);
+  --card-foreground: oklch(0.96 0.003 260);
+  --primary: oklch(0.78 0.11 210);
+  --primary-foreground: oklch(0.18 0.02 230);
+  --secondary: oklch(0.3 0.01 260);
+  --secondary-foreground: oklch(0.94 0.004 260);
+  --muted-foreground: oklch(0.72 0.01 260);
+  --destructive: oklch(0.7 0.17 25);
+  --border: oklch(1 0 0 / 0.12);
+  --ring: oklch(0.78 0.11 210);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --radius-md: var(--radius);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

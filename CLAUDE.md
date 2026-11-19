@@ -1,17 +1,21 @@
-# CLAUDE.md: workshop project boundaries
+# CLAUDE.md: FORGE
 
-- **Scope:** a private WebXR engineering workshop for the owner's Quest 2. Work proceeds in small gated releases (W0.1 → W0.2 → …). **Do not start the next release until the owner has reviewed the current gate.** Current gate: W0.1 headset test.
+- **Phase discipline:** the current phase is 0 (foundation), recorded in docs/DEVELOPMENT_ROADMAP.md. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
 - **Never:**
-  - Push, publish, add tunnels or bind beyond 127.0.0.1 without owner approval recorded in docs/HEADSET_ACCESS.md.
-  - Add model/LLM APIs, Vey, agents, voice, telemetry, analytics or remote runtime assets.
+  - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
+  - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).
   - Control real hardware.
-  - Modify the separate 2D Mindspace engine.
-  - Read outside this workspace.
-- **Git:** this folder has its own repo; the parent home directory has a different repo, so never stage there. Commit only when asked.
-- **Code:**
-  - Document changes go only through `WorkshopStore.dispatch` (command contract `mindspace.vr-workshop.command/v1`).
-  - Input adapters emit intents; they never mutate the document.
-  - Babylon value imports go through `src/render/babylon.ts` (per-module paths keep the bundle small).
-- **Units and axes:** metres; right-handed, +Y up, −Z forward; the scene uses `useRightHandedSystem = true`.
-- **Simulation honesty:** every model carries a fidelity label (visual / procedural / behavioural / calculated / physically-validated). Never raise a label because the graphics look good.
-- **Validate before reporting:** `npm run typecheck && npm test && npm run test:browser && npm run build`. Desktop tests are not headset evidence. Never mark manual headset rows as passed without the owner's observations.
+  - Commit secrets.
+  - Rewrite git history.
+- **Architecture:**
+  - Domain logic lives in `packages/*` and must not import React, three or any UI code (enforced by ESLint).
+  - The UI lives in `apps/desktop`.
+  - Persisted data is validated with Zod schemas from `@forge/engineering-core`.
+- **Conventions:**
+  - Metres, radians internally, kilograms, seconds and kelvin. Right-handed, +Y up.
+  - Degrees appear only in the UI.
+  - Definitions (what a component is) are separate from instances (where and how it is placed).
+  - Instance transforms have no scale.
+- **Simulation honesty:** every capability carries a status of `verified` / `approximate` / `illustrative` / `unsupported` (docs/SIMULATION_VALIDITY.md). Visual plausibility is never evidence.
+- **Vey:** `packages/vey-api` holds proposed contracts only. Never expose a command until it is implemented and tested.
+- **Validate before reporting:** `pnpm lint && pnpm typecheck && pnpm format:check && pnpm test && pnpm build && pnpm test:e2e`, and report the real exit statuses.

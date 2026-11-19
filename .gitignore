@@ -1,10 +1,32 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build output and caches
 dist/
+build/
+coverage/
+*.tsbuildinfo
+.vite/
+.eslintcache
+
+# Test artifacts
 test-results/
 playwright-report/
-.DS_Store
-# Never commit local certificates or keys.
+blob-report/
+playwright/.cache/
+
+# Environment and secrets — never commit real values (see .env.example)
+.env
+.env.*
+!.env.example
 *.pem
 *.key
 *.crt
-.env*
+*.p12
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

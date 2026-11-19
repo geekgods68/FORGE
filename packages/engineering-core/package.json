@@ -1,0 +1,16 @@
+{
+  "name": "@forge/engineering-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UI-independent engineering domain model: units, transforms, component definitions/instances, project schema.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

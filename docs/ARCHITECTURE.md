@@ -1,107 +1,105 @@
-# Architecture and decisions (W0.1)
+# FORGE architecture (Phase 0)
 
-Status markers:
-- **(decided-provisional)**: implemented now; revisit at a gate.
-- **(proposal)**: not implemented yet.
+## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
-## Stack (decided-provisional, bounded to this prototype)
+| Area               | Choice                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Language           | TypeScript 6.0.3 (strict)                                                     |
+| Application        | React 19.3.1, Vite 8.3.8 (`@vitejs/plugin-react` 6.3.0)                       |
+| 3D                 | three 0.187.0, @react-three/fiber 9.8.2, @react-three/drei 10.7.9             |
+| Physics foundation | @react-three/rapier 2.2.0 (bundles @dimforge/rapier3d-compat 0.19.2)          |
+| UI                 | Tailwind CSS 4.3.5, shadcn/ui-style copy-in components, lucide-react 1.76.0   |
+| State / validation | zustand 5.1.0, zod 4.6.7                                                      |
+| Tooling            | pnpm 12.21.0 workspaces, ESLint 10.15 + typescript-eslint 8.73, Prettier 3.10 |
+| Testing            | Vitest 5.1.1, Testing Library (React 16.3.3), jsdom 29.1.1, Playwright 1.65.1 |
 
-- TypeScript (strict) and Vite 8.
-- Babylon.js 9.37.0, core + GUI, WebGL.
-- WebXR through Babylon's `WebXRDefaultExperience`.
-- Vitest and Playwright (installed Chrome).
-- No React, backend, database, physics engine or WebGPU.
-- Exact versions are pinned in `package.json` and `package-lock.json`.
+### Version decisions and their evidence
+
+| Decision                                         | Evidence                                                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **TypeScript 6.0.3, not 7.0.2**                  | typescript-eslint 8.73 declares a peer range of `typescript >=4.8.4 <6.1.0`                                                                                        |
+| **React 19.3.1**                                 | @react-three/fiber 9.8.2 requires `react >=19 <19.4`                                                                                                               |
+| **jsdom 29.1.1, not 31**                         | jsdom 30+ requires Node `^24.15`; this machine runs Node 24.2.0                                                                                                    |
+| **No separate `@dimforge/rapier3d-compat`**      | @react-three/rapier pins its own (0.19.2), so a second copy would risk duplication. A third copy (0.12.0) arrives only through `@types/three` and is never bundled |
+| **pnpm installed with `npm i -g`, not Corepack** | Corepack 0.33 cannot run pnpm 12's native-binary package layout                                                                                                    |
+
+## Module boundaries
+
+```text
+apps/desktop ──▶ @forge/persistence ──▶ @forge/engineering-core ──▶ zod
+      │                                          ▲
+      └──────────────────────────────────────────┘
+@forge/vey-api (types only; no runtime dependencies)
+```
+
+- **`@forge/engineering-core`:** units, transforms, the 28 category ids, and Zod schemas for every persisted structure, with types inferred from those schemas. It has **no DOM, React or three imports**; ESLint `no-restricted-imports` enforces this for all of `packages/*`.
+- **`@forge/persistence`:** the `ProjectRepository` interface, the browser-storage adapter, and migrations.
+- **`@forge/vey-api`:** proposed command contracts only (see VEY_INTEGRATION.md).
+- **`apps/desktop`:** React UI, R3F scene and a Zustand store. It renders _from_ the project document and never stores renderer objects in it.
+
+Workspace packages export TypeScript source (`"exports": "./src/index.ts"`), which Vite and Vitest compile directly; there is no package build step yet.
 
 ## Data flow
 
-```
-input adapters ──intents──▶ InteractionController ──envelopes──▶ WorkshopStore.dispatch
- (desktop, XR)                (grab transactions,                 (validate → apply → history)
-                               previews → EntityView)                        │
-                                                                  subscribe ▼
-                                              EntityView.sync(doc) (document → meshes), wall panel
+```text
+user input ─▶ store action ─▶ new immutable Project ─▶ React re-render ─▶ R3F meshes
+                         └─▶ ProjectRepository.save/load (validated both ways)
 ```
 
-- **One authoritative document.** Meshes, drag previews, XR poses and camera state are never saved and never feed back except through commands.
-- **Adapters only emit intents.** The future glove and hand adapters will plug into the same boundary.
-- **The wall panel only displays state and emits button callbacks.** Its buttons go through the same `InteractionController`, as source `in-world-ui`.
-- **`window.__workshop` is a local debug/test hook.** It calls the same validated `dispatch`; it is not a remote interface.
+- The camera is view state, not project data.
+- From Phase 1, project edits will move to validated commands with history; Phase 0 store actions are a minimal stand-in.
 
-## Coordinates and units (decided-provisional)
+## Coordinate and unit conventions (mandatory)
 
-- **Units and axes:** metres; right-handed, +Y up, −Z forward. This is the WebXR convention. Babylon runs with `scene.useRightHandedSystem = true`, so no axis conversion is applied.
-  - Imported assets (from W0.2 on) must declare their units and handedness.
-- **Origin:** the workshop origin. In XR it is aligned to the `local-floor` reference space when the session starts. It is **not** a persistent physical room anchor.
-- **Transforms:** `{position [x,y,z] m, rotation unit quaternion [x,y,z,w]}`, relative to the parent. **There is no scale field.**
-  - Real dimensions live in part definitions (`dimensionsM` plus `dimensionStatus`).
-  - Magnifying the view, scaling a concept and repositioning the user are separate future mechanisms, never edits to dimensions.
-- **Display:** millimetres on the panel.
-- **Float precision:** Babylon world matrices are 32-bit floats. Poses read back from the renderer during grabs differ from 64-bit values by about 1e-7 m. Committed grab positions therefore carry sub-micron noise; this is irrelevant at workshop scale, and tests compare within 1 µm.
+- **Units:**
+  - World unit is the **metre**.
+  - Angles are **radians** internally; degrees only at the UI boundary (`degToRad` / `radToDeg`).
+  - Mass is kg, time is s, temperature is K.
+  - Every project stores its `units` explicitly (schema-validated literals).
+- **Axes:** **right-handed, +Y up**, −Z forward. This matches three.js and WebXR, so the document needs no axis conversion.
+- **Transforms:** `Transform = { position [x,y,z] m, rotation unit quaternion [x,y,z,w] }`, relative to the scene origin.
+  - **No scale on instances.** Physical size belongs to the definition.
+  - Visual magnification will be a view concern.
+- **Origins:** primitive components use their geometric centre as the origin. Imported models must declare their origin convention once import exists (Phase 3).
+- **Definitions vs instances:**
+  - `ComponentDefinition` is what a part _is_: geometry, material, interfaces, capabilities, provenance.
+  - `ComponentInstance` is one placement: its own id, `definitionId`, transform and configuration.
+  - Definitions also carry a revision number.
 
-## Document schema v1 (`mindspace.vr-workshop.project`)
+### GLB/glTF import convention (defined now; implemented in Phase 3)
 
-| Field | Meaning |
-|---|---|
-| `schema`, `schemaVersion` | Schema identifier and version (1) |
-| `projectId` | Project identifier |
-| `revision` | Monotonic integer |
-| `units.length = 'm'` | Declared length unit |
-| `entities` | Record of `{id, kind:'part', partDefId, name, parentId, transform, home}` |
+- Assets live under `assets/…` and are referenced by relative URI only (schema-enforced). Remote URLs are rejected.
+- Each model declares `unitScaleToMetres` (e.g. 0.001 for millimetre-authored CAD exports) and `upAxis` (`Y` or `Z`).
+- `dimensionsValidated: false` by default. Import must compare the model's bounding box against the definition's declared dimensions before it may be marked validated. FORGE never silently assumes an imported model is to scale.
+- glTF is right-handed and Y-up by specification. Z-up sources are converted at import, not at render time.
 
-- `home` is the placement restored by Reset.
-- Ports, nets, notes, exercises, assets and provenance arrive in W0.2–W0.3 as additive fields, with a schema-version bump and a migration.
+### Lighting and materials
 
-## Command contract v1 (`mindspace.vr-workshop.command/v1`)
+- Phase 0 uses `meshStandardMaterial` (physically based) with a hemisphere light and a directional light, and no environment maps.
+- `MaterialDefinition.renderColor` is display-only. Physical properties (e.g. `densityKgPerM3`) are separate and carry a validity status.
 
-This is a separate contract; the 2D Mindspace action schema is untouched.
+## Persistence
 
-- **Envelope fields:** `commandId`, `label`, `commands[]`, `expectedRevision`, `requestedBy`, `source`, `timestamp`.
-  - `requestedBy` is metadata only, **not** authentication.
-  - `source` is one of `desktop | xr | ui | script`.
-- **Commands:**
-  - `entity.create`
-  - `entity.delete` (`cascade` removes descendants atomically)
-  - `entity.setTransform`
-  - `entity.setParent`
-- **Atomicity:** all commands in one envelope form one atomic transaction and one undo step.
-- **Validation layers:**
-  1. Envelope shape.
-  2. State: targets exist, IDs are unique, part definitions are known, geometry is finite/in-bounds/unit-quaternion, there are no parent cycles, and parents are not deleted without cascade.
-  3. Authorization: future work. It is not implemented, and this local single-user app is not the future VEYRIS security model.
-- **Failures** change nothing: document, revision and history stay intact.
+- **Interface:** `ProjectRepository { list, load, save, remove }`.
+- **Phase 0 adapter:** `BrowserStorageProjectRepository`, using `localStorage` under the key `forge:project:<id>`, with readable JSON.
+- **Saves:** the project is validated before writing; invalid data is refused.
+- **Loads:** JSON parse → migration by `schemaVersion` → Zod validation. Failures return typed errors (`not-found` / `corrupt` / `unsupported-version` / `invalid`) with field paths, and **never replace the open project**.
+- **Migration:** a table keyed by source version, empty while only v1 exists. Newer versions are refused rather than guessed.
+- **Not a backup.** Browser storage is per-profile, user-clearable and size-limited. A filesystem adapter (file export/import, later a desktop wrapper) implements the same interface.
 
-## Revision, undo and redo (decided-provisional)
+## Extension points
 
-- Every applied change increments `revision` by 1, **including undo and redo**. An undo therefore cannot make an old external request valid again.
-- Undo and redo replay **stored primitive ops** (`put` / `remove` with full previous entity state). They are not re-validated against the original `expectedRevision`.
-- A new dispatch clears redo. History is bounded to 200 entries, and no-op edits create no entry.
-- **Grabs:**
-  - A grab previews in the renderer only.
-  - Release commits one `setTransform`, using the revision captured at grab start. If anything changed during the grab, the commit is rejected as stale and the preview is discarded.
-  - Undo and redo are refused while a grab is active.
-- **Cancellation:** a grab is cancelled with no edit on Esc, desktop window blur, XR controller removal, XR session end, or XR session hidden (system menu).
-- **Loading (proposal for W0.2):** the saved final document is loaded as-is. Saved history is data only and is never replayed over it.
+| Area                 | Plan                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| WebXR                | A future `@react-three/xr` layer renders the same project; input adapters translate to the same store/command API |
+| Commands and history | Phase 1 adds a validated command dispatcher with undo/redo. Vey's API will call the same dispatcher               |
+| Catalogue            | Phase 3 fills `ComponentDefinition` data per category                                                             |
+| Simulation           | Each capability declares `{domain, status, model, assumptions}`                                                   |
 
-## Remote-request suppression (decided-provisional)
+Future packages are documented, not scaffolded: `component-catalog`, `parametric-geometry`, `assembly`, `physics`, `robotics`, `electronics`, `experiments` and `rendering`.
 
-These are the Babylon 9.37 defaults that would fetch from the internet, as found by inspecting the package sources, and how each is handled:
+## Security posture (local)
 
-| Default | Fetches from | Handled by |
-|---|---|---|
-| Default XR button | `cdn.babylonjs.com` | `disableDefaultUI` |
-| Controller models | `controllers.babylonjs.com` | `doNotLoadControllerMeshes`; procedural proxies used instead |
-| Input-profile repository | `immersive-web.github.io` | `disableOnlineControllerRepository` |
-| Hand meshes | `assets.babylonjs.com` | `disableHandTracking` |
-| GUI 3D "MRTK" controls | `assets.babylonjs.com` textures | Not used; only 2D GUI on meshes |
-
-- The page also sets a CSP of `default-src 'self'` as a second layer.
-- No Inspector, loaders, Draco, physics or WASM is imported.
-- Fonts are system fonts.
-- **Bundle:** per-module Babylon imports in `src/render/babylon.ts` give 1.60 MB minified (380 kB gzipped). The root-package import was 6.85 MB.
-
-## Open proposals (need owner review)
-
-- Bench top at 0.75 m (seated) and 0.4 m in front of the origin; wall panel 2 m away at 1.35 m. Comfort and readability are unverified.
-- Grab = grip button, select / UI = trigger. Distance grab follows the aim ray with a fixed offset.
-- An in-app recenter is not implemented; the Quest system recenter (hold the Meta button) is relied on.
+- The CSP is `default-src 'self'`. `'wasm-unsafe-eval'` exists only for Rapier's WebAssembly. Same-origin is verified by the e2e test (0 requests to other origins).
+- The dev and preview servers bind to 127.0.0.1.
+- `window.__forge` exposes read-only diagnostics for tests (project snapshot, render counters, camera position). It provides no mutation path.
