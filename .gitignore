@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.DS_Store
+# Never commit local certificates or keys.
+*.pem
+*.key
+*.crt
+.env*

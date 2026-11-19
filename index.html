@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Same-origin only. Blocks accidental remote asset/CDN requests at runtime. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws://127.0.0.1:5173 ws://localhost:5173; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Workshop · W0.1</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1216; color: #e8edf2; font: 14px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+      #scene { width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+      #overlay { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 12px; align-items: center; pointer-events: none; }
+      #xr-status { background: rgba(20, 26, 33, 0.85); padding: 8px 12px; border-radius: 8px; max-width: 70ch; }
+      #xr-status[data-state="ready"], #xr-status[data-state="in-xr"] { color: #7fe3ef; }
+      #xr-status[data-state="error"], #xr-status[data-state="insecure-context"] { color: #ffb4a8; }
+      #enter-vr { pointer-events: auto; font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 2px solid #38c9dc; background: #1f2a35; color: #e8edf2; cursor: pointer; }
+      #enter-vr:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" tabindex="0"></canvas>
+    <div id="overlay">
+      <button id="enter-vr" type="button" disabled>Enter VR</button>
+      <div id="xr-status" data-state="checking">Checking WebXR support…</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
