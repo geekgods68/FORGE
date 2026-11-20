@@ -10,7 +10,7 @@ import {
 import { NodeTransformSchema, type NodeTransform, type SceneNode } from '../scene/schemas';
 import { CommandError, type GraphTransaction } from '../scene/transaction';
 import { quatNormalize } from '../transform';
-import type { CommandType, PayloadOf } from './schemas';
+import type { BatchSubCommand, NodeCommandType, PayloadOf } from './schemas';
 
 export interface HandlerContext {
   /** Id source; ids are recorded in history so redo restores identical ids. */
@@ -18,7 +18,7 @@ export interface HandlerContext {
 }
 
 /** Returns the ids the command created or modified. */
-export type Handler<K extends CommandType> = (
+export type Handler<K extends NodeCommandType> = (
   tx: GraphTransaction,
   payload: PayloadOf<K>,
   ctx: HandlerContext,
@@ -72,7 +72,7 @@ function detachChild(tx: GraphTransaction, parentId: string, childId: string): n
 
 const sameTransform = (a: NodeTransform, b: NodeTransform) => JSON.stringify(a) === JSON.stringify(b);
 
-export const HANDLERS: { [K in CommandType]: Handler<K> } = {
+export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   'scene.node.create'(tx, { node: spec }, ctx) {
     const parentId = spec.parentId ?? tx.rootId;
     tx.get(parentId);
@@ -280,3 +280,49 @@ export const HANDLERS: { [K in CommandType]: Handler<K> } = {
     return baked.map((b) => b.id);
   },
 };
+
+/** Apply one single-node command inside a transaction (shared by direct commands and batches). */
+export function runNodeCommand(tx: GraphTransaction, cmd: BatchSubCommand, ctx: HandlerContext): string[] {
+  // Each case narrows `cmd` so the handler receives a precisely typed payload.
+  switch (cmd.type) {
+    case 'scene.node.create':
+      return HANDLERS['scene.node.create'](tx, cmd.payload, ctx);
+    case 'scene.node.delete':
+      return HANDLERS['scene.node.delete'](tx, cmd.payload, ctx);
+    case 'scene.node.duplicate':
+      return HANDLERS['scene.node.duplicate'](tx, cmd.payload, ctx);
+    case 'scene.node.rename':
+      return HANDLERS['scene.node.rename'](tx, cmd.payload, ctx);
+    case 'scene.node.transform':
+      return HANDLERS['scene.node.transform'](tx, cmd.payload, ctx);
+    case 'scene.node.reparent':
+      return HANDLERS['scene.node.reparent'](tx, cmd.payload, ctx);
+    case 'scene.node.visibility':
+      return HANDLERS['scene.node.visibility'](tx, cmd.payload, ctx);
+    case 'scene.node.lock':
+      return HANDLERS['scene.node.lock'](tx, cmd.payload, ctx);
+    case 'scene.node.group':
+      return HANDLERS['scene.node.group'](tx, cmd.payload, ctx);
+    case 'scene.node.ungroup':
+      return HANDLERS['scene.node.ungroup'](tx, cmd.payload, ctx);
+  }
+}
+
+/** Apply a batch: sub-commands run in order; the first failure aborts the whole transaction. */
+export function runBatch(
+  tx: GraphTransaction,
+  commands: readonly BatchSubCommand[],
+  ctx: HandlerContext,
+): string[] {
+  const affected = new Set<string>();
+  commands.forEach((c, i) => {
+    try {
+      for (const id of runNodeCommand(tx, c, ctx)) affected.add(id);
+    } catch (e) {
+      if (e instanceof CommandError)
+        throw new CommandError(e.code, `Batch step ${i + 1} (${c.type}): ${e.message}`);
+      throw e;
+    }
+  });
+  return [...affected];
+}

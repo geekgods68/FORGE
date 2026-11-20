@@ -43,6 +43,8 @@ export interface EditorState {
   dragging: boolean;
   cancelDragRequest: number;
   collapsed: Record<string, boolean>;
+  /** Subsystems currently requiring continuous rendering (empty → demand rendering). */
+  continuousReasons: readonly string[];
 
   run<T extends CommandType>(
     type: T,
@@ -58,6 +60,7 @@ export interface EditorState {
   setDragging(dragging: boolean): void;
   requestCancelDrag(): void;
   toggleCollapsed(id: string): void;
+  setContinuous(reason: string, on: boolean): void;
   requestCameraReset(): void;
   setPhysics(status: PhysicsStatus): void;
   setStatus(status: Status): void;
@@ -141,6 +144,7 @@ export function createEditorStore(
       dragging: false,
       cancelDragRequest: 0,
       collapsed: {},
+      continuousReasons: [],
 
       run(type, payload, opts = {}) {
         const r = engine.execute(
@@ -209,6 +213,11 @@ export function createEditorStore(
       setDragging: (dragging) => set({ dragging }),
       requestCancelDrag: () => set({ cancelDragRequest: get().cancelDragRequest + 1 }),
       toggleCollapsed: (id) => set({ collapsed: { ...get().collapsed, [id]: !get().collapsed[id] } }),
+      setContinuous(reason, on) {
+        const cur = get().continuousReasons;
+        const next = on ? [...new Set([...cur, reason])] : cur.filter((r) => r !== reason);
+        if (next.length !== cur.length) set({ continuousReasons: next });
+      },
       requestCameraReset: () => set({ cameraResetRequest: get().cameraResetRequest + 1 }),
       setPhysics: (physics) => set({ physics }),
       setStatus: (status) => set({ status }),

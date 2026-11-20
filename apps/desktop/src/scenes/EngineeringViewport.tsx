@@ -10,6 +10,8 @@ import { Edges, GizmoHelper, GizmoViewport, Grid, OrbitControls, TransformContro
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Box3, Box3Helper, Color, type Object3D } from 'three';
+import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
+import { resourceStats } from '@/rendering/resources';
 import type {
   OrbitControls as OrbitControlsImpl,
   TransformControls as TransformControlsImpl,
@@ -35,6 +37,9 @@ export function EngineeringViewport() {
   const rootId = useEditor((s) => s.project.scene.rootId);
   const select = useEditor((s) => s.select);
   const setPhysics = useEditor((s) => s.setPhysics);
+  // Demand rendering: frames are drawn only when something changes (camera, drag, state),
+  // unless a subsystem (e.g. a future running simulation) requests continuous rendering.
+  const continuous = useEditor((s) => s.continuousReasons.length > 0);
   const lastDragEnd = useRef(0);
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
 
@@ -43,7 +48,12 @@ export function EngineeringViewport() {
       <Canvas
         camera={{ position: INITIAL_CAMERA, fov: 50, near: 0.005, far: 500 }}
         dpr={[1, 2]}
+        frameloop={continuous ? 'always' : 'demand'}
         gl={{ antialias: true }}
+        onCreated={({ gl }) => {
+          // Accumulate render stats across all passes per frame (reset in DebugProbe).
+          gl.info.autoReset = false;
+        }}
         aria-label="FORGE 3D viewport"
         onPointerDown={(e) => (pointerDownAt.current = { x: e.clientX, y: e.clientY })}
         onPointerMissed={(e) => {
@@ -182,26 +192,23 @@ function PrimitiveMesh({
   selected: boolean;
   onClick: (e: ThreeEvent<MouseEvent>) => void;
 }) {
+  // Identical dimensions/colours share one GPU geometry/material (reference-counted).
+  const geometry = useSharedGeometry(g);
+  const material = useSharedMaterial({
+    color,
+    emissive: selected ? '#0e7490' : '#000000',
+    doubleSided: g.shape === 'plane',
+  });
   return (
     <mesh
       onClick={onClick}
+      geometry={geometry}
+      material={material}
+      dispose={null}
       rotation={
         g.shape === 'plane' ? [-Math.PI / 2, 0, 0] : g.shape === 'torus' ? [Math.PI / 2, 0, 0] : [0, 0, 0]
       }
     >
-      {g.shape === 'box' && <boxGeometry args={[g.width, g.height, g.depth]} />}
-      {g.shape === 'sphere' && <sphereGeometry args={[g.radius, 48, 24]} />}
-      {g.shape === 'cylinder' && <cylinderGeometry args={[g.radius, g.radius, g.height, 48]} />}
-      {g.shape === 'cone' && <coneGeometry args={[g.radius, g.height, 48]} />}
-      {g.shape === 'plane' && <planeGeometry args={[g.width, g.length]} />}
-      {g.shape === 'torus' && <torusGeometry args={[g.majorRadius, g.tubeRadius, 24, 64]} />}
-      <meshStandardMaterial
-        color={color}
-        emissive={selected ? new Color('#0e7490') : new Color('#000000')}
-        roughness={0.6}
-        metalness={0.05}
-        side={g.shape === 'plane' ? 2 : 0}
-      />
       {selected && <Edges color="#7dd3fc" threshold={20} />}
     </mesh>
   );
@@ -262,6 +269,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
     }
   };
   const [target, setTarget] = useState<Object3D | null>(null);
+  const invalidate = useThree((s) => s.invalidate);
 
   const editable = !!node && node.kind !== 'root' && node.visible && !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.
@@ -269,6 +277,8 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
     const next = editable && id ? (registry.get(id) ?? null) : null;
     if (next !== target) setTarget(next);
   });
+  // In demand mode, make sure a frame runs after the selection/editability changes.
+  useEffect(() => invalidate(), [id, editable, invalidate]);
 
   useEffect(() => {
     if (cancelRequest === 0 || !session.current) return;
@@ -344,18 +354,35 @@ function CameraRig() {
 /** Read-only diagnostics for automated browser tests (window.__forge). No mutations. */
 function DebugProbe() {
   const { camera, gl, size } = useThree();
+  const frameloop = useThree((s) => s.frameloop);
+  const frameloopRef = useRef(frameloop);
+  useEffect(() => {
+    frameloopRef.current = frameloop;
+  }, [frameloop]);
   const registry = useContext(RegistryContext);
   const stats = useRef({ frames: 0, lastDrawCalls: 0, lastTriangles: 0 });
+  // GizmoHelper issues its own render pass, and three resets gl.info per render() call,
+  // so the default counters only ever reported the last (gizmo) pass. Accumulate across
+  // all passes instead (autoReset is disabled in Canvas onCreated) and reset once per
+  // frame, at the very start (priority -1000 runs first and does not take over
+  // rendering; only positive priorities do).
   useFrame(() => {
+    if (stats.current.frames > 0) {
+      stats.current.lastDrawCalls = gl.info.render.calls;
+      stats.current.lastTriangles = gl.info.render.triangles;
+    }
     stats.current.frames += 1;
-    stats.current.lastDrawCalls = gl.info.render.calls;
-    stats.current.lastTriangles = gl.info.render.triangles;
-  });
+    gl.info.reset();
+  }, -1000);
   useEffect(() => {
     const w = window as unknown as { __forge?: Record<string, unknown> };
     w.__forge = {
       ...w.__forge,
       render: () => ({ ...stats.current }),
+      /** Totals for the most recently rendered frame (all passes); stable while idle. */
+      lastFrame: () => ({ drawCalls: gl.info.render.calls, triangles: gl.info.render.triangles }),
+      resources: () => resourceStats(),
+      frameloop: () => frameloopRef.current,
       cameraPosition: () => camera.position.toArray(),
       /** Client-pixel position of a node's origin, for pointer tests. */
       screenPointOf: (id: string) => {

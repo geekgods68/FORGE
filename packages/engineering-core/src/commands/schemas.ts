@@ -55,7 +55,8 @@ export const CreateNodeSpecSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
-export const PAYLOAD_SCHEMAS = {
+/** Payloads of the single-node scene commands (usable on their own or inside a batch). */
+export const NODE_PAYLOAD_SCHEMAS = {
   'scene.node.create': z.object({ node: CreateNodeSpecSchema }),
   'scene.node.delete': z.object({ nodeId: IdSchema }),
   'scene.node.duplicate': z.object({
@@ -97,6 +98,38 @@ export const PAYLOAD_SCHEMAS = {
   'scene.node.ungroup': z.object({ groupId: IdSchema }),
 } as const;
 
+export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
+
+/** Upper bound on sub-commands in one batch (resource guard). */
+export const MAX_BATCH_COMMANDS = 10_000;
+
+const sub = <T extends NodeCommandType>(type: T) =>
+  z.object({ type: z.literal(type), payload: NODE_PAYLOAD_SCHEMAS[type] });
+
+/** One step of a `scene.batch` (any single-node command; batches do not nest). */
+export const BatchSubCommandSchema = z.discriminatedUnion('type', [
+  sub('scene.node.create'),
+  sub('scene.node.delete'),
+  sub('scene.node.duplicate'),
+  sub('scene.node.rename'),
+  sub('scene.node.transform'),
+  sub('scene.node.reparent'),
+  sub('scene.node.visibility'),
+  sub('scene.node.lock'),
+  sub('scene.node.group'),
+  sub('scene.node.ungroup'),
+]);
+export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
+
+export const PAYLOAD_SCHEMAS = {
+  ...NODE_PAYLOAD_SCHEMAS,
+  /**
+   * Atomic batch: all sub-commands apply in order inside ONE transaction with ONE
+   * integrity check and ONE history entry; if any step fails, nothing changes.
+   */
+  'scene.batch': z.object({ commands: z.array(BatchSubCommandSchema).min(1).max(MAX_BATCH_COMMANDS) }),
+} as const;
+
 export type CommandType = keyof typeof PAYLOAD_SCHEMAS;
 export const COMMAND_TYPES = Object.keys(PAYLOAD_SCHEMAS) as CommandType[];
 export type PayloadOf<T extends CommandType> = z.output<(typeof PAYLOAD_SCHEMAS)[T]>;
@@ -121,6 +154,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('scene.node.lock'),
   envelope('scene.node.group'),
   envelope('scene.node.ungroup'),
+  envelope('scene.batch'),
 ]);
 
 /** A validated command (strongly typed discriminated union). */

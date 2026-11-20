@@ -31,16 +31,22 @@ export class CommandError extends Error {
   }
 }
 
-const copyNode = (n: SceneNode): SceneNode => JSON.parse(JSON.stringify(n)) as SceneNode;
-
 /**
- * Copy-on-write working set for one command. Nothing outside the transaction sees
- * its changes until the engine commits; discarding it leaves state untouched.
+ * Copy-on-write working set for one command (or one batch). Nothing outside the
+ * transaction sees its changes until the engine commits; discarding it leaves state
+ * untouched.
+ *
+ * Writes are COALESCED: each node's state is captured at its first touch, and the
+ * forward/inverse op lists are derived once from (first state → final state); nodes
+ * whose final value equals their first value produce no op. A batch
+ * that updates the same parent thousands of times therefore records one op for it,
+ * not thousands of deep copies. Node objects are treated as immutable values
+ * (handlers always build new objects); the engine deep-freezes them on commit.
  */
 export class GraphTransaction {
   private readonly nodes: Record<string, SceneNode>;
-  readonly forward: Op[] = [];
-  private readonly inverseOps: Op[] = [];
+  /** Node state before this transaction first touched it (undefined = did not exist). Insertion-ordered. */
+  private readonly before = new Map<string, SceneNode | undefined>();
 
   constructor(private readonly base: SceneGraph) {
     this.nodes = { ...base.nodes };
@@ -65,24 +71,46 @@ export class GraphTransaction {
   }
 
   put(node: SceneNode): void {
-    const prev = this.nodes[node.id];
-    const next = copyNode(node);
-    this.forward.push({ op: 'put', node: next });
-    this.inverseOps.push(prev ? { op: 'put', node: prev } : { op: 'remove', id: node.id });
-    this.nodes[node.id] = next;
+    if (!this.before.has(node.id)) this.before.set(node.id, this.nodes[node.id]);
+    this.nodes[node.id] = node;
   }
 
   remove(id: string): void {
     const prev = this.get(id);
-    this.forward.push({ op: 'remove', id });
-    this.inverseOps.push({ op: 'put', node: prev });
+    if (!this.before.has(id)) this.before.set(id, prev);
     delete this.nodes[id];
   }
 
-  /** Inverse ops in the order they must be applied (reverse of recording). */
-  get inverse(): Op[] {
-    return [...this.inverseOps].reverse();
+  /** Net changes (first state → final state); untouched or round-tripped nodes are omitted. */
+  get forward(): Op[] {
+    const ops: Op[] = [];
+    for (const [id, prev] of this.before) {
+      const now = this.nodes[id];
+      if (sameNode(now, prev)) continue;
+      if (now) ops.push({ op: 'put', node: now });
+      else if (prev) ops.push({ op: 'remove', id });
+    }
+    return ops;
   }
+
+  /** Ops restoring every touched node to its state before the transaction. */
+  get inverse(): Op[] {
+    const ops: Op[] = [];
+    for (const [id, prev] of [...this.before].reverse()) {
+      const now = this.nodes[id];
+      if (sameNode(now, prev)) continue;
+      if (prev) ops.push({ op: 'put', node: prev });
+      else if (now) ops.push({ op: 'remove', id });
+    }
+    return ops;
+  }
+}
+
+/** Value equality for touched nodes (cheap: runs once per touched node per transaction). */
+function sameNode(a: SceneNode | undefined, b: SceneNode | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function applyOps(graph: SceneGraph, ops: readonly Op[]): SceneGraph {

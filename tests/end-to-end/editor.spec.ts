@@ -17,6 +17,12 @@ type Node = {
 };
 type Forge = {
   render: () => { frames: number; lastDrawCalls: number };
+  lastFrame: () => { drawCalls: number; triangles: number };
+  frameloop: () => string;
+  resources: () => {
+    geometries: { unique: number; refs: number };
+    materials: { unique: number; refs: number };
+  };
   queryScene: () => {
     rootId: string;
     revision: number;
@@ -39,11 +45,43 @@ const q = <T>(page: Page, fn: (f: Forge, arg: string) => T, arg = '') =>
 async function open(page: Page) {
   await page.goto('/');
   await page.waitForFunction(
-    () => ((window as unknown as { __forge?: Forge }).__forge?.render?.().frames ?? 0) > 5,
+    // Demand rendering: the app renders a few frames on load, then only on change.
+    () => ((window as unknown as { __forge?: Forge }).__forge?.render?.().frames ?? 0) >= 1,
     null,
     { timeout: 20_000 },
   );
 }
+/**
+ * Independent ground truth: count real WebGL draw submissions per animation frame by
+ * wrapping the WebGL API before the app starts. Frames with zero draws are skipped,
+ * so `lastFrameDraws` is the most recent frame that actually rendered.
+ */
+const instrumentWebGL = () => {
+  const W = window as unknown as { __gl: { cur: number; lastFrameDraws: number } };
+  W.__gl = { cur: 0, lastFrameDraws: 0 };
+  for (const P of [WebGL2RenderingContext.prototype, WebGLRenderingContext.prototype] as unknown as Record<
+    string,
+    (...a: unknown[]) => unknown
+  >[])
+    for (const m of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced']) {
+      const orig = P[m];
+      if (!orig) continue;
+      P[m] = function (this: unknown, ...a: unknown[]) {
+        W.__gl.cur++;
+        return orig.apply(this, a);
+      };
+    }
+  const tick = () => {
+    if (W.__gl.cur > 0) W.__gl.lastFrameDraws = W.__gl.cur;
+    W.__gl.cur = 0;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+};
+const settle = (page: Page) => page.waitForTimeout(400);
+const glDraws = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __gl: { lastFrameDraws: number } }).__gl.lastFrameDraws);
+
 const nodeNamed = async (page: Page, name: string) => {
   const s = await q(page, (f) => f.queryScene());
   const n = s.nodes.find((x) => x.name === name);
@@ -65,6 +103,10 @@ async function createBox(page: Page, widthMm?: string) {
   return nodeNamed(page, 'Box');
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(instrumentWebGL);
+});
+
 test('launches: layout present, canvas renders, physics ready, same-origin only, no console errors', async ({
   page,
 }) => {
@@ -80,7 +122,11 @@ test('launches: layout present, canvas renders, physics ready, same-origin only,
   await expect(page.getByRole('region', { name: 'Scene hierarchy' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Inspector' })).toBeVisible();
   await expect(page.getByRole('treeitem', { name: /Reference Cube/ })).toBeVisible();
-  expect((await q(page, (f) => f.render())).lastDrawCalls).toBeGreaterThan(0);
+  await settle(page);
+  // The probe counts every render pass (scene + axis gizmo) and must match WebGL's own count.
+  const probe = (await q(page, (f) => f.lastFrame())).drawCalls;
+  expect(probe).toBeGreaterThan(5);
+  expect(probe).toBe(await glDraws(page));
   await expect(page.getByTestId('physics-status')).toHaveText('physics: ready', { timeout: 20_000 });
   expect(foreign).toEqual([]);
   expect(errors).toEqual([]);
@@ -229,4 +275,42 @@ test('hierarchy: rename, hide, lock (blocks edits), reparent via parent picker',
   await page.getByRole('combobox', { name: 'Parent' }).selectOption(groupId);
   expect((await getNode(page, id)).parentId).toBe(groupId);
   await expect(page.getByTestId('world-position')).toContainText('400.000');
+});
+
+test('draw-call counter tracks scene content exactly (matches WebGL instrumentation)', async ({ page }) => {
+  await open(page);
+  await settle(page);
+  const before = (await q(page, (f) => f.lastFrame())).drawCalls;
+  expect(before).toBe(await glDraws(page));
+  for (let i = 0; i < 3; i++) await createBox(page);
+  await page.keyboard.press('Escape'); // deselect: no gizmo/edge overlay draws
+  await settle(page);
+  const after = (await q(page, (f) => f.lastFrame())).drawCalls;
+  expect(after).toBe(await glDraws(page));
+  expect(after - before).toBeGreaterThanOrEqual(3); // ≥ one draw per new box
+  // Three identical boxes share one geometry and one material.
+  const res = await q(page, (f) => f.resources());
+  expect(res.geometries.refs - res.geometries.unique).toBeGreaterThanOrEqual(2);
+});
+
+test('demand rendering: idle draws no frames; camera movement and selection render immediately', async ({
+  page,
+}) => {
+  await open(page);
+  expect(await q(page, (f) => f.frameloop())).toBe('demand');
+  await settle(page);
+  const idle0 = (await q(page, (f) => f.render())).frames;
+  await page.waitForTimeout(1500);
+  expect((await q(page, (f) => f.render())).frames).toBe(idle0); // nothing changed → no frames
+  // Orbit drag renders.
+  await page.mouse.move(700, 450);
+  await page.mouse.down();
+  await page.mouse.move(820, 420, { steps: 10 });
+  await page.mouse.up();
+  const afterOrbit = (await q(page, (f) => f.render())).frames;
+  expect(afterOrbit).toBeGreaterThan(idle0 + 3);
+  // A state change (selection highlight) renders without camera movement.
+  const cube = (await q(page, (f) => f.queryScene())).nodes[1]!.id;
+  await page.getByTestId(`tree-row-${cube}`).click();
+  await expect.poll(async () => (await q(page, (f) => f.render())).frames).toBeGreaterThan(afterOrbit);
 });

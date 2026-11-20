@@ -1,4 +1,4 @@
-import { HANDLERS, type HandlerContext } from './commands/handlers';
+import { runBatch, runNodeCommand, type HandlerContext } from './commands/handlers';
 import {
   COMMAND_TYPES,
   CommandEnvelopeSchema,
@@ -126,6 +126,7 @@ const SUMMARIES: Record<CommandType, string> = {
   'scene.node.lock': 'Lock or unlock a node',
   'scene.node.group': 'Group sibling nodes under a new group',
   'scene.node.ungroup': 'Dissolve a group, preserving its children’s world transforms',
+  'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 
 const FUTURE = [
@@ -230,10 +231,11 @@ export class ForgeEngine {
       if (e instanceof CommandError) return fail(e.code, e.message, cmd.commandId, cmd.type);
       throw e; // programming error: surface it, state is untouched
     }
-    if (tx.forward.length === 0)
+    const forward = tx.forward;
+    if (forward.length === 0)
       return { ok: true, commandId: cmd.commandId, type: cmd.type, revision: rev, affectedIds, noop: true };
 
-    const integrity = this.checkIntegrity(tx);
+    const integrity = this.checkIntegrity(tx, forward);
     if (integrity) return fail('integrity', integrity, cmd.commandId, cmd.type);
 
     this.commitScene(tx.graph);
@@ -241,7 +243,7 @@ export class ForgeEngine {
       commandId: cmd.commandId,
       type: cmd.type,
       label: cmd.metadata.label ?? defaultLabel(cmd.type),
-      forward: tx.forward,
+      forward,
       inverse: tx.inverse,
       affectedIds,
     });
@@ -398,34 +400,13 @@ export class ForgeEngine {
   // ---------------------------------------------------------------- internals
 
   private run(cmd: Command, tx: GraphTransaction): string[] {
-    // Each case narrows `cmd` so the handler receives a precisely typed payload.
-    switch (cmd.type) {
-      case 'scene.node.create':
-        return HANDLERS['scene.node.create'](tx, cmd.payload, this.ctx);
-      case 'scene.node.delete':
-        return HANDLERS['scene.node.delete'](tx, cmd.payload, this.ctx);
-      case 'scene.node.duplicate':
-        return HANDLERS['scene.node.duplicate'](tx, cmd.payload, this.ctx);
-      case 'scene.node.rename':
-        return HANDLERS['scene.node.rename'](tx, cmd.payload, this.ctx);
-      case 'scene.node.transform':
-        return HANDLERS['scene.node.transform'](tx, cmd.payload, this.ctx);
-      case 'scene.node.reparent':
-        return HANDLERS['scene.node.reparent'](tx, cmd.payload, this.ctx);
-      case 'scene.node.visibility':
-        return HANDLERS['scene.node.visibility'](tx, cmd.payload, this.ctx);
-      case 'scene.node.lock':
-        return HANDLERS['scene.node.lock'](tx, cmd.payload, this.ctx);
-      case 'scene.node.group':
-        return HANDLERS['scene.node.group'](tx, cmd.payload, this.ctx);
-      case 'scene.node.ungroup':
-        return HANDLERS['scene.node.ungroup'](tx, cmd.payload, this.ctx);
-    }
+    if (cmd.type === 'scene.batch') return runBatch(tx, cmd.payload.commands, this.ctx);
+    return runNodeCommand(tx, cmd, this.ctx);
   }
 
   /** Validate every node the transaction touched plus whole-graph structure. */
-  private checkIntegrity(tx: GraphTransaction): string | null {
-    for (const o of tx.forward) {
+  private checkIntegrity(tx: GraphTransaction, forward: readonly Op[]): string | null {
+    for (const o of forward) {
       if (o.op === 'put') {
         const r = SceneNodeSchema.safeParse(o.node);
         if (!r.success) return `Resulting node "${o.node.id}" is invalid: ${r.error.issues[0]?.message}`;

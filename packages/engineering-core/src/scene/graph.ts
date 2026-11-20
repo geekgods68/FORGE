@@ -30,14 +30,11 @@ export function validateGraph(graph: SceneGraph): GraphIssue[] {
   }
   if (root.kind !== 'root') add(`nodes.${rootId}.kind`, 'root node must have kind "root"');
   if (root.parentId !== null) add(`nodes.${rootId}.parentId`, 'root node cannot have a parent');
+  // Pass 1: which parent lists each child (O(total children)). Replaces a per-node
+  // `parent.childIds.includes(id)` scan, which was O(siblings) per node — quadratic
+  // for flat scenes (thousands of children under one parent).
+  const listedBy = new Map<string, string>();
   for (const n of Object.values(nodes)) {
-    if (n.kind === 'root' && n.id !== rootId) add(`nodes.${n.id}.kind`, 'only one root node is allowed');
-    if (n.id !== rootId) {
-      if (n.parentId === null) add(`nodes.${n.id}.parentId`, 'non-root node must have a parent');
-      else if (!nodes[n.parentId]) add(`nodes.${n.id}.parentId`, `parent "${n.parentId}" does not exist`);
-      else if (!nodes[n.parentId]!.childIds.includes(n.id))
-        add(`nodes.${n.id}.parentId`, `parent "${n.parentId}" does not list this node as a child`);
-    }
     const seen = new Set<string>();
     for (const c of n.childIds) {
       if (seen.has(c)) add(`nodes.${n.id}.childIds`, `child "${c}" listed twice`);
@@ -45,7 +42,17 @@ export function validateGraph(graph: SceneGraph): GraphIssue[] {
       const child = nodes[c];
       if (!child) add(`nodes.${n.id}.childIds`, `child "${c}" does not exist`);
       else if (child.parentId !== n.id) add(`nodes.${n.id}.childIds`, `child "${c}" has a different parent`);
+      if (!listedBy.has(c)) listedBy.set(c, n.id);
     }
+  }
+  // Pass 2: every non-root node's declared parent must exist and list it.
+  for (const n of Object.values(nodes)) {
+    if (n.kind === 'root' && n.id !== rootId) add(`nodes.${n.id}.kind`, 'only one root node is allowed');
+    if (n.id === rootId) continue;
+    if (n.parentId === null) add(`nodes.${n.id}.parentId`, 'non-root node must have a parent');
+    else if (!nodes[n.parentId]) add(`nodes.${n.id}.parentId`, `parent "${n.parentId}" does not exist`);
+    else if (listedBy.get(n.id) !== n.parentId && !nodes[n.parentId]!.childIds.includes(n.id))
+      add(`nodes.${n.id}.parentId`, `parent "${n.parentId}" does not list this node as a child`);
   }
   // Reachability from the root detects cycles and orphans (a cycle can never reach the root).
   const visited = new Set<string>();
