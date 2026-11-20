@@ -1,4 +1,6 @@
-import { BrowserStorageProjectRepository } from '@forge/persistence';
+import { getZone, itemChain, pointToFacility } from '@forge/facility';
+import { BrowserStorageProjectRepository, BrowserStorageWorkspaceRepository } from '@forge/persistence';
+import { loadedZoneModules } from './facility/loaded';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
@@ -9,6 +11,7 @@ const namespace = import.meta.env.VITE_FORGE_STORAGE_NAMESPACE || 'forge';
 const store = createEditorStore(
   new BrowserStorageProjectRepository(window.localStorage, namespace),
   window.localStorage,
+  new BrowserStorageWorkspaceRepository(window.localStorage, namespace),
 );
 
 /**
@@ -28,6 +31,18 @@ w.__forge = {
   getSelection: () => engine.getSelection(),
   getHistory: () => engine.getHistory(),
   getCapabilities: () => engine.getCapabilities(),
+  // Facility / workspace (read-only)
+  view: () => store.getState().view,
+  editLayer: () => store.getState().editLayer,
+  layout: () => store.getState().workspace.getLayout(),
+  workspaceHistory: () => store.getState().workspace.getHistory(),
+  itemSelection: () => store.getState().itemSelection,
+  loadedZoneModules: () => loadedZoneModules(),
+  itemFacilityPosition: (itemId: string) => {
+    const it = store.getState().workspace.getItem(itemId);
+    const zone = it && getZone(it.zoneId);
+    return it && zone ? pointToFacility([0, 0, 0], itemChain(zone, it)) : null;
+  },
 };
 
 createRoot(document.getElementById('root')!).render(

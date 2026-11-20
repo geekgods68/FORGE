@@ -17,6 +17,8 @@ export function StatusBar() {
   const revision = useEditor((s) => s.project.revision);
   const selectionCount = useEditor((s) => s.selection.length);
   const physics = useEditor((s) => s.physics);
+  const view = useEditor((s) => s.view);
+  const editLayer = useEditor((s) => s.editLayer);
   const { setSnap, setToolMode, requestCameraReset } = useEditor((s) => s);
 
   return (
@@ -85,6 +87,11 @@ export function StatusBar() {
       </div>
       <span className="text-muted-foreground">°</span>
       <span className="text-muted-foreground">Units: mm · deg</span>
+      {view === 'facility' && (
+        <span className="text-muted-foreground" data-testid="edit-layer">
+          editing: {editLayer === 'layout' ? 'layout' : 'engineering'}
+        </span>
+      )}
       <span className="text-muted-foreground" data-testid="revision">
         rev {revision}
       </span>

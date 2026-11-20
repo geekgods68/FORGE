@@ -9,6 +9,7 @@ import {
   type SceneNode,
   type Vec3,
 } from '@forge/engineering-core';
+import { getEquipment, getZone, mountChain, pointToFacility } from '@forge/facility';
 import { Copy, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -131,6 +132,7 @@ export function Inspector() {
               />
             ))}
           </Fieldset>
+          <FacilityReadout worldPosition={world?.position} />
           {world && (
             <p className="text-xs text-muted-foreground" data-testid="world-position">
               World position: {world.position.map((v) => formatNumber(v * 1000, 3)).join(', ')} mm
@@ -286,5 +288,23 @@ function ParentPicker({ node }: { node: SceneNode }) {
         world transform
       </label>
     </div>
+  );
+}
+
+/** Where this node is in the facility frame, when the project is mounted on a bench. */
+function FacilityReadout({ worldPosition }: { worldPosition: readonly number[] | undefined }) {
+  const view = useEditor((s) => s.view);
+  const projectId = useEditor((s) => s.project.id);
+  const bench = useEditor((s) => Object.values(s.layout.items).find((i) => i.mountedProjectId === projectId));
+  if (view !== 'facility' || !bench || !worldPosition) return null;
+  const zone = getZone(bench.zoneId);
+  const eq = getEquipment(bench.equipmentId);
+  const chain = zone && eq ? mountChain(zone, bench, eq) : null;
+  if (!chain) return null;
+  const p = pointToFacility([worldPosition[0]!, worldPosition[1]!, worldPosition[2]!], chain);
+  return (
+    <p className="text-xs text-muted-foreground" data-testid="facility-position">
+      Facility frame (on {bench.name}): {p.map((v) => formatNumber(v * 1000, 1)).join(', ')} mm
+    </p>
   );
 }

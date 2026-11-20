@@ -2,7 +2,7 @@
 
 Engineering research simulation platform within Project VEYRIS. It is local-first and desktop-first; Meta Quest 2 (WebXR) support comes later.
 
-**Status: Phase 1 (engineering core), pending owner review.**
+**Status: Phase 2 in progress. Maintenance and the first vertical slice (Lab 20 + Corridor E) are complete, pending owner acceptance.** Phase 1 (engineering core) is complete on `main`.
 
 The app is a desktop engineering editor with:
 
@@ -41,7 +41,8 @@ On the Mac, open `http://127.0.0.1:5173`. The server listens on IPv4 loopback on
 ```text
 apps/desktop/                 React + React Three Fiber application
 packages/engineering-core/    ForgeEngine: scene graph, commands, undo/redo, math, project schema/files (no UI)
-packages/persistence/         ProjectRepository interface + browser-storage adapter
+packages/facility/            read-only facility data, zone registry, coordinate frames, WorkspaceEngine (no UI)
+packages/persistence/         project + workspace repositories (separate stores and file types)
 packages/vey-api/             PROPOSED Vey command contracts (types only; nothing executable)
 tests/integration/            cross-package Vitest tests
 tests/end-to-end/             Playwright smoke tests

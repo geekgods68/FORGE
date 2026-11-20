@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** the current phase is 1 (engineering core, pending owner review), recorded in docs/DEVELOPMENT_ROADMAP.md. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
+- **Phase discipline:** the current phase is 2 (facility): the vertical slice is pending owner acceptance, and the other 21 labs must NOT be built before it is accepted, recorded in docs/DEVELOPMENT_ROADMAP.md. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).
@@ -12,6 +12,7 @@
   - Domain logic lives in `packages/*` and must not import React, three or any UI code (enforced by ESLint).
   - The UI lives in `apps/desktop`.
   - Persisted data is validated with Zod schemas from `@forge/engineering-core`.
+- **Layers:** facility (read-only data, no commands), workspace (`WorkspaceEngine`), project (`ForgeEngine`). Link them by id only, never embed one in another. Coordinate frames are in docs/ARCHITECTURE.md.
 - **Conventions:**
   - Metres, radians internally, kilograms, seconds and kelvin. Right-handed, +Y up.
   - Degrees appear only in the UI.

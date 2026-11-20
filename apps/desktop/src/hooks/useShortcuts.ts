@@ -55,6 +55,11 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
     s.setToolMode(key === 'w' ? 'translate' : key === 'e' ? 'rotate' : 'scale');
     return true;
   }
+  if (key === 'delete' && s.view === 'facility' && s.editLayer === 'layout') {
+    if (s.itemSelection)
+      s.runWorkspace('workspace.item.remove', { itemId: s.itemSelection }, { label: 'Remove equipment' });
+    return true;
+  }
   if (key === 'delete' && selected) {
     s.run('scene.node.delete', { nodeId: selected }, { label: 'Delete', source: 'keyboard' });
     return true;

@@ -1,4 +1,4 @@
-# FORGE architecture (Phase 1)
+# FORGE architecture (Phase 1 + Phase 2 foundation)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -176,6 +176,75 @@ Any failure discards the transaction, so there is **no partial mutation**. No-op
 - Selected meshes get an emissive tint and edge lines; selected groups get a bounding box.
 - The gizmo is shown only for single, visible, unlocked, non-root selections. Orbit is disabled while dragging (verified in e2e).
 - The viewport sits inside an error boundary, so renderer failures can't take down the panels.
+
+## Phase 2: hybrid facility architecture
+
+FORGE has three layers. Each has its own owner, its own permissions and its own persistence, and no layer can modify another.
+
+| Layer                   | Contents                                                                                    | Owner / authority                                                | Mutation path                                                                                         | Persistence                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Facility**            | Wings, the 22 laboratories, the 6 environments, corridors, walls, fixtures, placement areas | Shipped content in `@forge/facility` (`FACILITY_V1`, `revision`) | **None.** The data is deep-frozen, no command exists for it, and its meshes are non-pickable          | Not persisted by users; versioned in the repository                     |
+| **Workspace**           | Workbenches, cabinets, instruments and their poses; which project is mounted on which bench | User                                                             | `WorkspaceEngine.execute` (`forge.workspace-command/v1`), with its own undo/redo history and revision | `forge:workspace:<id>` (localStorage) and `.forge-workspace.json` files |
+| **Engineering project** | The Phase 1 scene graph                                                                     | User                                                             | `ForgeEngine.execute` (`forge.command/v1`), unchanged                                                 | `forge:project:<id>` and `.forge.json`, **unchanged schema v2**         |
+
+Links between layers are **references only**:
+
+- A workspace item points to a zone and a placement area by id.
+- A workbench item holds `mountedProjectId`.
+- Project files never contain facility or workspace data, and layout files never contain scene graphs. Tests enforce both.
+
+### Edit layers in the UI
+
+The facility view has two edit layers: **Engineering**, which acts on project nodes, and **Layout**, which acts on workspace items.
+
+- **Targeting:** the gizmo, selection, Delete, and undo/redo all follow the active layer. Each layer has its own history.
+- **Architecture:** never a target in either layer. It has no event handlers and no raycast, and no command exists that could address it.
+- **Layout gizmo:** limited to floor translation (X/Z) and yaw rotation. Every committed move is validated: the footprint must be inside the placement area, must not collide with other items, the category must be allowed there, and the zone must be built. A rejected move snaps back.
+
+### Coordinate-frame system
+
+All frames use metres, are right-handed, +Y up and −Z north, and every frame-to-parent transform is rigid (translation plus yaw). Conversions are therefore exact inverses and never introduce shear.
+
+| Frame          | Origin                                            | Posed in |
+| -------------- | ------------------------------------------------- | -------- |
+| **F** facility | Facility datum: centre of Corridor E, floor level | —        |
+| **Z** zone     | `zone.pose`                                       | F        |
+| **I** item     | `item.pose` (floor-level, yaw only)               | Z        |
+| **M** mount    | `equipment.mount` (work-surface centre, top)      | I        |
+| **P** project  | The project root ≡ M when mounted                 | M        |
+
+- **API** (`@forge/facility/frames`):
+  - `chainToFacility(chain)` / `facilityToChain(chain)`;
+  - `pointToFacility`, `pointFromFacility`, `convertPoint(from, to)`, `transformToFacility(nodeTransform, chain)`;
+  - chains via `zoneChain`, `itemChain` and `mountChain`.
+- **Renderer:** the project root is rendered under a group whose matrix is `chainToFacility(mountChain(...))`. The inspector shows a node's facility-frame position using the same functions.
+- **Verified exact:** frame math is checked in unit tests (round trips, yaw, composition). The browser test confirms that the rendered world position equals the frame computation.
+
+### Zone registry and lazy loading
+
+- **Registry:** `FACILITY.zones` holds all 29 zones (22 labs, 6 environments, 1 corridor). Each has a pose, a reserved footprint on the site plan, portals, placement areas, a `status` (`implemented` or `planned`) and a `moduleKey`.
+- **Loading:** `zonesToLoad(current)` returns the current zone plus implemented zones reachable through _open_ portals. Planned zones have no module and can never load.
+- **Modules:** each implemented zone module is a separate Vite chunk, loaded with `React.lazy` (`apps/desktop/src/facility/zoneModules.ts`). The browser test confirms no zone chunk is requested before the facility view opens.
+- **Adding a zone:** add data in `facility-v1.ts`, one line in `ZONE_MODULES`, and the module file. `validateFacility` checks invariants (labs 1–22 exactly once, 6 environments, no overlapping footprints, portals resolve, placement areas inside footprints).
+
+### Rendering infrastructure (Phase 2 maintenance)
+
+- **Demand rendering:** `frameloop="demand"`, so frames render only on change. Drei controls call `invalidate()`. `setContinuous(reason, on)` switches to continuous rendering for future simulations or XR.
+- **Draw counter:** accumulates across all render passes per frame (`gl.info.autoReset = false`, reset at priority −1000). It is checked against independent WebGL instrumentation.
+- **Shared resources:** geometries and materials are reference-counted (`rendering/resources.ts`). `InstancedFixtures` draws repeated static geometry in one draw call; it is used for facility fixtures only, never for selectable engineering objects.
+- **Virtualized hierarchy:** fixed 28 px rows, overscan of 8, auto-scroll to the selection.
+- **`scene.batch`:** atomic multi-command transactions with a single history entry. Transactions coalesce writes (a first-touch snapshot, then value-compared net ops), and `validateGraph` is linear.
+
+### Forward compatibility (designed for, not implemented)
+
+| Future capability                   | Hook in this architecture                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 28 component categories / conjuring | `component-instance` nodes in projects; workspace equipment catalogue; benches host projects                       |
+| Multiphysics simulation             | Continuous-render mode; rigid frames; validity statuses on capabilities                                            |
+| CAD interoperability                | GLB/glTF conventions (units, up-axis, validation flag) unchanged from Phase 1                                      |
+| Multiplayer engineering             | Both layers are command logs with revisions and expected-revision checks. Merge/CRDT is **not** designed yet       |
+| Vey                                 | Both engines share the envelope shape, structured results and a source policy (`vey` denied until Phase 9)         |
+| Quest 2 / WebXR                     | Same units and axes as WebXR. Frame F maps to an XR reference space; XR sessions must request continuous rendering |
 
 ## Security posture (local)
 

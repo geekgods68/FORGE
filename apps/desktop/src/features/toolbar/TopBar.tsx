@@ -1,4 +1,4 @@
-import { Download, FilePlus2, FolderOpen, Redo2, Save, Undo2, Upload } from 'lucide-react';
+import { Building2, Download, FilePlus2, FolderOpen, Redo2, Save, Undo2, Upload, Wrench } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { isDirty, useEditor } from '@/app/store';
@@ -9,6 +9,12 @@ export function TopBar() {
   const name = useEditor((s) => s.project.name);
   const dirty = useEditor(isDirty);
   const history = useEditor((s) => s.history);
+  const view = useEditor((s) => s.view);
+  const editLayer = useEditor((s) => s.editLayer);
+  const workspaceHistory = useEditor((s) => s.workspaceHistory);
+  const { setView, setEditLayer } = useEditor((s) => s);
+  const layoutLayer = view === 'facility' && editLayer === 'layout';
+  const activeHistory = layoutLayer ? workspaceHistory : history;
   const { newProject, save, listSaved, openSaved, exportProject, importProjectText, undo, redo, setStatus } =
     useEditor((s) => s);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -34,15 +40,49 @@ export function TopBar() {
         {name}
         {dirty && <span className="text-muted-foreground"> • unsaved</span>}
       </span>
+      <div
+        className="ml-3 flex items-center gap-1 rounded-md border border-border p-0.5"
+        role="group"
+        aria-label="View"
+      >
+        <Toggle pressed={view === 'project'} onClick={() => setView('project')} testId="view-project">
+          <Wrench /> Project
+        </Toggle>
+        <Toggle pressed={view === 'facility'} onClick={() => setView('facility')} testId="view-facility">
+          <Building2 /> Facility
+        </Toggle>
+      </div>
+      {view === 'facility' && (
+        <div
+          className="flex items-center gap-1 rounded-md border border-border p-0.5"
+          role="group"
+          aria-label="Edit layer"
+        >
+          <Toggle
+            pressed={editLayer === 'project'}
+            onClick={() => setEditLayer('project')}
+            testId="layer-project"
+          >
+            Engineering
+          </Toggle>
+          <Toggle
+            pressed={editLayer === 'layout'}
+            onClick={() => setEditLayer('layout')}
+            testId="layer-layout"
+          >
+            Layout
+          </Toggle>
+        </div>
+      )}
       <div className="ml-auto flex items-center gap-1.5">
-        <CreateMenu />
+        {!layoutLayer && <CreateMenu />}
         <span className="mx-1 h-6 w-px bg-border" />
         <Button
           size="sm"
           variant="ghost"
           onClick={undo}
-          disabled={!history.canUndo}
-          title={history.undoLabel ? `Undo ${history.undoLabel} (⌘/Ctrl+Z)` : 'Undo'}
+          disabled={!activeHistory.canUndo}
+          title={activeHistory.undoLabel ? `Undo ${activeHistory.undoLabel} (⌘/Ctrl+Z)` : 'Undo'}
           aria-label="Undo"
         >
           <Undo2 />
@@ -51,8 +91,8 @@ export function TopBar() {
           size="sm"
           variant="ghost"
           onClick={redo}
-          disabled={!history.canRedo}
-          title={history.redoLabel ? `Redo ${history.redoLabel} (⌘/Ctrl+⇧+Z)` : 'Redo'}
+          disabled={!activeHistory.canRedo}
+          title={activeHistory.redoLabel ? `Redo ${activeHistory.redoLabel} (⌘/Ctrl+⇧+Z)` : 'Redo'}
           aria-label="Redo"
         >
           <Redo2 />
@@ -127,5 +167,32 @@ export function TopBar() {
         />
       </div>
     </header>
+  );
+}
+
+function Toggle({
+  pressed,
+  onClick,
+  testId,
+  children,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      data-testid={testId}
+      onClick={onClick}
+      className={
+        'flex h-7 items-center gap-1 rounded px-2 text-xs [&_svg]:size-3.5 ' +
+        (pressed ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary')
+      }
+    >
+      {children}
+    </button>
   );
 }

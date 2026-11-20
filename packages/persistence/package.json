@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@forge/engineering-core": "workspace:*"
+    "@forge/engineering-core": "workspace:*",
+    "@forge/facility": "workspace:*"
   }
 }

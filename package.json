@@ -2,7 +2,7 @@
   "name": "forge",
   "private": true,
   "version": "0.0.0",
-  "description": "FORGE \u2014 engineering research simulation platform (Project VEYRIS). Phase 0 foundation.",
+  "description": "FORGE — engineering research simulation platform (Project VEYRIS). Phase 0 foundation.",
   "type": "module",
   "packageManager": "pnpm@12.21.0",
   "engines": {
@@ -34,6 +34,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@forge/engineering-core": "workspace:*",
+    "@forge/facility": "workspace:*",
     "@forge/persistence": "workspace:*",
     "@forge/vey-api": "workspace:*",
     "@playwright/test": "1.65.1",

@@ -46,4 +46,17 @@
 - Immersive Design Chamber
 - Real-World Environment Simulator
 
-None of these rooms exist yet. Phase 2 builds the laboratory environment; Phase 8 builds the specialised environments.
+## Status (Phase 2 vertical slice)
+
+All 29 zones are registered in `@forge/facility` (`facility-v1.ts`), each with a reserved footprint on the site plan. The site plan uses facility frame F, metres, −Z north:
+
+| Area              | Position                                   |
+| ----------------- | ------------------------------------------ |
+| Corridor E        | Datum, x −27…27 m                          |
+| Wing E labs 20–22 | North of the corridor                      |
+| Wings A–D         | Reserved rows at z = +20, +40, +60 and +80 |
+| Six environments  | Reserved row at z = −40                    |
+
+**Built:** Lab 20, Central Conjuring & Integration Workshop (18 × 12 × 4.5 m), and Corridor E (54 × 3 × 3.5 m).
+
+**Not built:** the other 21 labs and all 6 environments. They are registered as `planned` and cannot be loaded.

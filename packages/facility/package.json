@@ -1,0 +1,17 @@
+{
+  "name": "@forge/facility",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE facility (read-only architecture), zone registry, coordinate frames and workspace layout engine. No UI.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/engineering-core": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@forge/engineering-core": "workspace:*",
+    "@forge/facility": "workspace:*",
     "@forge/persistence": "workspace:*",
     "@forge/vey-api": "workspace:*",
     "@react-three/drei": "10.7.9",

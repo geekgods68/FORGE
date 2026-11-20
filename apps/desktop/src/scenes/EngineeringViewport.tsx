@@ -9,7 +9,8 @@ import {
 import { Edges, GizmoHelper, GizmoViewport, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Box3, Box3Helper, Color, type Object3D } from 'three';
+import { Box3, Box3Helper, Color, Vector3, type Object3D } from 'three';
+import { FacilityScene } from '@/facility/FacilityScene';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
 import { resourceStats } from '@/rendering/resources';
 import type {
@@ -40,6 +41,7 @@ export function EngineeringViewport() {
   // Demand rendering: frames are drawn only when something changes (camera, drag, state),
   // unless a subsystem (e.g. a future running simulation) requests continuous rendering.
   const continuous = useEditor((s) => s.continuousReasons.length > 0);
+  const view = useEditor((s) => s.view);
   const lastDragEnd = useRef(0);
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
 
@@ -64,24 +66,15 @@ export function EngineeringViewport() {
           if (e.type === 'click' && moved <= 4 && performance.now() - lastDragEnd.current > 250) select(null);
         }}
       >
-        <color attach="background" args={['#2a2d33']} />
-        <hemisphereLight args={['#dfe6f0', '#33363c', 0.9]} />
-        <directionalLight position={[3, 5, 2]} intensity={1.8} />
-        <Grid
-          infiniteGrid
-          cellSize={0.01}
-          sectionSize={0.1}
-          cellColor="#3c4048"
-          sectionColor="#5d6570"
-          fadeDistance={12}
-          position={[0, -0.0005, 0]}
-        />
-        <axesHelper args={[0.5]} />
+        {view === 'facility' ? (
+          // Facility: architecture + workspace + the project mounted on its bench (frame M).
+          <FacilityScene project={<NodeView id={rootId} />} />
+        ) : (
+          <ProjectStage rootId={rootId} />
+        )}
         <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
           <GizmoViewport axisColors={['#e5534b', '#57ab5a', '#539bf5']} labelColor="#111" />
         </GizmoHelper>
-
-        <NodeView id={rootId} />
         <SelectionHighlight />
         <Manipulator onDragEnd={() => (lastDragEnd.current = performance.now())} />
 
@@ -97,17 +90,41 @@ export function EngineeringViewport() {
   );
 }
 
+/** Project view: the engineering scene at its own origin with the measurement grid. */
+function ProjectStage({ rootId }: { rootId: string }) {
+  return (
+    <>
+      <color attach="background" args={['#2a2d33']} />
+      <hemisphereLight args={['#dfe6f0', '#33363c', 0.9]} />
+      <directionalLight position={[3, 5, 2]} intensity={1.8} />
+      <Grid
+        infiniteGrid
+        cellSize={0.01}
+        sectionSize={0.1}
+        cellColor="#3c4048"
+        sectionColor="#5d6570"
+        fadeDistance={12}
+        position={[0, -0.0005, 0]}
+      />
+      <axesHelper args={[0.5]} />
+      <NodeView id={rootId} />
+    </>
+  );
+}
+
 function NodeView({ id }: { id: string }) {
   const node = useEditor((s) => s.project.scene.nodes[id]);
   const definitions = useEditor((s) => s.project.definitions);
   const selected = useEditor((s) => s.selection.includes(id));
   const select = useEditor((s) => s.select);
+  const layoutActive = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
   const registry = useContext(RegistryContext);
   if (!node) return null;
   const isRoot = node.kind === 'root';
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // it was an orbit drag, not a click
+    if (layoutActive) return; // layout editing: let the click reach the equipment underneath
     e.stopPropagation();
     select(id);
   };
@@ -333,12 +350,28 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
 function CameraRig() {
   const controls = useRef<OrbitControlsImpl>(null);
   const resetRequest = useEditor((s) => s.cameraResetRequest);
+  const preset = useEditor((s) => s.cameraPreset);
+  const view = useEditor((s) => s.view);
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     controls.current?.saveState();
   }, []);
   useEffect(() => {
     if (resetRequest > 0) controls.current?.reset();
   }, [resetRequest]);
+  // Facility navigation: jump to zone/bench presets. Back in the project view, restore its home view.
+  useEffect(() => {
+    const c = controls.current;
+    if (!c) return;
+    if (view === 'facility' && preset) {
+      c.object.position.set(...preset.position);
+      c.target.set(...preset.target);
+      c.update();
+    } else if (view === 'project') {
+      c.reset();
+    }
+    invalidate();
+  }, [preset, view, invalidate]);
   return (
     <OrbitControls
       ref={controls}
@@ -384,6 +417,17 @@ function DebugProbe() {
       resources: () => resourceStats(),
       frameloop: () => frameloopRef.current,
       cameraPosition: () => camera.position.toArray(),
+      /** Client-pixel position of any world (facility-frame in the facility view) point. */
+      worldToScreen: (p: [number, number, number]) => {
+        const v = new Vector3(...p).project(camera);
+        const rect = gl.domElement.getBoundingClientRect();
+        return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
+      },
+      /** Rendered world position of a project node (proves where the renderer actually placed it). */
+      nodeWorldPosition: (id: string) => {
+        const o = registry.get(id);
+        return o ? o.getWorldPosition(new Vector3()).toArray() : null;
+      },
       /** Client-pixel position of a node's origin, for pointer tests. */
       screenPointOf: (id: string) => {
         const o = registry.get(id);
