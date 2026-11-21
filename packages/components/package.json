@@ -1,0 +1,17 @@
+{
+  "name": "@forge/components",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE universal component library: 28-category taxonomy, component definitions, parametric geometry generators, material library, connection interfaces, search. Pure domain logic — no UI, no renderer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/engineering-core": "workspace:*",
+    "zod": "4.6.7"
+  }
+}
