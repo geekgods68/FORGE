@@ -1,9 +1,47 @@
-import { FACILITY, getEquipment, getZone } from '@forge/facility';
-import { Building2, Crosshair, Download, Link2, Link2Off, Plus, Save, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { FACILITY, getEquipment, getZone, neighbours, roomCode, type Zone } from '@forge/facility';
+import { Building2, Crosshair, Download, Link2, Link2Off, Plus, RotateCw, Save, Upload } from 'lucide-react';
+import { useRef, useState, useSyncExternalStore } from 'react';
+import { subscribeZones, zoneLifecycle, zoneSnapshot } from '@/facility/zoneRuntime';
 import { Button } from '@/components/ui/button';
 import { useEditor } from '@/app/store';
 import { cn } from '@/lib/utils';
+
+/** Directory grouped by wing: rooms by number, then that wing's corridors. */
+const DIRECTORY: { title: string; zones: Zone[] }[] = [
+  ...FACILITY.wings.map((w) => ({
+    title: `Wing ${w.letter} · ${w.name}`,
+    zones: FACILITY.zones.filter((z) => z.wingId === w.id && z.kind === 'laboratory'),
+  })),
+  { title: 'Research environments', zones: FACILITY.zones.filter((z) => z.kind === 'environment') },
+  { title: 'Corridors & concourse', zones: FACILITY.zones.filter((z) => z.kind === 'corridor') },
+];
+
+/** Loading / error state of the current zone, with recovery. */
+function ZoneLoadStatus({ zone }: { zone: Zone }) {
+  const states = useSyncExternalStore(subscribeZones, zoneSnapshot);
+  const st = states[zone.id];
+  if (!st || st.state === 'active') return null;
+  if (st.state === 'error')
+    return (
+      <div
+        role="alert"
+        className="flex items-center gap-2 rounded border border-destructive/60 p-2"
+        data-testid="zone-error"
+      >
+        <span className="flex-1">
+          {zone.name} failed to load: {st.error}
+        </span>
+        <Button size="sm" variant="secondary" onClick={() => zoneLifecycle.retry(zone.id)}>
+          <RotateCw /> Retry
+        </Button>
+      </div>
+    );
+  return (
+    <p className="text-muted-foreground" data-testid="zone-state">
+      {st.state === 'loading' ? 'Loading zone…' : st.state}
+    </p>
+  );
+}
 
 /** Facility navigation + editable workspace layout for the current zone. */
 export function WorkspacePanel() {
@@ -50,36 +88,57 @@ export function WorkspacePanel() {
         </p>
       </header>
 
+      <ZoneLoadStatus zone={zone} />
+
+      <nav aria-label="Exits" className="space-y-0.5">
+        <p className="text-muted-foreground">Exits</p>
+        <ul className="flex flex-wrap gap-1" aria-label="Exits">
+          {neighbours(zone.id).map((n) => (
+            <li key={n.id}>
+              <button
+                type="button"
+                data-testid={`exit-${n.id}`}
+                className="rounded border border-border px-1.5 py-0.5 hover:bg-secondary"
+                onPointerEnter={() => s.setPrefetchZone(n.id)}
+                onFocus={() => s.setPrefetchZone(n.id)}
+                onClick={() => s.goToZone(n.id)}
+                title={`Go to ${n.name}`}
+              >
+                {n.kind === 'corridor' ? n.name : `${roomCode(n)} · ${n.name}`}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
       <details>
         <summary className="cursor-pointer text-muted-foreground">
           Zone directory (22 labs · 6 environments)
         </summary>
-        <ul className="mt-1 max-h-40 space-y-0.5 overflow-auto" aria-label="Zone directory">
-          {FACILITY.zones.map((z) => (
-            <li key={z.id} className="flex items-center gap-1">
-              <span
-                className={cn('min-w-0 flex-1 truncate', z.status === 'planned' && 'text-muted-foreground')}
-              >
-                {z.labNumber ? `${z.labNumber}. ` : ''}
-                {z.name}
-              </span>
-              {z.status === 'implemented' ? (
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => s.goToZone(z.id)}
-                  aria-label={`Enter ${z.name}`}
-                >
-                  Enter
-                </button>
-              ) : (
-                <span
-                  className="text-muted-foreground"
-                  title="Registered in the facility plan; not built yet"
-                >
-                  planned
-                </span>
-              )}
+        <ul className="mt-1 space-y-0.5" aria-label="Zone directory">
+          {DIRECTORY.map((g) => (
+            <li key={g.title} className="list-none">
+              <p className="mt-1 font-semibold text-muted-foreground">{g.title}</p>
+              <ul aria-label={g.title}>
+                {g.zones.map((z) => (
+                  <li key={z.id} className="flex items-center gap-1" data-testid={`dir-${z.id}`}>
+                    <span className={cn('min-w-0 flex-1 truncate', z.id === zoneId && 'text-primary')}>
+                      {z.kind === 'corridor' ? '' : `${roomCode(z)} · `}
+                      {z.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onPointerEnter={() => s.setPrefetchZone(z.id)}
+                      onFocus={() => s.setPrefetchZone(z.id)}
+                      onClick={() => s.goToZone(z.id)}
+                      aria-label={`Enter ${z.name}`}
+                    >
+                      Enter
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </li>
           ))}
         </ul>

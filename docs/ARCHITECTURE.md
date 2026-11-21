@@ -1,4 +1,4 @@
-# FORGE architecture (Phase 1 + Phase 2 foundation)
+# FORGE architecture (Phase 1 + Phase 2)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -181,11 +181,11 @@ Any failure discards the transaction, so there is **no partial mutation**. No-op
 
 FORGE has three layers. Each has its own owner, its own permissions and its own persistence, and no layer can modify another.
 
-| Layer                   | Contents                                                                                    | Owner / authority                                                | Mutation path                                                                                         | Persistence                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Facility**            | Wings, the 22 laboratories, the 6 environments, corridors, walls, fixtures, placement areas | Shipped content in `@forge/facility` (`FACILITY_V1`, `revision`) | **None.** The data is deep-frozen, no command exists for it, and its meshes are non-pickable          | Not persisted by users; versioned in the repository                     |
-| **Workspace**           | Workbenches, cabinets, instruments and their poses; which project is mounted on which bench | User                                                             | `WorkspaceEngine.execute` (`forge.workspace-command/v1`), with its own undo/redo history and revision | `forge:workspace:<id>` (localStorage) and `.forge-workspace.json` files |
-| **Engineering project** | The Phase 1 scene graph                                                                     | User                                                             | `ForgeEngine.execute` (`forge.command/v1`), unchanged                                                 | `forge:project:<id>` and `.forge.json`, **unchanged schema v2**         |
+| Layer                   | Contents                                                                                                | Owner / authority                                                | Mutation path                                                                                         | Persistence                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Facility**            | Wings, the 22 laboratories, the 6 environments, corridors, walls, furnishings, signage, placement areas | Shipped content in `@forge/facility` (`FACILITY_V1`, `revision`) | **None.** The data is deep-frozen, no command exists for it, and its meshes are non-pickable          | Not persisted by users; versioned in the repository                     |
+| **Workspace**           | Workbenches, cabinets, instruments and their poses; which project is mounted on which bench             | User                                                             | `WorkspaceEngine.execute` (`forge.workspace-command/v1`), with its own undo/redo history and revision | `forge:workspace:<id>` (localStorage) and `.forge-workspace.json` files |
+| **Engineering project** | The Phase 1 scene graph                                                                                 | User                                                             | `ForgeEngine.execute` (`forge.command/v1`), unchanged                                                 | `forge:project:<id>` and `.forge.json`, **unchanged schema v2**         |
 
 Links between layers are **references only**:
 
@@ -220,12 +220,21 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 - **Renderer:** the project root is rendered under a group whose matrix is `chainToFacility(mountChain(...))`. The inspector shows a node's facility-frame position using the same functions.
 - **Verified exact:** frame math is checked in unit tests (round trips, yaw, composition). The browser test confirms that the rendered world position equals the frame computation.
 
-### Zone registry and lazy loading
+### Zone registry, templates and lifecycle (facility revision 2)
 
-- **Registry:** `FACILITY.zones` holds all 29 zones (22 labs, 6 environments, 1 corridor). Each has a pose, a reserved footprint on the site plan, portals, placement areas, a `status` (`implemented` or `planned`) and a `moduleKey`.
-- **Loading:** `zonesToLoad(current)` returns the current zone plus implemented zones reachable through _open_ portals. Planned zones have no module and can never load.
-- **Modules:** each implemented zone module is a separate Vite chunk, loaded with `React.lazy` (`apps/desktop/src/facility/zoneModules.ts`). The browser test confirms no zone chunk is requested before the facility view opens.
-- **Adding a zone:** add data in `facility-v1.ts`, one line in `ZONE_MODULES`, and the module file. `validateFacility` checks invariants (labs 1–22 exactly once, 6 environments, no overlapping footprints, portals resolve, placement areas inside footprints).
+- **Registry:** `FACILITY.zones` holds 39 zones: 22 labs, 6 environments, and 11 corridors (Corridor E, wing corridors A–D, the environments corridor and 5 concourse segments). Every zone is `implemented`. Full detail is in [FACILITY_ARCHITECTURE.md](FACILITY_ARCHITECTURE.md).
+- **Templates:** five lazy modules keyed by `zone.moduleKey`: `lab-room` (21 labs), `central-workshop` (Lab 20), `environment`, `corridor` and `corridor-e`. They share one `ZoneViews` chunk with the shell builder, fixture library and signage.
+- **Lifecycle:** `ZoneLifecycle` (`@forge/facility/lifecycle`) runs `UNLOADED → LOADING → ACTIVE → UNLOADING → UNLOADED`, plus `ERROR → retry`.
+  - The wanted set is the active zone, its required corridor, and at most one prefetch.
+  - Generation tokens discard stale loads.
+  - Only ACTIVE zones with role `active` or `required` are mounted. A prefetched zone has its code loaded but renders nothing.
+- **Unload:** the renderer confirms `UNLOADED` after React has unmounted the zone and released its references (instance buffers, sign textures, unshared geometry and materials). The shared palette and unit geometries stay pinned while the facility view is open.
+- **Validation:** `validateFacility` checks:
+  - labs 1–22 exist exactly once, and there are 6 environments;
+  - footprints don't overlap;
+  - portals sit on footprint edges and are reciprocal;
+  - placement areas stay inside footprints and out of doorways;
+  - furnishings are known types, inside the footprint, clear of placement areas and doorways, and don't overlap each other.
 
 ### Rendering infrastructure (Phase 2 maintenance)
 

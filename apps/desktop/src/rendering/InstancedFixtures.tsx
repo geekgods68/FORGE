@@ -46,6 +46,14 @@ export function InstancedFixtures({
     mesh.computeBoundingSphere();
     invalidate();
   }, [placements, invalidate]);
+  // Geometry/material are shared (released by their hooks); the per-mesh instance buffer is
+  // not — InstancedMesh.dispose() tells the renderer to free it when the zone unloads.
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    return () => {
+      mesh?.dispose();
+    };
+  }, []);
   return (
     <instancedMesh
       ref={ref}

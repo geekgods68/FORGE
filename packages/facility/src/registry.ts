@@ -1,10 +1,13 @@
 import { FACILITY_V1 } from './facility-v1';
-import { type FloorPose, type FrameChain } from './frames';
+import { pointToFacility, type FloorPose, type FrameChain } from './frames';
+import { FURNISHING_TYPES, isFurnishingType } from './furnishings';
 import {
   FacilitySchema,
   type Equipment,
   type Facility,
   type FloorRect,
+  type Furnishing,
+  type Portal,
   type WorkspaceItem,
   type Zone,
 } from './schemas';
@@ -102,6 +105,62 @@ export function zoneFootprintInFacility(zone: Zone): FloorRect {
   return { min: [cx - ex, cz - ez], max: [cx + ex, cz + ez] };
 }
 
+/** Floor-plane AABB (zone frame) of a fixed furnishing, or null for an unknown type. */
+export function furnishingFootprint(f: Furnishing): FloorRect | null {
+  if (!isFurnishingType(f.type)) return null;
+  const [w, , d] = f.size ?? FURNISHING_TYPES[f.type].sizeM;
+  const c = Math.abs(Math.cos(f.yaw));
+  const s = Math.abs(Math.sin(f.yaw));
+  const ex = (c * w + s * d) / 2;
+  const ez = (s * w + c * d) / 2;
+  return { min: [f.position[0] - ex, f.position[2] - ez], max: [f.position[0] + ex, f.position[2] + ez] };
+}
+
+export type PortalSide = 'north' | 'south' | 'west' | 'east';
+
+/** Which footprint edge a portal lies on (zone frame), or null if it is not on an edge. */
+export function portalSide(zone: Zone, p: Portal, eps = 1e-6): PortalSide | null {
+  const [x, , z] = p.position;
+  const { min, max } = zone.footprint;
+  if (Math.abs(z - min[1]) < eps) return 'north';
+  if (Math.abs(z - max[1]) < eps) return 'south';
+  if (Math.abs(x - min[0]) < eps) return 'west';
+  if (Math.abs(x - max[0]) < eps) return 'east';
+  return null;
+}
+
+/** Floor area just inside a portal that must stay free of furnishings and equipment. */
+export function portalClearance(zone: Zone, p: Portal): FloorRect | null {
+  const side = portalSide(zone, p);
+  const depth = zone.kind === 'corridor' ? 1.0 : 1.5;
+  const hw = p.widthM / 2 + 0.3;
+  const [x, , z] = p.position;
+  switch (side) {
+    case 'north':
+      return { min: [x - hw, z], max: [x + hw, z + depth] };
+    case 'south':
+      return { min: [x - hw, z - depth], max: [x + hw, z] };
+    case 'west':
+      return { min: [x, z - hw], max: [x + depth, z + hw] };
+    case 'east':
+      return { min: [x - depth, z - hw], max: [x, z + hw] };
+    default:
+      return null;
+  }
+}
+
+/** Zones connected to `zoneId` through open portals (navigation exits), in portal order. */
+export function neighbours(zoneId: string): Zone[] {
+  const z = getZone(zoneId);
+  if (!z) return [];
+  const out: Zone[] = [];
+  for (const p of z.portals) {
+    const n = getZone(p.toZoneId);
+    if (p.open && n && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
 /** Structural invariants of facility content (run in tests; cheap enough for startup). */
 export function validateFacility(f: Facility): string[] {
   const errors: string[] = [];
@@ -126,7 +185,46 @@ export function validateFacility(f: Facility): string[] {
     for (const a of z.placementAreas)
       if (!rectInside(a.rect, z.footprint))
         errors.push(`${z.id}: placement area ${a.id} exceeds the zone footprint`);
+    const clearances = z.portals.map((p) => {
+      const c = portalClearance(z, p);
+      if (!c) errors.push(`${z.id}: portal ${p.id} is not on a footprint edge`);
+      return c;
+    });
+    for (const a of z.placementAreas)
+      for (const c of clearances)
+        if (c && rectsOverlap(a.rect, c)) errors.push(`${z.id}: placement area ${a.id} blocks a doorway`);
+    const rects: FloorRect[] = [];
+    z.furnishings.forEach((f, i) => {
+      const r = furnishingFootprint(f);
+      const label = `${z.id}: furnishing #${i} (${f.type})`;
+      if (!r) return void errors.push(`${label} has an unknown type`);
+      if (!rectInside(r, z.footprint)) errors.push(`${label} exceeds the zone footprint`);
+      for (const a of z.placementAreas)
+        if (rectsOverlap(r, a.rect)) errors.push(`${label} overlaps placement area ${a.id}`);
+      for (const c of clearances) if (c && rectsOverlap(r, c)) errors.push(`${label} blocks a doorway`);
+      rects.forEach((o, j) => {
+        if (rectsOverlap(r, o)) errors.push(`${label} overlaps furnishing #${j}`);
+      });
+      rects.push(r);
+    });
   }
+  // Portals are reciprocal: an open portal is matched by one in the target zone at the
+  // same facility point and width, so both sides cut the same doorway.
+  const byId = new Map(f.zones.map((z) => [z.id, z]));
+  for (const z of f.zones)
+    for (const p of z.portals) {
+      const t = byId.get(p.toZoneId);
+      if (!t || !p.open) continue;
+      const at = pointToFacility(p.position, [z.pose]);
+      const match = t.portals.find(
+        (q) =>
+          q.toZoneId === z.id &&
+          q.open &&
+          Math.abs(q.widthM - p.widthM) < 1e-9 &&
+          pointToFacility(q.position, [t.pose]).every((v, i) => Math.abs(v - at[i]!) < 1e-6),
+      );
+      if (!match) errors.push(`${z.id}: portal ${p.id} has no reciprocal portal in ${t.id}`);
+    }
   for (let i = 0; i < f.zones.length; i++)
     for (let j = i + 1; j < f.zones.length; j++) {
       const a = f.zones[i]!;

@@ -70,11 +70,12 @@ test('zones load lazily: nothing before entering the facility; only the slice (n
     expect.stringMatching(/^CentralWorkshop-/),
     expect.stringMatching(/^CorridorE-/),
   ]);
-  // Planned zones are listed (22 labs + 6 environments + corridor) but cannot be entered.
+  // Facility revision 2: every zone (22 labs, 6 environments, 11 corridors) is built and
+  // enterable — but only the active room + its corridor were fetched above.
   await page.getByText('Zone directory').click();
   const directory = page.getByRole('list', { name: 'Zone directory' });
-  await expect(directory.getByRole('listitem')).toHaveCount(29);
-  await expect(directory.getByText('planned')).toHaveCount(27);
+  await expect(directory.getByRole('button', { name: /^Enter / })).toHaveCount(39);
+  await expect(directory.getByText('planned')).toHaveCount(0);
   expect(foreign).toEqual([]);
   expect(errors).toEqual([]);
 });

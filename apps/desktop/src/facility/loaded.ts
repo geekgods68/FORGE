@@ -12,3 +12,15 @@ export function markZoneModuleLoaded(moduleKey: string) {
 export function loadedZoneModules(): string[] {
   return [...loaded].sort();
 }
+
+/** Signs currently mounted in the scene (diagnostics/tests): id → content + facility position. */
+export interface RenderedSign {
+  zoneId: string;
+  kind: string;
+  lines: string[];
+  position: number[];
+}
+const signs = new Map<string, RenderedSign>();
+export const markSignRendered = (id: string, s: RenderedSign) => void signs.set(id, s);
+export const unmarkSignRendered = (id: string) => void signs.delete(id);
+export const renderedSigns = (): Record<string, RenderedSign> => Object.fromEntries(signs);

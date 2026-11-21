@@ -39,13 +39,12 @@ describe('facility definition (read-only)', () => {
     });
   });
 
-  it('only the vertical slice (lab 20 + corridor E) is implemented; everything else is planned without a module', () => {
-    expect(
-      implementedZones()
-        .map((z) => z.id)
-        .sort(),
-    ).toEqual([CENTRAL_WORKSHOP_ID, CORRIDOR_E_ID].sort());
-    for (const z of FACILITY.zones.filter((z) => z.status === 'planned')) expect(z.moduleKey).toBeNull();
+  // Revision 2 (Phase 2 expansion): every room is built; nothing is merely registered.
+  it('every lab, environment and corridor is implemented with a renderer module (no planned zones)', () => {
+    expect(FACILITY.revision).toBe(2);
+    expect(FACILITY.zones.filter((z) => z.status === 'planned')).toEqual([]);
+    for (const z of implementedZones()) expect(z.moduleKey).toBeTruthy();
+    expect(implementedZones()).toHaveLength(FACILITY.zones.length);
   });
 
   it('is deeply frozen: architecture cannot be mutated at runtime', () => {
@@ -61,9 +60,10 @@ describe('facility definition (read-only)', () => {
 describe('lazy-loading set', () => {
   it('loads the current zone plus implemented neighbours through open portals only', () => {
     expect(zonesToLoad(CENTRAL_WORKSHOP_ID)).toEqual([CENTRAL_WORKSHOP_ID, CORRIDOR_E_ID]);
-    // Corridor portals to labs 21/22 are closed and those labs are planned → not loaded.
-    expect(zonesToLoad(CORRIDOR_E_ID)).toEqual([CORRIDOR_E_ID, CENTRAL_WORKSHOP_ID]);
-    expect(zonesToLoad('lab-01-central-intelligence')).toEqual([]);
+    expect(zonesToLoad('lab-01-central-intelligence')).toEqual([
+      'lab-01-central-intelligence',
+      'corridor-a-main',
+    ]);
     expect(zonesToLoad('nope')).toEqual([]);
   });
 });
@@ -148,7 +148,20 @@ describe('WorkspaceEngine', () => {
           }),
         ),
       ),
-    ).toBe('zone-unavailable');
+    ).toBe('ok'); // revision 2: Lab 1 is built, so its bench floor accepts equipment
+    // Corridors are circulation only: no placement areas, so nothing can be placed there.
+    expect(
+      code(
+        w.execute(
+          cmd('workspace.item.place', {
+            equipmentId: 'bench-standard',
+            zoneId: 'corridor-a-main',
+            areaId: 'bench-floor',
+            position: [0, 0],
+          }),
+        ),
+      ),
+    ).not.toBe('ok');
   });
 
   it('facility architecture is not addressable: zones/walls are not workspace items and unknown command types are refused', () => {

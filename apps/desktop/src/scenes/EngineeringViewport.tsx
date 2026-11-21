@@ -9,10 +9,20 @@ import {
 import { Edges, GizmoHelper, GizmoViewport, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Box3, Box3Helper, Color, Vector3, type Object3D } from 'three';
+import {
+  Box3,
+  Box3Helper,
+  Color,
+  InstancedMesh,
+  Mesh,
+  Vector3,
+  type BufferGeometry,
+  type Object3D,
+} from 'three';
 import { FacilityScene } from '@/facility/FacilityScene';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
 import { resourceStats } from '@/rendering/resources';
+import { signTextureStats } from '@/facility/signTextures';
 import type {
   OrbitControls as OrbitControlsImpl,
   TransformControls as TransformControlsImpl,
@@ -386,7 +396,7 @@ function CameraRig() {
 
 /** Read-only diagnostics for automated browser tests (window.__forge). No mutations. */
 function DebugProbe() {
-  const { camera, gl, size } = useThree();
+  const { camera, gl, size, scene } = useThree();
   const frameloop = useThree((s) => s.frameloop);
   const frameloopRef = useRef(frameloop);
   useEffect(() => {
@@ -417,6 +427,53 @@ function DebugProbe() {
       resources: () => resourceStats(),
       frameloop: () => frameloopRef.current,
       cameraPosition: () => camera.position.toArray(),
+      /**
+       * ESTIMATE of GPU memory held by the scene (not a driver measurement): bytes of every
+       * unique vertex/index buffer reachable from the scene, per-mesh instance buffers, sign
+       * textures (RGBA8 + mips) and the default framebuffer (colour + depth, ×4 if MSAA).
+       * Excludes shader programs and driver overhead.
+       */
+      gpuEstimate: () => {
+        const geos = new Set<BufferGeometry>();
+        let instanceBytes = 0;
+        scene.traverse((o) => {
+          if (o instanceof Mesh) geos.add(o.geometry as BufferGeometry);
+          if (o instanceof InstancedMesh) instanceBytes += o.instanceMatrix.array.byteLength;
+        });
+        let geometryBytes = 0;
+        for (const g of geos) {
+          for (const a of Object.values(g.attributes))
+            geometryBytes += (a.array as ArrayLike<number> & { byteLength: number }).byteLength;
+          if (g.index) geometryBytes += g.index.array.byteLength;
+        }
+        const signs = signTextureStats();
+        const samples = gl.getContextAttributes()?.antialias ? 4 : 1;
+        const framebufferBytes = gl.domElement.width * gl.domElement.height * 8 * samples;
+        const total = geometryBytes + instanceBytes + signs.estimatedBytes + framebufferBytes;
+        return {
+          estimate: true,
+          geometryBytes,
+          instanceBytes,
+          signTextureBytes: signs.estimatedBytes,
+          framebufferBytes,
+          totalMB: +(total / 1048576).toFixed(2),
+          rendererInfo: { ...gl.info.memory },
+        };
+      },
+      /** Rendered architecture/furnishing of a zone: instanced draws and total instances (0 if not mounted). */
+      zoneGeometry: (zoneId: string) => {
+        const root = scene.getObjectByName(`zone:${zoneId}`);
+        let draws = 0;
+        let instances = 0;
+        let signs = 0;
+        root?.traverse((o) => {
+          if (o instanceof InstancedMesh) {
+            draws += 1;
+            instances += o.count;
+          } else if (o.name.startsWith('sign:')) signs += 1;
+        });
+        return { mounted: !!root, draws, instances, signs };
+      },
       /** Client-pixel position of any world (facility-frame in the facility view) point. */
       worldToScreen: (p: [number, number, number]) => {
         const v = new Vector3(...p).project(camera);
@@ -437,6 +494,6 @@ function DebugProbe() {
         return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
       },
     };
-  }, [camera, gl, registry, size]);
+  }, [camera, gl, registry, size, scene]);
   return null;
 }

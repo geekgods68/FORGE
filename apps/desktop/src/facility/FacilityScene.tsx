@@ -4,7 +4,7 @@ import {
   getEquipment,
   getZone,
   mountChain,
-  zonesToLoad,
+  requiredZones,
   type Equipment,
   type WorkspaceItem,
   type Zone,
@@ -13,21 +13,36 @@ import { TransformControls } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import {
   createContext,
-  Suspense,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Box3, Box3Helper, Color, Matrix4, type Object3D } from 'three';
+import { Box3, Box3Helper, Color, Matrix4, Vector3, type Object3D } from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useEditor, useEditorStore } from '@/app/store';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
-import type { StandardMaterialSpec } from '@/rendering/resources';
-import { MATERIALS } from './materials';
-import { ZONE_MODULES } from './zoneModules';
+import {
+  createPrimitiveGeometry,
+  createStandardMaterial,
+  geometryCache,
+  geometryKey,
+  materialCache,
+  materialKey,
+  type StandardMaterialSpec,
+} from '@/rendering/resources';
+import { MATERIALS, PALETTE_SPECS } from './materials';
+import {
+  subscribeZones,
+  transitions,
+  zoneComponent,
+  zoneElement,
+  zoneLifecycle,
+  zoneSnapshot,
+} from './zoneRuntime';
 
 /** item id → rendered group (renderer-side lookup only). */
 const ItemRegistry = createContext<Map<string, Object3D>>(new Map());
@@ -41,42 +56,127 @@ const ItemRegistry = createContext<Map<string, Object3D>>(new Map());
  */
 export function FacilityScene({ project }: { project: ReactNode }) {
   const zoneId = useEditor((s) => s.currentZoneId);
+  const prefetch = useEditor((s) => s.prefetchZoneId);
+  const states = useSyncExternalStore(subscribeZones, zoneSnapshot);
   const registry = useMemo(() => new Map<string, Object3D>(), []);
-  const toLoad = zonesToLoad(zoneId);
+  const invalidate = useThree((s) => s.invalidate);
+  const pending = useRef<{ zoneId: string; t0: number; cold: boolean; ready: boolean } | null>(null);
+  const lastRequested = useRef<string | null>(null);
+
+  // Declare the wanted set: active zone + its corridor (+ ≤ 1 prefetched destination).
+  useEffect(() => {
+    if (lastRequested.current !== zoneId) {
+      lastRequested.current = zoneId;
+      const z = getZone(zoneId);
+      pending.current = {
+        zoneId,
+        t0: performance.now(),
+        cold: !zoneComponent(z?.moduleKey ?? null),
+        ready: false,
+      };
+    }
+    zoneLifecycle.setTarget(zoneId, prefetch);
+  }, [zoneId, prefetch]);
+  // Leaving the facility view releases every zone (workspace/project data are untouched).
+  useEffect(
+    () => () => {
+      zoneLifecycle.setTarget(null);
+      for (const id of Object.keys(zoneLifecycle.snapshot())) zoneLifecycle.confirmUnloaded(id);
+    },
+    [],
+  );
+  // UNLOADING zones are no longer rendered: by the time this effect runs React has
+  // unmounted them and their hooks released geometry/material/texture references.
+  useEffect(() => {
+    for (const [id, st] of Object.entries(states))
+      if (st.state === 'unloading') zoneLifecycle.confirmUnloaded(id);
+    const p = pending.current;
+    if (p && !p.ready && requiredZones(p.zoneId).every((id) => states[id]?.state === 'active')) {
+      p.ready = true;
+      invalidate();
+    }
+  }, [states, invalidate]);
+  // Transition time = request → required zones mounted → first frame rendered with them.
+  useFrame(() => {
+    const p = pending.current;
+    if (p?.ready) {
+      transitions.push({ zoneId: p.zoneId, ms: performance.now() - p.t0, coldModules: p.cold });
+      if (transitions.length > 200) transitions.shift();
+      pending.current = null;
+    }
+  });
+
+  const mounted = useMemo(
+    () =>
+      Object.entries(states)
+        .filter(([, st]) => st.state === 'active' && st.role !== 'prefetch')
+        .map(([id]) => id),
+    [states],
+  );
   return (
     <ItemRegistry.Provider value={registry}>
       <color attach="background" args={['#1c1f24']} />
-      <hemisphereLight args={['#eef2f7', '#3a3f47', 1.1]} />
-      <directionalLight position={[6, 12, 4]} intensity={1.4} />
-      {toLoad.map((id) => (
+      <hemisphereLight args={['#f4f6f8', '#5b6068', 1.25]} />
+      <directionalLight position={[6, 14, 4]} intensity={1.2} />
+      <SharedPalettePin />
+      {mounted.map((id) => (
         <ZoneMount key={id} zone={getZone(id)!} />
       ))}
-      <WorkspaceLayer />
-      <MountedProject>{project}</MountedProject>
+      <WorkspaceLayer zones={mounted} />
+      <MountedProject zones={mounted}>{project}</MountedProject>
       <LayoutManipulator />
     </ItemRegistry.Provider>
   );
 }
 
+/**
+ * Holds one reference to every palette material and the unit template geometries while
+ * the facility view is open, so moving between zones never disposes and recompiles
+ * shared resources — only zone-specific ones (instance buffers, sign textures) churn.
+ */
+function SharedPalettePin() {
+  useEffect(() => {
+    const mats = PALETTE_SPECS.map((spec) => {
+      const key = materialKey(spec);
+      materialCache.acquire(key, () => createStandardMaterial(spec));
+      return key;
+    });
+    const geos = [
+      { shape: 'box', width: 1, height: 1, depth: 1 },
+      { shape: 'cylinder', radius: 0.5, height: 1 },
+    ] as const;
+    const gkeys = geos.map((g) => {
+      const key = geometryKey(g);
+      geometryCache.acquire(key, () => createPrimitiveGeometry(g));
+      return key;
+    });
+    return () => {
+      mats.forEach((k) => materialCache.release(k));
+      gkeys.forEach((k) => geometryCache.release(k));
+    };
+  }, []);
+  return null;
+}
+
 function ZoneMount({ zone }: { zone: Zone }) {
-  const Module = zone.moduleKey ? ZONE_MODULES[zone.moduleKey] : undefined;
-  if (!Module) return null;
+  const element = zoneElement(zone);
+  if (!element) return null;
   return (
     <group position={zone.pose.position} rotation={[0, zone.pose.yaw, 0]}>
-      <Suspense fallback={null}>
-        <Module />
-      </Suspense>
+      {element}
     </group>
   );
 }
 
-function WorkspaceLayer() {
+/** Equipment of loaded zones only; items elsewhere stay in the layout, just not rendered. */
+function WorkspaceLayer({ zones }: { zones: string[] }) {
   const items = useEditor((s) => s.layout.items);
   const byZone = useMemo(() => {
     const m = new Map<string, WorkspaceItem[]>();
-    for (const it of Object.values(items)) m.set(it.zoneId, [...(m.get(it.zoneId) ?? []), it]);
+    for (const it of Object.values(items))
+      if (zones.includes(it.zoneId)) m.set(it.zoneId, [...(m.get(it.zoneId) ?? []), it]);
     return m;
-  }, [items]);
+  }, [items, zones]);
   return (
     <>
       {[...byZone].map(([zoneId, list]) => {
@@ -202,10 +302,11 @@ function EquipmentVisual({ eq, highlight }: { eq: Equipment; highlight: 'none' |
 }
 
 /** Places the engineering project's root in mount frame M of the bench hosting it. */
-function MountedProject({ children }: { children: ReactNode }) {
+function MountedProject({ children, zones }: { children: ReactNode; zones: string[] }) {
   const projectId = useEditor((s) => s.project.id);
   const items = useEditor((s) => s.layout.items);
-  const bench = Object.values(items).find((i) => i.mountedProjectId === projectId);
+  const found = Object.values(items).find((i) => i.mountedProjectId === projectId);
+  const bench = found && zones.includes(found.zoneId) ? found : undefined;
   const matrix = useMemo(() => {
     if (!bench) return null;
     const zone = getZone(bench.zoneId);
@@ -239,6 +340,27 @@ function LayoutManipulator() {
   const helper = useMemo(() => new Box3Helper(new Box3(), new Color('#7dd3fc')), []);
 
   const editable = !!item && !item.locked;
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  // Read-only test diagnostic: client-pixel centre of a gizmo picker handle ('X', 'Z', 'XZ', 'Y'…).
+  useEffect(() => {
+    const w = window as unknown as { __forge?: Record<string, unknown> };
+    w.__forge = {
+      ...w.__forge,
+      layoutGizmoHandle: (name: string) => {
+        const c = controls.current as unknown as {
+          mode: 'translate' | 'rotate' | 'scale';
+          gizmo?: { picker: Record<string, Object3D> };
+        } | null;
+        const handle = c?.gizmo?.picker[c.mode]?.children.find((h) => h.name === name && h.visible);
+        if (!handle) return null;
+        handle.updateWorldMatrix(true, false);
+        const v = new Box3().setFromObject(handle).getCenter(new Vector3()).project(camera);
+        const rect = gl.domElement.getBoundingClientRect();
+        return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height };
+      },
+    };
+  }, [camera, gl]);
   useFrame(() => {
     const next = editable && id ? (registry.get(id) ?? null) : null;
     if (next !== target) setTarget(next);

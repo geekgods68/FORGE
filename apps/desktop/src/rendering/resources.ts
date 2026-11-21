@@ -82,10 +82,12 @@ export interface StandardMaterialSpec {
   doubleSided?: boolean;
   transparent?: boolean;
   opacity?: number;
+  /** Opt-in: false for glazing/water so overlapping transparent instances don't occlude. */
+  depthWrite?: boolean;
 }
 
 export const materialKey = (m: StandardMaterialSpec) =>
-  `std:${m.color}:${m.emissive ?? '#000000'}:${m.roughness ?? 0.6}:${m.metalness ?? 0.05}:${m.doubleSided ? 2 : 0}:${m.opacity ?? 1}`;
+  `std:${m.color}:${m.emissive ?? '#000000'}:${m.roughness ?? 0.6}:${m.metalness ?? 0.05}:${m.doubleSided ? 2 : 0}:${m.opacity ?? 1}${m.depthWrite === false ? ':nodw' : ''}`;
 
 export function createStandardMaterial(m: StandardMaterialSpec): Material {
   return new MeshStandardMaterial({
@@ -96,6 +98,7 @@ export function createStandardMaterial(m: StandardMaterialSpec): Material {
     side: m.doubleSided ? DoubleSide : FrontSide,
     transparent: m.transparent ?? (m.opacity !== undefined && m.opacity < 1),
     opacity: m.opacity ?? 1,
+    depthWrite: m.depthWrite ?? true,
   });
 }
 

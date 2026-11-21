@@ -1,4 +1,4 @@
-# Facility layout (planned; not modelled in Phase 0)
+# Facility layout
 
 ## Wing A: AI & Computational Intelligence
 
@@ -46,17 +46,8 @@
 - Immersive Design Chamber
 - Real-World Environment Simulator
 
-## Status (Phase 2 vertical slice)
+## Status (Phase 2, facility revision 2)
 
-All 29 zones are registered in `@forge/facility` (`facility-v1.ts`), each with a reserved footprint on the site plan. The site plan uses facility frame F, metres, −Z north:
+**All built.** All 22 laboratories, all 6 environments and 11 corridors (Corridor E, wing corridors A–D, the environments corridor and 5 central-concourse segments) are implemented and navigable. Each room has its own furnishings and signage. The revision-1 positions of Lab 20 and Corridor E are unchanged; the other zones moved from their reserved rows to the connected site plan.
 
-| Area              | Position                                   |
-| ----------------- | ------------------------------------------ |
-| Corridor E        | Datum, x −27…27 m                          |
-| Wing E labs 20–22 | North of the corridor                      |
-| Wings A–D         | Reserved rows at z = +20, +40, +60 and +80 |
-| Six environments  | Reserved row at z = −40                    |
-
-**Built:** Lab 20, Central Conjuring & Integration Workshop (18 × 12 × 4.5 m), and Corridor E (54 × 3 × 3.5 m).
-
-**Not built:** the other 21 labs and all 6 environments. They are registered as `planned` and cannot be loaded.
+The site plan, the exact room list with zone ids and poses, the templates and the lifecycle are in [FACILITY_ARCHITECTURE.md](FACILITY_ARCHITECTURE.md).

@@ -1,6 +1,8 @@
-import { getZone, itemChain, pointToFacility } from '@forge/facility';
+import { FACILITY, getZone, itemChain, pointToFacility, requiredZones, roomCode } from '@forge/facility';
 import { BrowserStorageProjectRepository, BrowserStorageWorkspaceRepository } from '@forge/persistence';
-import { loadedZoneModules } from './facility/loaded';
+import { loadedZoneModules, renderedSigns } from './facility/loaded';
+import { signTextureStats } from './facility/signTextures';
+import { transitions, zoneLifecycle } from './facility/zoneRuntime';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
@@ -38,6 +40,25 @@ w.__forge = {
   workspaceHistory: () => store.getState().workspace.getHistory(),
   itemSelection: () => store.getState().itemSelection,
   loadedZoneModules: () => loadedZoneModules(),
+  /** Zone lifecycle snapshot (non-unloaded zones): state + role (+ error). */
+  zoneStates: () => zoneLifecycle.snapshot(),
+  /** Static facility registry summary (read-only data). */
+  zones: () =>
+    FACILITY.zones.map((z) => ({
+      id: z.id,
+      name: z.name,
+      kind: z.kind,
+      code: roomCode(z),
+      corridorId: z.kind === 'corridor' ? null : z.portals[0]!.toZoneId,
+    })),
+  requiredZones: (id: string) => requiredZones(id),
+  zoneCounters: () => ({
+    loads: zoneLifecycle.loadsCompleted,
+    staleIgnored: zoneLifecycle.staleResultsIgnored,
+  }),
+  transitions: () => transitions.map((t) => ({ ...t })),
+  renderedSigns: () => renderedSigns(),
+  signTextures: () => signTextureStats(),
   itemFacilityPosition: (itemId: string) => {
     const it = store.getState().workspace.getItem(itemId);
     const zone = it && getZone(it.zoneId);

@@ -46,6 +46,16 @@ export const PlacementAreaSchema = z.object({
   allowedCategories: z.array(EquipmentCategorySchema).min(1),
 });
 
+/** Fixed, discipline-specific furnishing (architecture layer: not editable, not pickable). */
+export const FurnishingSchema = z.object({
+  type: z.string().min(1),
+  /** Footprint centre on the floor, zone frame (m). */
+  position: Vec3,
+  yaw: n.default(0),
+  /** Optional size override [w, h, d] (m); otherwise the type's default size. */
+  size: Vec3.optional(),
+});
+
 export const ZoneSchema = z.object({
   id: IdSchema,
   name: z.string().min(1),
@@ -64,6 +74,9 @@ export const ZoneSchema = z.object({
   /** Lazy-loadable visual module key (implemented zones only). */
   moduleKey: z.string().nullable(),
   summary: z.string(),
+  /** Short discipline line shown on signage. */
+  discipline: z.string().default(''),
+  furnishings: z.array(FurnishingSchema).default([]),
 });
 
 export const WingSchema = z.object({
@@ -122,6 +135,7 @@ export const WorkspaceLayoutSchema = z.object({
 
 export type FloorRect = z.infer<typeof FloorRectSchema>;
 export type Portal = z.infer<typeof PortalSchema>;
+export type Furnishing = z.infer<typeof FurnishingSchema>;
 export type PlacementArea = z.infer<typeof PlacementAreaSchema>;
 export type Zone = z.infer<typeof ZoneSchema>;
 export type Wing = z.infer<typeof WingSchema>;

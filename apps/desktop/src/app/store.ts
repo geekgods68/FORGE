@@ -24,6 +24,7 @@ import {
   type WorkspaceCommandType,
   type WorkspaceLayout,
   type WorkspaceResult,
+  type Zone,
 } from '@forge/facility';
 import {
   BrowserStorageWorkspaceRepository,
@@ -44,6 +45,29 @@ export type PhysicsStatus = { state: 'loading' | 'ready' | 'error'; detail?: str
 export type ViewMode = 'project' | 'facility';
 /** Which layer editing tools act on in the facility view (the facility itself is never editable). */
 export type EditLayer = 'project' | 'layout';
+/**
+ * Overview camera for a zone: rooms are viewed from above their doorway side (zone-local
+ * +Z, so yaw-π rooms are handled), corridors from beside their long axis. Lab 20 keeps
+ * its revision-1 preset exactly ([x, 13, z + 9.5]).
+ */
+export function zoneCameraPreset(zone: Zone): Omit<CameraPreset, 'nonce'> {
+  const [x, , z] = zone.pose.position;
+  const c = Math.cos(zone.pose.yaw);
+  const s = Math.sin(zone.pose.yaw);
+  const local = (lx: number, ly: number, lz: number): [number, number, number] => [
+    x + lx * c + lz * s,
+    ly,
+    z - lx * s + lz * c,
+  ];
+  if (zone.kind === 'corridor') {
+    const w = zone.footprint.max[0] - zone.footprint.min[0];
+    const d = zone.footprint.max[1] - zone.footprint.min[1];
+    return { position: w >= d ? [x + 3, 12, z + 9] : [x + 9, 12, z + 3], target: [x, 0.5, z] };
+  }
+  const big = zone.kind === 'environment';
+  return { position: local(0, big ? 22 : 13, big ? 20 : 9.5), target: [x, big ? 1.5 : 0.8, z] };
+}
+
 export type CameraPreset = {
   position: [number, number, number];
   target: [number, number, number];
@@ -82,6 +106,8 @@ export interface EditorState {
   editLayer: EditLayer;
   itemSelection: string | null;
   currentZoneId: string;
+  /** At most one destination whose code is prefetched (directory hover/focus). */
+  prefetchZoneId: string | null;
   cameraPreset: CameraPreset | null;
 
   run<T extends CommandType>(
@@ -114,6 +140,7 @@ export interface EditorState {
   setEditLayer(layer: EditLayer): void;
   selectItem(id: string | null): void;
   goToZone(zoneId: string): void;
+  setPrefetchZone(zoneId: string | null): void;
   focusItem(itemId: string): void;
   runWorkspace<T extends WorkspaceCommandType>(
     type: T,
@@ -212,6 +239,7 @@ export function createEditorStore(
       editLayer: 'project',
       itemSelection: null,
       currentZoneId: CENTRAL_WORKSHOP_ID,
+      prefetchZoneId: null,
       cameraPreset: null,
 
       run(type, payload, opts = {}) {
@@ -401,16 +429,17 @@ export function createEditorStore(
           set({ status: { tone: 'error', text: `${zone?.name ?? zoneId} is planned and not built yet.` } });
           return;
         }
-        const [x, , z] = zone.pose.position;
         set({
           currentZoneId: zoneId,
-          cameraPreset: {
-            position: zone.kind === 'corridor' ? [x + 10, 5, z + 9] : [x, 13, z + 9.5],
-            target: [x, 0.8, z],
-            nonce: (get().cameraPreset?.nonce ?? 0) + 1,
-          },
+          prefetchZoneId: get().prefetchZoneId === zoneId ? null : get().prefetchZoneId,
+          itemSelection: null,
+          cameraPreset: { ...zoneCameraPreset(zone), nonce: (get().cameraPreset?.nonce ?? 0) + 1 },
           status: { tone: 'info', text: `Entered ${zone.name}.` },
         });
+      },
+
+      setPrefetchZone(prefetchZoneId) {
+        if (prefetchZoneId !== get().prefetchZoneId) set({ prefetchZoneId });
       },
 
       focusItem(itemId) {
