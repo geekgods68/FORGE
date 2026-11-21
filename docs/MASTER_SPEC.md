@@ -29,16 +29,16 @@ The visual direction is an advanced holographic engineering interface. It must b
 | Aerospace, fluids and optics | Domain-specific test environments         |
 | Research practice            | Reproducible experimentation              |
 
-The facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 environments; built in Phase 2). The component library is in COMPONENT_CATALOG.md (28 categories, 401 families; Phase 3), with schema, geometry, conjuring and connection details in COMPONENT_SCHEMA.md, PARAMETRIC_GEOMETRY.md, CONJURING_WORKFLOW.md and COMPONENT_CONNECTIONS.md.
+The facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 environments; built in Phase 2). The component library is in COMPONENT_CATALOG.md (28 categories, 401 families; Phase 3), with schema, geometry, conjuring and connection details in COMPONENT_SCHEMA.md, PARAMETRIC_GEOMETRY.md, CONJURING_WORKFLOW.md and COMPONENT_CONNECTIONS.md. Mechanical assembly, constraints, CAD, measurement and imported models are in MECHANICAL_ASSEMBLY.md, CONSTRAINT_SOLVER.md, PARAMETRIC_CAD.md, GEOMETRY_OPERATIONS.md and ASSET_IMPORT.md (Phase 4).
 
 ## Interfaces and their distinctions
 
-| Concern                | Meaning                                                                                        | Status                                                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Engineering editor (Phase 1), research facility (Phase 2), component library and conjuring (Phase 3)               |
-| VR (Meta Quest 2)      | The same domain model through WebXR. VR is a rendering and input layer, not a separate product | Future                                                                                                             |
-| Engineering simulation | Models with an explicit validity status (SIMULATION_VALIDITY.md). Rendering ≠ simulation       | Future; physics engine installed, no simulation yet                                                                |
-| Vey integration        | Typed, validated, permissioned commands (VEY_INTEGRATION.md). No LLM inside FORGE              | The engine command/query API that Vey will use exists (Phase 1); the Vey permission layer and exposure are Phase 9 |
+| Concern                | Meaning                                                                                        | Status                                                                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Engineering editor (Phase 1), research facility (Phase 2), component library and conjuring (Phase 3), mechanical assemblies, constraint solver and prismatic CAD (Phase 4) |
+| VR (Meta Quest 2)      | The same domain model through WebXR. VR is a rendering and input layer, not a separate product | Future                                                                                                                                                                     |
+| Engineering simulation | Models with an explicit validity status (SIMULATION_VALIDITY.md). Rendering ≠ simulation       | Future; physics engine installed, no simulation yet                                                                                                                        |
+| Vey integration        | Typed, validated, permissioned commands (VEY_INTEGRATION.md). No LLM inside FORGE              | The engine command/query API that Vey will use exists (Phase 1); the Vey permission layer and exposure are Phase 9                                                         |
 
 ## Principles
 

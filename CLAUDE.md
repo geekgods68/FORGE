@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** Phases 0–2 are complete and merged. Phase 3 (component library & conjuring) is implemented on `phase-3/component-library` and pending owner acceptance (docs/PHASE_3_REPORT.md). Phase 4 (mates/constraints) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
+- **Phase discipline:** Phases 0–3 are complete and merged. Phase 4 (mechanical CAD, mates/constraints) is implemented on `phase-4/mechanical-cad` and pending owner acceptance (docs/PHASE_4_REPORT.md). Phase 5 (simulation/robotics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).
@@ -9,7 +9,7 @@
   - Rewrite git history.
 - **Architecture:**
   - `ForgeEngine` in `@forge/engineering-core` holds the single authoritative scene graph. Every engineering change goes through `engine.execute(command)`. Never mutate state from React, three.js objects or the Zustand store.
-  - Domain logic lives in `packages/*` and must not import React, three or any UI code (enforced by ESLint).
+  - Domain logic lives in `packages/*` and must not import React, three or any UI code (enforced by ESLint). Solvers and the CAD kernel live in `@forge/mechanics` and are injected into the engine (`EngineOptions.mechanics`); core never imports them.
   - The UI lives in `apps/desktop`.
   - Persisted data is validated with Zod schemas from `@forge/engineering-core`.
 - **Layers:** facility (read-only data, no commands), workspace (`WorkspaceEngine`), project (`ForgeEngine`). Link them by id only, never embed one in another. Coordinate frames are in docs/ARCHITECTURE.md.

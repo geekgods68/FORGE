@@ -31,6 +31,7 @@ w.__forge = {
   ready: true,
   storageNamespace: namespace,
   project: () => engine.getProject(),
+  nodeCount: () => Object.keys(engine.getProject().scene.nodes).length,
   queryScene: () => engine.queryScene(),
   getNode: (id: string) => engine.getNode(id),
   getWorldTransform: (id: string) => engine.getWorldTransform(id),

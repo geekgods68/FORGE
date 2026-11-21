@@ -1,4 +1,6 @@
-# Component catalogue (Phase 3)
+# Component catalogue (Phases 3–4)
+
+> **Phase 4:** catalogue interfaces are now used as **mate frames** (MECHANICAL_ASSEMBLY.md), and metric thread/clearance descriptors drive dimensional fastener checks. Users can add **custom components from imported GLB/glTF models** to a local library (ASSET_IMPORT.md). These carry no inferred mass, material or interfaces, and are not part of the 401 shipped families. Feature parts (PARAMETRIC_CAD.md) declare face and hole interfaces of their own. The robotic-arm sample moved to `@forge/mechanics`.
 
 The catalogue lives in `@forge/components` (`packages/components`). It is pure data plus generators: nothing is rendered until a part is previewed or placed. The numbers below are generated from the shipped data.
 

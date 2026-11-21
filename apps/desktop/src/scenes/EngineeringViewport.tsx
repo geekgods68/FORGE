@@ -39,6 +39,8 @@ import type {
 } from 'three-stdlib';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { explodeOffsets } from '@forge/mechanics';
+import { InstancedBatch } from '@/rendering/InstancedComponents';
+import { planComponentBatches } from '@/rendering/componentBatches';
 import { useEditor, useEditorStore } from '@/app/store';
 
 const PhysicsLayer = lazy(() => import('./PhysicsLayer'));
@@ -51,6 +53,10 @@ const ORBIT_TARGET: [number, number, number] = [0, 0.15, 0];
 const RegistryContext = createContext<Map<string, Object3D>>(new Map());
 /** View-only explode offsets (parent-assembly frame, metres) for the exploded assembly's members. */
 const ExplodeContext = createContext<Record<string, [number, number, number]>>({});
+/** Nodes whose body is drawn by an instanced batch (their NodeView keeps only the transform). */
+const InstancedContext = createContext<ReadonlySet<string>>(new Set());
+/** Renderer diagnostics for the current instancing plan (read by the debug probe). */
+const instancingStats = { batches: 0, instanced: 0, drawn: [] as { definitionId: string; count: number }[] };
 
 /**
  * The 3D viewport renders the engineering scene graph. It owns no engineering
@@ -129,6 +135,16 @@ export function EngineeringViewport() {
 
 /** Project view: the engineering scene at its own origin with the measurement grid. */
 function ProjectStage({ rootId }: { rootId: string }) {
+  const graph = useEditor((s) => s.previewScene ?? s.project.scene);
+  const selection = useEditor((s) => s.selection);
+  const offsets = useContext(ExplodeContext);
+  const batches = useMemo(() => planComponentBatches(graph, selection), [graph, selection]);
+  const instanced = useMemo(() => new Set(batches.flatMap((b) => b.ids)), [batches]);
+  useEffect(() => {
+    instancingStats.batches = batches.length;
+    instancingStats.instanced = instanced.size;
+    instancingStats.drawn = batches.map((b) => ({ definitionId: b.definitionId, count: b.ids.length }));
+  }, [batches, instanced]);
   return (
     <>
       <color attach="background" args={['#2a2d33']} />
@@ -144,7 +160,12 @@ function ProjectStage({ rootId }: { rootId: string }) {
         position={[0, -0.0005, 0]}
       />
       <axesHelper args={[0.5]} />
-      <NodeView id={rootId} />
+      <InstancedContext.Provider value={instanced}>
+        <NodeView id={rootId} />
+      </InstancedContext.Provider>
+      {batches.map((b) => (
+        <InstancedBatch key={b.key} batch={b} graph={graph} offsets={offsets} />
+      ))}
     </>
   );
 }
@@ -159,6 +180,7 @@ function NodeView({ id }: { id: string }) {
   const walkingNav = useEditor((s) => s.navMode === 'walk');
   const registry = useContext(RegistryContext);
   const offset = useContext(ExplodeContext)[id];
+  const instancedBody = useContext(InstancedContext).has(id);
   if (!node) return null;
   const isRoot = node.kind === 'root';
   const p = node.transform.position;
@@ -187,7 +209,9 @@ function NodeView({ id }: { id: string }) {
       visible={node.visible}
       userData={{ nodeId: id }}
     >
-      {!isRoot && <NodeBody node={node} definitions={definitions} selected={selected} onClick={onClick} />}
+      {!isRoot && !instancedBody && (
+        <NodeBody node={node} definitions={definitions} selected={selected} onClick={onClick} />
+      )}
       {node.childIds.map((c) => (
         <NodeView key={c} id={c} />
       ))}
@@ -602,6 +626,8 @@ function DebugProbe() {
         const rect = gl.domElement.getBoundingClientRect();
         return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
       },
+      /** Instanced rendering plan (project view): batches, instanced nodes, per-batch counts. */
+      instancing: () => ({ ...instancingStats, drawn: [...instancingStats.drawn] }),
       /** Imported model instances as rendered: loaded GLB, still loading, or missing asset placeholder. */
       modelInstances: () => {
         const out = { loaded: 0, loading: 0, missing: 0 };

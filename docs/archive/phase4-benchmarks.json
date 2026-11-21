@@ -1,0 +1,85 @@
+{
+  "environment": "Headless Chromium (Playwright), software WebGL, MacBook Air M3 8 GB — timings indicative only; draw calls / instances deterministic.",
+  "components-100": {
+    "insertMsPerBatch": [
+      435
+    ],
+    "drawCalls": 43,
+    "triangles": 55334,
+    "instancedNodes": 100,
+    "batches": 4,
+    "undoLastInsertMs": 45
+  },
+  "components-1000": {
+    "insertMsPerBatch": [
+      705
+    ],
+    "drawCalls": 43,
+    "triangles": 551234,
+    "instancedNodes": 1000,
+    "batches": 4,
+    "undoLastInsertMs": 38
+  },
+  "components-5000": {
+    "insertMsPerBatch": [
+      707,
+      637,
+      902,
+      1188,
+      1487
+    ],
+    "drawCalls": 43,
+    "triangles": 2755234,
+    "instancedNodes": 5000,
+    "batches": 4,
+    "undoLastInsertMs": 630
+  },
+  "robotic-arm": {
+    "jointSetPositionMs": [
+      251,
+      53,
+      43,
+      44,
+      42
+    ],
+    "drawCalls": 80,
+    "triangles": 7698,
+    "interferenceCheckMs": 64
+  },
+  "mixed": {
+    "insert1000Ms": 268,
+    "drawCalls": 82,
+    "triangles": 558698,
+    "instancing": {
+      "batches": 6,
+      "instanced": 1010,
+      "drawn": [
+        {
+          "definitionId": "ball-bearing",
+          "count": 251
+        },
+        {
+          "definitionId": "towerpro-sg90",
+          "count": 251
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 250
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 250
+        }
+      ]
+    },
+    "elbowMoveMs": 183
+  }
+}

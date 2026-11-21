@@ -1,4 +1,4 @@
-# FORGE architecture (Phases 1–3)
+# FORGE architecture (Phases 1–4)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -271,8 +271,39 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 - **Layers:** components exist only in the engineering project. A project mounted on a bench is relocated by its mount frame, and component-local coordinates never change.
 - **Details:** COMPONENT_SCHEMA.md, PARAMETRIC_GEOMETRY.md, CONJURING_WORKFLOW.md, COMPONENT_CONNECTIONS.md.
 
+## Phase 4: mechanical CAD and assemblies
+
+- **`@forge/mechanics`** (new, pure: no React or three):
+  - the assembly solver (`assembly.ts`), the sketch solver (`sketch.ts`) and dense linear algebra (`linalg.ts`, `pose.ts`);
+  - the prismatic part kernel (`part.ts`, using `polygon-clipping@0.15.7` for 2D booleans);
+  - measurement, interference and explode (`measure.ts`), and fastener checks (`fasteners.ts`);
+  - the constrained robotic-arm sample.
+
+  It depends on core and components. **Core never imports it.** The engine receives it through `EngineOptions.mechanics: MechanicsService` (`createMechanicsService()`), alongside `componentResolver`.
+
+- **Project schema v4:**
+  - `assembly.mechanical {grounded, mates, constraints}`;
+  - new node kinds `sketch`, `part` (ordered features) and `model-instance` (a `ModelRef` with a SHA-256 asset hash);
+  - v1, v2 and v3 migrate forward. Cross-references are validated on load.
+- **Commands:** 25 mechanical commands (MECHANICAL_ASSEMBLY.md, PARAMETRIC_CAD.md), all node-scoped, so they work inside `scene.batch`.
+  - Solver and kernel results are written inside the same `GraphTransaction`, so a refused solve or regeneration leaves state untouched, and undo/redo replay exact operations without re-solving.
+  - `engine.preview(cmd)` is a dry run that commits nothing.
+  - `engine.analyzeAssembly(id)` is a read-only solve report.
+- **Desktop:**
+  - assembly, part and sketch inspectors;
+  - joint sliders that preview through dry runs;
+  - a view-only `previewScene`, explode offsets and interference highlights in the store, never in the model.
+- **Assets:** a content-addressed IndexedDB store (`apps/desktop/src/assets/`), `forge-bundle` / `forge-assembly` files and a reference-counted GLB template cache (ASSET_IMPORT.md).
+- **Instanced rendering (project view):**
+  - `planComponentBatches` groups visible, unselected catalogue instances of an identical configuration (definition + parameters + material, at least 4 instances) into one `InstancedMesh` per appearance;
+  - matrices are computed from the scene graph, including preview and explode;
+  - instance id maps to node id for clicks.
+
+  Each node keeps its transform-only `NodeView`, so the registry, gizmo and highlights are unchanged. Selected and hidden nodes are excluded, and undo works because the plan is a pure function of state. The facility view still renders per node.
+
 ## Security posture (local)
 
 - The CSP is same-origin, plus `'wasm-unsafe-eval'` for Rapier only. The e2e test verifies there are 0 requests to other origins.
 - The servers bind to 127.0.0.1.
 - `window.__forge` exposes **query methods only**: no execute, undo or replace.
+- Imported model bytes stay in this browser profile's IndexedDB; bundles are verified by SHA-256 before anything is stored.

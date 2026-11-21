@@ -82,3 +82,19 @@ The Phase 2 maintenance numbers still stand: 5,000-object select 91 ms, edit 47 
 - **Render timing:** measured as frame cadence and commit timing, not GPU time.
 - **Swap:** heavy swapping on this 8 GB machine adds variance, especially to cold loads.
 - **Headless runs:** headless numbers use software WebGL. Real-GPU numbers come from one scripted run, not repeated trials.
+
+## Phase 4: instanced components and mechanical benchmarks
+
+`tests/end-to-end/performance.spec.ts` writes `test-results/phase4-benchmarks.json`. Conditions: **headless Chromium, software WebGL**, MacBook Air M3 8 GB. Timings are indicative only; draw-call and instance counts are deterministic. Each scene uses 4 component configurations (hex nut, machine screw, ball bearing, SG90 servo), inserted as reusable-assembly batches of ≤ 1,000.
+
+| Scene                       | Instanced nodes | Batches | Draw calls (frame) | Triangles | Insert (per batch) | Undo last insert |
+| --------------------------- | --------------- | ------- | ------------------ | --------- | ------------------ | ---------------- |
+| 100 components              | 100             | 4       | 43                 | 55,334    | 435 ms             | 45 ms            |
+| 1,000 components            | 1,000           | 4       | 43                 | 551,234   | 705 ms             | 38 ms            |
+| 5,000 components            | 5,000           | 4       | 43                 | 2,755,234 | 637–1,487 ms (×5)  | 630 ms           |
+| Robotic arm (29 components) | —               | —       | 80                 | 7,698     | —                  | —                |
+| Mixed: arm + 1,000          | 1,010           | 6       | 82                 | 558,698   | 268 ms             | —                |
+
+- Draw calls stay **constant** in the component count. The 43 is the fixed overhead of the grid, axes, gizmo helper and lights, plus one call per batch appearance. Without instancing, each instance costs one call per appearance; that figure is derived, not measured here.
+- Robotic arm: `assembly.joint.setPosition` round trip through the UI is ≈ 42–53 ms (251 ms on the first, cold call). An interference check on the arm takes 64 ms. In the mixed scene, an elbow move takes ≈ 183 ms.
+- Not measured: frame time on a real GPU (Phase 10), and VR.

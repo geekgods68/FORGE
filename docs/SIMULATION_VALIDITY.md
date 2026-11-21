@@ -32,4 +32,23 @@ Every simulation capability in FORGE carries exactly one status. It is stored in
   - otherwise `unknown`. Densities are `approximate` handbook values.
 - **Materials:** the 29 library materials carry `approximate` (typical handbook values) or `unsupported` (unspecified material). No value is certified.
 - **Connections:** compatibility is metadata-only, so it doesn't establish a working joint or circuit (mating is Phase 4, circuits Phase 6).
-- **Robotic-arm sample:** manually positioned. No actuation, wiring or joint constraint is simulated or claimed.
+- **Robotic-arm sample:** manually positioned. No actuation, wiring or joint constraint is simulated or claimed. _(Superseded in Phase 4: see below.)_
+
+## Phase 4 state
+
+| Capability                               | Status           | Basis / limits                                                                                             |
+| ---------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| Assembly kinematic positioning (mates)   | **verified**     | Ideal rigid joints; analytic FK agreement to 1e-12 m; residual tolerance 1e-7 m/rad. No forces or dynamics |
+| DOF / redundancy reporting               | **verified**     | Rank of the constraint Jacobian; tested per mate type, loops and conflicts                                 |
+| Sketch constraint solving                | **verified**     | Residual 1e-9; DOF from rank                                                                               |
+| Part volume (prismatic kernel)           | **verified**     | Closed-form agreement for every feature type                                                               |
+| Part / assembly mass, centre of mass     | **approximate**  | Exact volume × typical handbook density; unknown for envelope models and imported meshes                   |
+| Interference: exact box solids           | **verified**     | Separating-axis test on oriented boxes                                                                     |
+| Interference: curved / holed / envelope  | **approximate**  | Reported as "possible" (bounding-volume overlap)                                                           |
+| Clearance                                | **approximate**  | Bounding-box gap: a conservative lower bound                                                               |
+| Fastener compatibility                   | **approximate**  | Dimensional/designation checks only; **no** strength, preload, torque or fatigue                           |
+| Exploded view                            | **illustrative** | Display only; the model is never changed                                                                   |
+| Joint motion, servo behaviour, actuation | **unsupported**  | Kinematic poses only; no time, torque, payload or control (Phase 5)                                        |
+| Imported GLB models                      | **unsupported**  | Visual geometry only; no mass, material or interfaces inferred                                             |
+
+The robotic-arm reference assembly is now constrained by four revolute joints with limits. It reports **kinematic** configurations only; it does not predict reach under load, servo torque or speed.
