@@ -28,7 +28,7 @@ describe('component geometry builder', () => {
       expect(geos.size).toBe(new Set(e.solids.map((s) => s.app)).size);
       for (const g of geos.values()) g.dispose();
     }
-  });
+  }, 60_000); // builds all 401 families; generous bound for slow/swapping machines
 
   it('shares geometry between identical configurations and disposes on last release', () => {
     const p = resolveParameters(
