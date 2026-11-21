@@ -128,7 +128,8 @@ UNLOADED ─load─▶ LOADING ─ok─▶ ACTIVE ─not wanted─▶ UNLOADING 
 
 ## Known gaps
 
-- **Corridor view:** from inside a wing corridor, the concourse opening shows empty space. Concourse segments aren't in a corridor's required set, by the loaded-set policy.
+- **Corridor view:** a corridor opening onto an unloaded corridor shows a short vestibule stub with fire doors, not the neighbour itself (the neighbour isn't loaded).
 - **Default layout:** only Lab 20 has default workspace equipment. Other labs have empty, outlined bench floors that accept placed equipment.
-- **No ceilings:** zones have no ceilings, so the overview camera can see in.
+- **Ceilings:** labs and corridors have ceilings with automatic cutaway: drawn only while the camera is below them. Environments have open roof trusses.
+- **Walking:** first-person walking (`WalkControls.tsx`) with collision from the same data (`collision.ts`). Crossing a zone edge hands over to the lifecycle.
 - **Simplified geometry:** furnishings are low-detail. They identify each discipline, but they aren't models of real instruments.

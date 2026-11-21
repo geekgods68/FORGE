@@ -39,6 +39,8 @@ w.__forge = {
   layout: () => store.getState().workspace.getLayout(),
   workspaceHistory: () => store.getState().workspace.getHistory(),
   itemSelection: () => store.getState().itemSelection,
+  navMode: () => store.getState().navMode,
+  currentZone: () => store.getState().currentZoneId,
   loadedZoneModules: () => loadedZoneModules(),
   /** Zone lifecycle snapshot (non-unloaded zones): state + role (+ error). */
   zoneStates: () => zoneLifecycle.snapshot(),

@@ -20,6 +20,7 @@ import {
   type Object3D,
 } from 'three';
 import { FacilityScene } from '@/facility/FacilityScene';
+import { WalkControls } from '@/facility/WalkControls';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
 import { resourceStats } from '@/rendering/resources';
 import { signTextureStats } from '@/facility/signTextures';
@@ -53,6 +54,7 @@ export function EngineeringViewport() {
   const continuous = useEditor((s) => s.continuousReasons.length > 0);
   const view = useEditor((s) => s.view);
   const lastDragEnd = useRef(0);
+  const walking = useEditor((s) => s.navMode === 'walk' && s.view === 'facility');
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
 
   return (
@@ -94,6 +96,7 @@ export function EngineeringViewport() {
           </Suspense>
         </ErrorBoundary>
         <CameraRig />
+        {walking && <WalkControls />}
         <DebugProbe />
       </Canvas>
     </RegistryContext.Provider>
@@ -128,6 +131,7 @@ function NodeView({ id }: { id: string }) {
   const selected = useEditor((s) => s.selection.includes(id));
   const select = useEditor((s) => s.select);
   const layoutActive = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
+  const walkingNav = useEditor((s) => s.navMode === 'walk');
   const registry = useContext(RegistryContext);
   if (!node) return null;
   const isRoot = node.kind === 'root';
@@ -135,6 +139,7 @@ function NodeView({ id }: { id: string }) {
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // it was an orbit drag, not a click
     if (layoutActive) return; // layout editing: let the click reach the equipment underneath
+    if (walkingNav) return; // walking: clicks capture the mouse, never edit
     e.stopPropagation();
     select(id);
   };
@@ -362,6 +367,7 @@ function CameraRig() {
   const resetRequest = useEditor((s) => s.cameraResetRequest);
   const preset = useEditor((s) => s.cameraPreset);
   const view = useEditor((s) => s.view);
+  const walking = useEditor((s) => s.navMode === 'walk');
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     controls.current?.saveState();
@@ -373,6 +379,7 @@ function CameraRig() {
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
+    if (walking) return; // the walker owns the camera
     if (view === 'facility' && preset) {
       c.object.position.set(...preset.position);
       c.target.set(...preset.target);
@@ -381,11 +388,12 @@ function CameraRig() {
       c.reset();
     }
     invalidate();
-  }, [preset, view, invalidate]);
+  }, [preset, view, walking, invalidate]);
   return (
     <OrbitControls
       ref={controls}
       makeDefault
+      enabled={!walking}
       target={ORBIT_TARGET}
       enableDamping={false}
       minDistance={0.05}
@@ -427,6 +435,7 @@ function DebugProbe() {
       resources: () => resourceStats(),
       frameloop: () => frameloopRef.current,
       cameraPosition: () => camera.position.toArray(),
+      cameraDirection: () => camera.getWorldDirection(new Vector3()).toArray(),
       /**
        * ESTIMATE of GPU memory held by the scene (not a driver measurement): bytes of every
        * unique vertex/index buffer reachable from the scene, per-mesh instance buffers, sign
@@ -459,6 +468,22 @@ function DebugProbe() {
           totalMB: +(total / 1048576).toFixed(2),
           rendererInfo: { ...gl.info.memory },
         };
+      },
+      /** Ceiling groups in the scene → whether each is currently drawn (automatic cutaway). */
+      ceilings: () => {
+        const out: Record<string, boolean> = {};
+        scene.traverse((o) => {
+          if (o.userData.ceiling) out[o.name.slice(8)] = o.visible;
+        });
+        return out;
+      },
+      /** Connector stubs (owner:target) currently mounted. */
+      stubs: () => {
+        const out: string[] = [];
+        scene.traverse((o) => {
+          if (o.name.startsWith('stub:')) out.push(o.name.slice(5));
+        });
+        return out.sort();
       },
       /** Rendered architecture/furnishing of a zone: instanced draws and total instances (0 if not mounted). */
       zoneGeometry: (zoneId: string) => {

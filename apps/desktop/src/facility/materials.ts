@@ -18,6 +18,8 @@ export const MATERIALS = {
   column: { color: '#cfd2d4', roughness: 0.85 },
   aluminium: { color: '#b9bec4', metalness: 0.35, roughness: 0.38 }, // brushed mullions, frames
   steel: { color: '#7c838b', metalness: 0.3, roughness: 0.5 }, // trusses, structural steel
+  ceiling: { color: '#eef0f1', emissive: '#8a8f94', roughness: 0.95 }, // acoustic tile; emissive ≈ indirect bounce light
+  glassFrosted: { color: '#e4ecef', roughness: 0.4, opacity: 0.86, depthWrite: false }, // fire-door glazing
   glass: { color: '#d7e6ec', roughness: 0.05, opacity: 0.22, doubleSided: true, depthWrite: false },
   lightPanel: { color: '#f8fafc', emissive: '#eef1f4', roughness: 0.3 }, // neutral-white luminaire
   lightLine: { color: '#f1f3f5', emissive: '#d9dde1', roughness: 0.3 }, // linear wall wash

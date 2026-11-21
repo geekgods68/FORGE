@@ -63,6 +63,16 @@ How the GPU estimate is computed: the bytes of every unique vertex and index buf
 | `ZoneViews` (templates, 44 fixture recipes, signage)                     | 18.9 kB (6.7 kB) | First zone enters           |
 | `LabRoom`, `Corridor`, `CorridorE`, `EnvironmentRoom`, `CentralWorkshop` | 0.3–0.5 kB each  | First zone of that template |
 
+## Polish pass (ceilings, connector stubs, walking)
+
+These are real-GPU measurements from a headed Chrome run.
+
+- **Overview draw calls:** labs unchanged, because hidden ceilings aren't drawn. Corridors went from 12–20 to 14–28 (vestibule stubs).
+- **Warm transitions:** median 7.9 ms, max 18.0 ms (n = 76).
+- **Walking:** about 60 fps, 28–38 draws per frame, estimated 26–29 MB GPU.
+- **After walking stops:** 0 idle frames.
+- **JS heap:** 7.4 → 15.3 MB after visiting every zone twice.
+
 ## Earlier baselines (unchanged)
 
 The Phase 2 maintenance numbers still stand: 5,000-object select 91 ms, edit 47 ms, import 264 ms, heap 68 MB. The vertical-slice numbers are in [PHASE_2_SLICE_REPORT.md](PHASE_2_SLICE_REPORT.md).

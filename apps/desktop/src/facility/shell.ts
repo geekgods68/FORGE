@@ -202,3 +202,74 @@ function outline(r: { min: [number, number]; max: [number, number] }, m: Materia
     box([0.03, 0.004, d], [r.max[0], 0.002, cz], m),
   ];
 }
+
+/** Flat ceiling slab over the footprint (rendered in a separate, cutaway-able group). */
+export function ceilingParts(zone: Zone): Part[] {
+  const [minX, minZ] = zone.footprint.min;
+  const [maxX, maxZ] = zone.footprint.max;
+  const h = zone.ceilingHeightM;
+  return [
+    box(
+      [maxX - minX + 2 * T, 0.06, maxZ - minZ + 2 * T],
+      [(minX + maxX) / 2, h + 0.03, (minZ + maxZ) / 2],
+      'ceiling',
+    ),
+  ];
+}
+
+export interface ConnectorStub {
+  targetId: string;
+  height: number;
+  parts: Part[];
+  ceiling: Part[];
+}
+
+/**
+ * Corridor-to-corridor openings: a short vestibule drawn by the OWNING corridor into the
+ * (unloaded) neighbour — floor, side walls and a frosted fire-door screen — so openings
+ * never show empty space, without loading the neighbouring zone. Corridors are never
+ * co-mounted (a corridor's required set is itself), so stubs never overlap real geometry.
+ * Purely visual: excluded from collision (walking across the edge switches zones first).
+ */
+export function connectorStubs(zone: Zone): ConnectorStub[] {
+  if (zone.kind !== 'corridor') return [];
+  const out: ConnectorStub[] = [];
+  for (const p of zone.portals) {
+    const t = getZone(p.toZoneId);
+    const side = portalSide(zone, p);
+    if (!t || t.kind !== 'corridor' || !side) continue;
+    const tw = t.footprint.max[0] - t.footprint.min[0];
+    const td = t.footprint.max[1] - t.footprint.min[1];
+    const depthAlong = side === 'north' || side === 'south' ? td : tw;
+    const L = Math.min(4, depthAlong - 0.6);
+    const h = Math.min(zone.ceilingHeightM, t.ceilingHeightM);
+    const w = p.widthM;
+    const dir = side === 'north' ? [0, -1] : side === 'south' ? [0, 1] : side === 'west' ? [-1, 0] : [1, 0];
+    const alongZ = dir[0] === 0;
+    const at = (along: number, across: number, y: number): [number, number, number] =>
+      alongZ
+        ? [p.position[0] + across, y, p.position[2] + dir[1]! * along]
+        : [p.position[0] + dir[0]! * along, y, p.position[2] + across];
+    const sz = (lenAlong: number, hh: number, lenAcross: number): [number, number, number] =>
+      alongZ ? [lenAcross, hh, lenAlong] : [lenAlong, hh, lenAcross];
+    const parts: Part[] = [
+      box(sz(L, 0.1, w), at(L / 2, 0, -0.05), 'floorCorridor'),
+      box(sz(L, h, T), at(L / 2, -(w / 2 + T / 2), h / 2), 'wall'),
+      box(sz(L, h, T), at(L / 2, w / 2 + T / 2, h / 2), 'wall'),
+      // Fire-door screen: frosted double doors in an aluminium frame, solid transom above.
+      box(sz(0.05, 2.4, w), at(L, 0, 1.2), 'glassFrosted'),
+      box(sz(0.08, 2.4, 0.06), at(L, 0, 1.2), 'aluminium'),
+      box(sz(0.08, 0.08, w), at(L, 0, 2.44), 'aluminium'),
+      box(sz(T, h - 2.48, w), at(L, 0, (h + 2.48) / 2), 'wall'),
+      box(sz(0.03, 0.04, 0.5), at(L - 0.04, -0.3, 1.05), 'aluminium'),
+      box(sz(0.03, 0.04, 0.5), at(L - 0.04, 0.3, 1.05), 'aluminium'),
+    ];
+    out.push({
+      targetId: t.id,
+      height: h,
+      parts,
+      ceiling: [box(sz(L, 0.06, w + 2 * T), at(L / 2, 0, h + 0.03), 'ceiling')],
+    });
+  }
+  return out;
+}

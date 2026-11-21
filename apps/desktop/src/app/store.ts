@@ -108,6 +108,8 @@ export interface EditorState {
   currentZoneId: string;
   /** At most one destination whose code is prefetched (directory hover/focus). */
   prefetchZoneId: string | null;
+  /** Facility camera: orbit/overview (editing) or first-person walking (camera only). */
+  navMode: 'orbit' | 'walk';
   cameraPreset: CameraPreset | null;
 
   run<T extends CommandType>(
@@ -141,6 +143,9 @@ export interface EditorState {
   selectItem(id: string | null): void;
   goToZone(zoneId: string): void;
   setPrefetchZone(zoneId: string | null): void;
+  /** Zone change while walking: lifecycle follows, camera stays with the walker. */
+  setCurrentZone(zoneId: string): void;
+  setNavMode(mode: 'orbit' | 'walk'): void;
   focusItem(itemId: string): void;
   runWorkspace<T extends WorkspaceCommandType>(
     type: T,
@@ -240,6 +245,7 @@ export function createEditorStore(
       itemSelection: null,
       currentZoneId: CENTRAL_WORKSHOP_ID,
       prefetchZoneId: null,
+      navMode: 'orbit',
       cameraPreset: null,
 
       run(type, payload, opts = {}) {
@@ -411,6 +417,10 @@ export function createEditorStore(
 
       setView(view) {
         if (get().dragging) return;
+        if (get().navMode === 'walk') {
+          set({ navMode: 'orbit' });
+          get().setContinuous('walk', false);
+        }
         set({ view, editLayer: 'project', itemSelection: null });
         if (view === 'facility') get().goToZone(get().currentZoneId);
       },
@@ -436,6 +446,31 @@ export function createEditorStore(
           cameraPreset: { ...zoneCameraPreset(zone), nonce: (get().cameraPreset?.nonce ?? 0) + 1 },
           status: { tone: 'info', text: `Entered ${zone.name}.` },
         });
+      },
+
+      setCurrentZone(zoneId) {
+        const zone = getZone(zoneId);
+        if (!zone || zoneId === get().currentZoneId) return;
+        set({
+          currentZoneId: zoneId,
+          prefetchZoneId: null,
+          itemSelection: null,
+          status: { tone: 'info', text: `Entered ${zone.name}.` },
+        });
+      },
+
+      setNavMode(mode) {
+        if (get().dragging || mode === get().navMode) return;
+        if (mode === 'walk' && get().view !== 'facility') return;
+        engine.select([]);
+        set({ navMode: mode, itemSelection: null });
+        get().setContinuous('walk', mode === 'walk'); // walking animates every frame
+        if (mode === 'orbit')
+          get().goToZone(get().currentZoneId); // back to the zone overview
+        else
+          set({
+            status: { tone: 'info', text: 'Walking: WASD to move, drag or click to look, Esc to stop.' },
+          });
       },
 
       setPrefetchZone(prefetchZoneId) {

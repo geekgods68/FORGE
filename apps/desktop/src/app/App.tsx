@@ -2,6 +2,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HierarchyPanel } from '@/features/hierarchy/HierarchyPanel';
 import { ItemInspector } from '@/features/workspace/ItemInspector';
+import { WalkHud } from '@/features/walk/WalkHud';
 import { WorkspacePanel } from '@/features/workspace/WorkspacePanel';
 import { Inspector } from '@/features/inspector/Inspector';
 import { StatusBar } from '@/features/toolbar/StatusBar';
@@ -37,6 +38,7 @@ export function App({ store }: { store: StoreApi<EditorState> }) {
             >
               <EngineeringViewport />
             </ErrorBoundary>
+            <WalkHud />
           </main>
           <aside className="min-h-0 overflow-auto border-l border-border bg-card/60">
             <InspectorSwitch />

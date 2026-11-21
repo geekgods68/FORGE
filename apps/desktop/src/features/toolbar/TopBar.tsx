@@ -1,4 +1,15 @@
-import { Building2, Download, FilePlus2, FolderOpen, Redo2, Save, Undo2, Upload, Wrench } from 'lucide-react';
+import {
+  Building2,
+  Download,
+  Footprints,
+  FilePlus2,
+  FolderOpen,
+  Redo2,
+  Save,
+  Undo2,
+  Upload,
+  Wrench,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { isDirty, useEditor } from '@/app/store';
@@ -12,7 +23,8 @@ export function TopBar() {
   const view = useEditor((s) => s.view);
   const editLayer = useEditor((s) => s.editLayer);
   const workspaceHistory = useEditor((s) => s.workspaceHistory);
-  const { setView, setEditLayer } = useEditor((s) => s);
+  const { setView, setEditLayer, setNavMode } = useEditor((s) => s);
+  const navMode = useEditor((s) => s.navMode);
   const layoutLayer = view === 'facility' && editLayer === 'layout';
   const activeHistory = layoutLayer ? workspaceHistory : history;
   const { newProject, save, listSaved, openSaved, exportProject, importProjectText, undo, redo, setStatus } =
@@ -73,6 +85,15 @@ export function TopBar() {
             Layout
           </Toggle>
         </div>
+      )}
+      {view === 'facility' && (
+        <Toggle
+          pressed={navMode === 'walk'}
+          onClick={() => setNavMode(navMode === 'walk' ? 'orbit' : 'walk')}
+          testId="nav-walk"
+        >
+          <Footprints /> Walk
+        </Toggle>
       )}
       <div className="ml-auto flex items-center gap-1.5">
         {!layoutLayer && <CreateMenu />}

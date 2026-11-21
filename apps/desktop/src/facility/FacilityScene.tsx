@@ -197,7 +197,9 @@ function WorkspaceLayer({ zones }: { zones: string[] }) {
 function EquipmentItem({ item }: { item: WorkspaceItem }) {
   const eq = getEquipment(item.equipmentId);
   const registry = useContext(ItemRegistry);
-  const layoutActive = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
+  const layoutActive = useEditor(
+    (s) => s.view === 'facility' && s.editLayer === 'layout' && s.navMode === 'orbit',
+  );
   const selected = useEditor((s) => s.itemSelection === item.id);
   const hosting = useEditor((s) => item.mountedProjectId !== null && item.mountedProjectId === s.project.id);
   const selectItem = useEditor((s) => s.selectItem);

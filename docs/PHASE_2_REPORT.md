@@ -1,6 +1,6 @@
 # Phase 2 report: research laboratory environment & spatial infrastructure
 
-Date: 2026-11-21 · Branch: `phase-2/facility-foundation` · Status: **implemented and verified, pending owner acceptance**. Phase 3 has not been started.
+Date: 2026-11-21 · Branch: `phase-2/facility-foundation` · Status: **approved by the owner; final polish pass complete** (§9). Phase 3 has not been started.
 
 Earlier Phase 2 milestones are recorded in [PHASE_2_SLICE_REPORT.md](PHASE_2_SLICE_REPORT.md): maintenance `dddcd8d` and the vertical slice `960fef3`. The owner accepted the slice on 2026-11-20.
 
@@ -127,8 +127,7 @@ See [PERFORMANCE_BASELINE.md](PERFORMANCE_BASELINE.md). Summary on the real GPU 
 
 ## 7. Known limitations
 
-- **Concourse openings:** from inside a wing corridor, the concourse opening shows empty space. Concourse segments aren't in a corridor's required set, by design of the loaded-set policy. Walking continuity isn't modelled; navigation is by directory or exits.
-- **No ceilings:** they're omitted so the overview camera can see in. Ceilings will be needed for first-person or XR views.
+- ~~Concourse openings showed empty space~~ and ~~no ceilings~~: resolved in the polish pass (§9).
 - **Furnishing detail:** furnishings are low-detail primitive assemblies. They identify each discipline but aren't instrument models, and nothing in them has engineering meaning.
 - **Default equipment:** only Lab 20 has default workspace equipment. Other rooms have empty, outlined bench floors where equipment can be placed.
 - **Equipment draw calls:** each workspace equipment part is still one draw call (76 draws in Lab 20). Instancing it is possible later.
@@ -143,3 +142,32 @@ The facility, workspace and project layers are complete and verified. Benches an
 Recommended before Phase 3: owner review of the visual direction from the running app, and a decision on ceilings and walk-through navigation, because they affect VR.
 
 **Phase 3 is not started** and needs the owner's explicit go-ahead.
+
+## 9. Final polish pass (after owner approval)
+
+| Item                     | Implementation                                                                                                                                                                                                                                                                    | Evidence                                                                                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Corridor ↔ concourse gap | Each corridor draws a short **vestibule stub** into an unloaded corridor neighbour (floor, side walls, ceiling, frosted fire-door screen). Corridors are never co-mounted, so the neighbour isn't loaded and lazy loading is unchanged. Stubs are visual only and never colliders | Unit test: every corridor-to-corridor opening has exactly one stub. Browser test: stubs render while the loaded set stays `[corridor]`                                  |
+| Ceilings                 | Labs and corridors (and stubs) have ceiling slabs in a separate group. **Automatic cutaway:** a ceiling is drawn only while the camera is below it, checked each frame before rendering, so overhead inspection is unaffected. Environments keep their open roof trusses          | Unit test: ceiling height per zone. Browser test: hidden in the overview, drawn while walking, hidden again after Esc                                                   |
+| First-person walking     | **Walk** toggle in the facility view. Controls: WASD and arrows, Shift to go faster, mouse-look by drag or pointer lock (click), eye height 1.6 m, walker radius 0.25 m                                                                                                           | Browser test (below)                                                                                                                                                    |
+| Collision                | Derived from the same template and furnishing data the renderer draws. Body-height parts block (walls, glazing, door frames, furnishings); doorways stay open. Movement slides along walls per axis; frame time is clamped to 0.1 s so the walker can't tunnel                    | Unit tests walk Lab 20 → Corridor E → concourse → Wing A → Lab 1 and confirm walls and furnishings block. A mutation that removes colliders makes the browser test fail |
+| Zone handover            | Crossing into another zone's footprint makes it current (camera unchanged), so the lifecycle loads it and releases what's no longer required                                                                                                                                      | Browser test: walking out of Lab 20 → Corridor E becomes the only active zone                                                                                           |
+| Return to editing        | **Esc** (or releasing pointer lock) stops walking and restores the zone overview. A HUD offers **Stop walking** and **Return to editor**. While walking, clicks never select or edit, and bare-key shortcuts are suppressed                                                       | Browser test: Esc, both HUD buttons, layout and project unchanged by walking, an engineering edit afterwards commits normally                                           |
+
+**Layers:** unchanged. Walking is camera-only and issues no commands. The facility stays read-only, and workspace layouts, project mounting and engineering commands are untouched (all earlier tests pass unmodified).
+
+**Tests:** `pnpm lint`, `typecheck`, `format:check`, `test` (**165 / 165**, 16 files; +7 collision/stub/ceiling), `build` and `test:e2e` (**24 / 24**; +3 walking/ceiling/stub) all exit 0.
+
+**Performance impact (real GPU, headed Chrome, M3):**
+
+| Measure                                              | Before polish                     | After polish                                      |
+| ---------------------------------------------------- | --------------------------------- | ------------------------------------------------- |
+| Overview draw calls: labs / environments / corridors | 31–35 (Lab 20 76) / 29–33 / 12–20 | 31–35 (Lab 20 77) / 29–33 / 14–28 (stubs)         |
+| Warm transitions (n = 76)                            | median 9.5 ms, max 18.4 ms        | median 7.9 ms, max 18.0 ms                        |
+| Walking                                              | —                                 | about 60 fps, 28–38 draws, estimated 26–29 MB GPU |
+| Idle frames after walking stops                      | —                                 | 0 (continuous mode released)                      |
+| JS heap after visiting every zone twice              | +7.1 MB                           | +7.9 MB (7.4 → 15.3 MB)                           |
+
+**Disk:** 8.3 GB free after the work, above the 8 GB pause line and below the 15 GB asset line. No assets were downloaded.
+
+**Remaining limitations:** walking has no stairs or levels (the facility is single-storey) and no collision with workspace equipment (only architecture and furnishings block). Pointer-lock look is untested in automation (headless runs use drag-look). Corridor views show a vestibule rather than the full neighbouring corridor.

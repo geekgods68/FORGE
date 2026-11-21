@@ -24,6 +24,15 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
   const mod = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
   const selected = s.selection[0];
+  // First-person walking owns movement keys; Escape leaves walking. Editing shortcuts
+  // with a modifier (undo/redo) still work; bare-key editing shortcuts are suppressed.
+  if (s.navMode === 'walk') {
+    if (key === 'escape') {
+      s.setNavMode('orbit');
+      return true;
+    }
+    return !mod;
+  }
 
   if (mod && key === 'z') {
     if (e.shiftKey) s.redo();
