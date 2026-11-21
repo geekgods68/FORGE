@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** the current phase is 2 (facility). The owner accepted the vertical slice (2026-11-20) and authorised the expansion; the full facility is implemented and pending owner acceptance (docs/PHASE_2_REPORT.md). Phase 3 (component library, simulation engines) must NOT start without the owner's explicit go-ahead. Don't start the next phase without the owner's explicit go-ahead, and never claim a later phase is done.
+- **Phase discipline:** Phases 0–2 are complete and merged. Phase 3 (component library & conjuring) is implemented on `phase-3/component-library` and pending owner acceptance (docs/PHASE_3_REPORT.md). Phase 4 (mates/constraints) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).

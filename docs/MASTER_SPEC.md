@@ -29,13 +29,13 @@ The visual direction is an advanced holographic engineering interface. It must b
 | Aerospace, fluids and optics | Domain-specific test environments         |
 | Research practice            | Reproducible experimentation              |
 
-The planned facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 environments). The component library is in COMPONENT_CATALOG.md (28 categories).
+The facility layout is in FACILITY_LAYOUT.md (5 wings, 22 labs, 6 environments; built in Phase 2). The component library is in COMPONENT_CATALOG.md (28 categories, 401 families; Phase 3), with schema, geometry, conjuring and connection details in COMPONENT_SCHEMA.md, PARAMETRIC_GEOMETRY.md, CONJURING_WORKFLOW.md and COMPONENT_CONNECTIONS.md.
 
 ## Interfaces and their distinctions
 
 | Concern                | Meaning                                                                                        | Status                                                                                                             |
 | ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Phase 1 engineering editor (hierarchy, inspector, gizmos, primitives, import/export)                               |
+| Desktop application    | Primary interface: React + React Three Fiber in a browser, served locally                      | Engineering editor (Phase 1), research facility (Phase 2), component library and conjuring (Phase 3)               |
 | VR (Meta Quest 2)      | The same domain model through WebXR. VR is a rendering and input layer, not a separate product | Future                                                                                                             |
 | Engineering simulation | Models with an explicit validity status (SIMULATION_VALIDITY.md). Rendering ≠ simulation       | Future; physics engine installed, no simulation yet                                                                |
 | Vey integration        | Typed, validated, permissioned commands (VEY_INTEGRATION.md). No LLM inside FORGE              | The engine command/query API that Vey will use exists (Phase 1); the Vey permission layer and exposure are Phase 9 |

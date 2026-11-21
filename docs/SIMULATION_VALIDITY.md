@@ -21,3 +21,15 @@ Every simulation capability in FORGE carries exactly one status. It is stored in
 
 - Rapier is installed and initialises with a paused world containing one static collider. There is **no simulation**.
 - The demo cube declares `rigid-body: unsupported`, and its material is `illustrative`.
+
+## Phase 3 state
+
+- **Component simulation:** all 401 component families declare every simulation domain as `unsupported` (model `none`), and catalogue validation enforces it. Recognisable geometry, datasheet-cited specs and "compatible interface" results are not simulation evidence.
+- **Mass:**
+  - `geometry-density` is volume × typical density for exact Tier A geometry;
+  - `geometry-density-approximate` is the same for simplified profiles;
+  - `specified` is a cited published value;
+  - otherwise `unknown`. Densities are `approximate` handbook values.
+- **Materials:** the 29 library materials carry `approximate` (typical handbook values) or `unsupported` (unspecified material). No value is certified.
+- **Connections:** compatibility is metadata-only, so it doesn't establish a working joint or circuit (mating is Phase 4, circuits Phase 6).
+- **Robotic-arm sample:** manually positioned. No actuation, wiring or joint constraint is simulated or claimed.

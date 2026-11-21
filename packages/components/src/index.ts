@@ -5,6 +5,7 @@ export * from './connections';
 export * from './evaluate';
 export * from './geometry/generators';
 export * from './geometry/solids';
+export * from './gltf';
 export * from './materials';
 export * from './prefs';
 export * from './resolver';

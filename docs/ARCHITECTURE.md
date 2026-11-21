@@ -1,4 +1,4 @@
-# FORGE architecture (Phase 1 + Phase 2)
+# FORGE architecture (Phases 1–3)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -254,6 +254,22 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 | Multiplayer engineering             | Both layers are command logs with revisions and expected-revision checks. Merge/CRDT is **not** designed yet       |
 | Vey                                 | Both engines share the envelope shape, structured results and a source policy (`vey` denied until Phase 9)         |
 | Quest 2 / WebXR                     | Same units and axes as WebXR. Frame F maps to an XR reference space; XR sessions must request continuous rendering |
+
+## Phase 3: component library and conjuring
+
+- **`@forge/components`** (pure, no UI or renderer) holds:
+  - the 28-category taxonomy, 401 Zod-validated definitions, 40 deterministic geometry generators and 29 materials;
+  - search, favourites and recents;
+  - metadata-only connection compatibility, saved-assembly templates and GLB/glTF validation;
+  - the robotic-arm sample;
+  - the engine `ComponentResolver`.
+    It depends on `@forge/engineering-core`; the core never imports it.
+- **Engine:** project schema v3 adds an optional `component` reference to `component-instance` nodes. The injected resolver validates every catalogue create and edit (`scene.node.create` kind `component-instance`, `scene.component.configure`), so the UI and, later, Vey share one validated path. Catalogue parts can't be scaled, directly or through ancestors.
+- **Desktop:**
+  - the library panel, ghost placement on the active work surface (mount frame M or the build area), component rendering with per-configuration shared geometry, placeholders for missing definitions, and the component, group and connection inspectors;
+  - external-model inspection (lazy GLTFLoader chunk).
+- **Layers:** components exist only in the engineering project. A project mounted on a bench is relocated by its mount frame, and component-local coordinates never change.
+- **Details:** COMPONENT_SCHEMA.md, PARAMETRIC_GEOMETRY.md, CONJURING_WORKFLOW.md, COMPONENT_CONNECTIONS.md.
 
 ## Security posture (local)
 

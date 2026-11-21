@@ -131,12 +131,24 @@ test('repeated transitions release zone resources: GPU resources return to basel
   const heapProject = await heap();
   await enterFacility(page);
   const rooms = (await call<ZoneInfo[]>(page, 'zones')).filter((z) => z.kind !== 'corridor').map((z) => z.id);
-  const snapshot = async () => ({
+  const read = async () => ({
     resources: await call<unknown>(page, 'resources'),
     signs: await call<{ textures: number; refs: number }>(page, 'signTextures'),
     renderer: (await call<{ rendererInfo: { geometries: number; textures: number } }>(page, 'gpuEstimate'))
       .rendererInfo,
   });
+  // renderer.info counts only resources uploaded by a rendered frame: wait until two
+  // consecutive reads agree so a snapshot is never taken mid-upload.
+  const snapshot = async () => {
+    let prev = JSON.stringify(await read());
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(250);
+      const cur = JSON.stringify(await read());
+      if (cur === prev) return JSON.parse(cur) as Awaited<ReturnType<typeof read>>;
+      prev = cur;
+    }
+    return JSON.parse(prev) as Awaited<ReturnType<typeof read>>;
+  };
   // Warm-up cycle: fetch every template chunk and compile every program once.
   for (const id of rooms) await go(page, id);
   await go(page, LAB20);

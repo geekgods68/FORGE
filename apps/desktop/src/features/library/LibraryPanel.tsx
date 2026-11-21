@@ -52,6 +52,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberField } from '@/components/NumberField';
 import { useEditor } from '@/app/store';
+import { ModelInspect } from './ModelInspect';
 import { ComponentSketch } from '@/components3d/ComponentSketch';
 import { formatLength, formatMass } from '@/components3d/format';
 import { cn } from '@/lib/utils';
@@ -268,6 +269,7 @@ function Library() {
                 >
                   <Bot className="size-3.5 text-primary" /> Open sample project: robotic arm + controller
                 </button>
+                <ModelInspect />
                 {assemblies.length > 0 && (
                   <>
                     <h3 className="font-semibold text-muted-foreground">Saved assemblies</h3>
