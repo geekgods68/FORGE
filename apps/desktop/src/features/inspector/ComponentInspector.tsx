@@ -1,6 +1,7 @@
 import {
   CATEGORIES,
   evaluate,
+  findCompatibleInterfaces,
   getDefinition,
   getMaterial,
   TIER_LABELS,
@@ -22,6 +23,14 @@ type ComponentNode = Extract<SceneNode, { kind: 'component-instance' }>;
  */
 export function ComponentInspector({ node, locked }: { node: ComponentNode; locked: boolean }) {
   const run = useEditor((s) => s.run);
+  const focus = useEditor((s) => s.connectionFocus);
+  const setFocus = useEditor((s) => s.setConnectionFocus);
+  const project = useEditor((s) => s.project);
+  const focused = focus?.nodeId === node.id ? focus.interfaceId : null;
+  const candidates = useMemo(
+    () => (focused ? findCompatibleInterfaces(project, node.id, focused) : []),
+    [project, node.id, focused],
+  );
   const c = node.component!;
   const def = getDefinition(node.definitionId);
   const evaluation = useMemo(
@@ -174,16 +183,41 @@ export function ComponentInspector({ node, locked }: { node: ComponentNode; lock
           </summary>
           <ul className="mt-1 max-h-48 space-y-0.5 overflow-auto" data-testid="component-interfaces">
             {evaluation.interfaces.map((i) => (
-              <li key={i.id} className="flex gap-1">
-                <span className="w-24 truncate text-muted-foreground">{i.type}</span>
-                <span className="flex-1 truncate" title={i.compatibility.join(', ')}>
-                  {i.name}
-                  {i.signal ? ` (${i.signal})` : ''}
-                </span>
-                <span className="text-muted-foreground">{i.gender ?? '—'}</span>
+              <li key={i.id}>
+                <button
+                  type="button"
+                  data-testid={`interface-${i.id}`}
+                  aria-pressed={focused === i.id}
+                  className={`flex w-full gap-1 rounded px-1 text-left hover:bg-secondary ${focused === i.id ? 'bg-primary/20' : ''}`}
+                  onClick={() => setFocus(focused === i.id ? null : { nodeId: node.id, interfaceId: i.id })}
+                  title={`Compatibility: ${i.compatibility.join(', ')}`}
+                >
+                  <span className="w-24 truncate text-muted-foreground">{i.type}</span>
+                  <span className="flex-1 truncate">
+                    {i.name}
+                    {i.signal ? ` (${i.signal})` : ''}
+                  </span>
+                  <span className="text-muted-foreground">{i.gender ?? '—'}</span>
+                </button>
               </li>
             ))}
           </ul>
+          {focused && (
+            <div className="mt-1 rounded border border-primary/50 p-1" data-testid="compatible-list">
+              <p className="text-muted-foreground">
+                {candidates.length} compatible interface{candidates.length === 1 ? '' : 's'} in this project
+                (declared metadata only — not a validated mate; mating is Phase 4):
+              </p>
+              <ul className="max-h-32 overflow-auto">
+                {candidates.slice(0, 40).map((c) => (
+                  <li key={`${c.nodeId}:${c.interfaceId}`}>
+                    {c.nodeName} · {c.interfaceName}{' '}
+                    <span className="text-muted-foreground">[{c.shared.join(', ')}]</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </details>
       )}
       {def.references.length > 0 && (

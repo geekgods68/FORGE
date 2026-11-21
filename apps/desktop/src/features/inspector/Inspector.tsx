@@ -1,3 +1,4 @@
+import { GroupInspector } from './GroupInspector';
 import { ComponentInspector } from './ComponentInspector';
 import {
   degToRad,
@@ -147,7 +148,10 @@ export function Inspector() {
           )}
           {node.kind === 'primitive' && <GeometrySummary g={node.geometry} />}
           {node.kind === 'component-instance' && node.component && (
-            <ComponentInspector node={node} locked={locked} />
+            <ComponentInspector key={node.id} node={node} locked={locked} />
+          )}
+          {(node.kind === 'group' || node.kind === 'assembly') && (
+            <GroupInspector key={node.id} node={node} />
           )}
           <ParentPicker node={node} />
           <div className="flex gap-2">

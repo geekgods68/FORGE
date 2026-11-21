@@ -3,6 +3,7 @@ import {
   DEFAULT_SNAP,
   ForgeEngine,
   makeCommand,
+  newId,
   parseProjectFile,
   projectFileName,
   serializeProject,
@@ -15,8 +16,13 @@ import {
   type SnapSettings,
 } from '@forge/engineering-core';
 import {
+  assemblyCommands,
+  AssemblyTemplateSchema,
   auditProjectComponents,
   createCatalogResolver,
+  createRoboticArmSample,
+  templateFromGroup,
+  type AssemblyTemplate,
   parsePrefs,
   recordRecent,
   toggleFavorite as toggleFavoritePref,
@@ -88,6 +94,27 @@ export interface ConjureState {
 }
 
 const PREFS_KEY = 'forge:library-prefs';
+const ASSEMBLIES_KEY = 'forge:assemblies';
+function loadAssemblies(): AssemblyTemplate[] {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(ASSEMBLIES_KEY) ?? '[]');
+    return Array.isArray(raw)
+      ? raw.flatMap((t) => {
+          const r = AssemblyTemplateSchema.safeParse(t);
+          return r.success ? [r.data] : [];
+        })
+      : [];
+  } catch {
+    return [];
+  }
+}
+function saveAssemblies(list: AssemblyTemplate[]) {
+  try {
+    globalThis.localStorage?.setItem(ASSEMBLIES_KEY, JSON.stringify(list));
+  } catch {
+    /* user convenience data */
+  }
+}
 function loadLibraryPrefs(): LibraryPrefs {
   try {
     return parsePrefs(JSON.parse(globalThis.localStorage?.getItem(PREFS_KEY) ?? 'null'));
@@ -146,6 +173,10 @@ export interface EditorState {
   libraryPrefs: LibraryPrefs;
   /** Active conjuring (ghost placement) — nothing exists in the project until confirmed. */
   conjure: ConjureState | null;
+  /** User-saved assembly templates (local user data, not project data). */
+  assemblies: AssemblyTemplate[];
+  /** Interface whose compatible counterparts are highlighted (metadata-only preview). */
+  connectionFocus: { nodeId: string; interfaceId: string } | null;
   /** At most one destination whose code is prefetched (directory hover/focus). */
   prefetchZoneId: string | null;
   /** Facility camera: orbit/overview (editing) or first-person walking (camera only). */
@@ -184,6 +215,11 @@ export interface EditorState {
   goToZone(zoneId: string): void;
   setPrefetchZone(zoneId: string | null): void;
   setLibraryOpen(open: boolean): void;
+  openSample(): void;
+  saveAssembly(groupId: string): boolean;
+  insertAssembly(templateId: string): string | null;
+  deleteAssembly(templateId: string): void;
+  setConnectionFocus(f: { nodeId: string; interfaceId: string } | null): void;
   toggleFavorite(definitionId: string): void;
   /** Begin ghost placement of a configured component (validated before any preview appears). */
   startConjure(c: Omit<ConjureState, 'yaw'>): boolean;
@@ -309,6 +345,8 @@ export function createEditorStore(
       libraryOpen: false,
       libraryPrefs: loadLibraryPrefs(),
       conjure: null,
+      assemblies: loadAssemblies(),
+      connectionFocus: null,
       navMode: 'orbit',
       cameraPreset: null,
 
@@ -540,6 +578,52 @@ export function createEditorStore(
       setLibraryOpen(libraryOpen) {
         set({ libraryOpen });
         if (!libraryOpen && get().conjure) set({ conjure: null });
+      },
+
+      openSample() {
+        if (!confirmDiscard()) return;
+        replace(createRoboticArmSample(), {
+          tone: 'success',
+          text: 'Opened the robotic-arm sample (manually positioned parts; no actuation, wiring or joint constraints are simulated).',
+        });
+      },
+
+      saveAssembly(groupId) {
+        const r = templateFromGroup(engine.getProject(), groupId, newId());
+        if (!r.ok) {
+          set({ status: { tone: 'error', text: r.message } });
+          return false;
+        }
+        const assemblies = [...get().assemblies.filter((a) => a.name !== r.template.name), r.template];
+        saveAssemblies(assemblies);
+        set({
+          assemblies,
+          status: {
+            tone: 'success',
+            text: `Saved “${r.template.name}” as a reusable assembly (${r.template.members.length} members).`,
+          },
+        });
+        return true;
+      },
+
+      insertAssembly(templateId) {
+        const t = get().assemblies.find((a) => a.id === templateId);
+        if (!t) return null;
+        const { rootId, commands } = assemblyCommands(t, engine.getProject().scene.rootId, [0, 0, 0], newId);
+        const r = get().run('scene.batch', { commands }, { label: `Insert assembly “${t.name}”` });
+        if (!r.ok) return null;
+        get().select(rootId);
+        return rootId;
+      },
+
+      deleteAssembly(templateId) {
+        const assemblies = get().assemblies.filter((a) => a.id !== templateId);
+        saveAssemblies(assemblies);
+        set({ assemblies });
+      },
+
+      setConnectionFocus(connectionFocus) {
+        set({ connectionFocus });
       },
 
       toggleFavorite(definitionId) {

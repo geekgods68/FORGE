@@ -1,3 +1,5 @@
+export * from './assemblies';
+export * from './audit';
 export * from './catalog';
 export * from './connections';
 export * from './evaluate';
@@ -5,8 +7,8 @@ export * from './geometry/generators';
 export * from './geometry/solids';
 export * from './materials';
 export * from './prefs';
+export * from './resolver';
+export * from './samples/robot-arm';
 export * from './schemas';
 export * from './search';
 export * from './taxonomy';
-export * from './resolver';
-export * from './audit';

@@ -23,6 +23,8 @@ import { ComponentMesh } from '@/components3d/ComponentMesh';
 import { ConjureGhost } from '@/components3d/ConjureGhost';
 import { ghostDiagnostics } from '@/components3d/ghost';
 import { componentCacheStats } from '@/components3d/cache';
+import { ConnectionMarkers } from '@/components3d/ConnectionMarkers';
+import { markerStats } from '@/components3d/markers';
 import { FacilityScene } from '@/facility/FacilityScene';
 import { WalkControls } from '@/facility/WalkControls';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
@@ -102,6 +104,7 @@ export function EngineeringViewport() {
         <CameraRig />
         {walking && <WalkControls />}
         <ConjureGhost />
+        <ConnectionMarkers registry={registry} />
         <DebugProbe />
       </Canvas>
     </RegistryContext.Provider>
@@ -492,6 +495,7 @@ function DebugProbe() {
       /** Conjuring ghost state (renderer-only preview; never in the scene graph). */
       ghost: () => ({ ...ghostDiagnostics, inSceneGraph: false }),
       componentCache: () => componentCacheStats(),
+      connectionMarkers: () => markerStats.count,
       /** Ceiling groups in the scene → whether each is currently drawn (automatic cutaway). */
       ceilings: () => {
         const out: Record<string, boolean> = {};

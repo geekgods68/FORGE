@@ -151,6 +151,10 @@ function PlacingBar() {
 function Library() {
   const setOpen = useEditor((s) => s.setLibraryOpen);
   const prefs = useEditor((s) => s.libraryPrefs);
+  const assemblies = useEditor((s) => s.assemblies);
+  const openSample = useEditor((s) => s.openSample);
+  const insertAssembly = useEditor((s) => s.insertAssembly);
+  const deleteAssembly = useEditor((s) => s.deleteAssembly);
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -254,6 +258,48 @@ function Library() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-2">
+            {browsing && (
+              <section aria-label="Samples and saved assemblies" className="mb-2 space-y-1">
+                <button
+                  type="button"
+                  data-testid="library-open-sample"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={openSample}
+                >
+                  <Bot className="size-3.5 text-primary" /> Open sample project: robotic arm + controller
+                </button>
+                {assemblies.length > 0 && (
+                  <>
+                    <h3 className="font-semibold text-muted-foreground">Saved assemblies</h3>
+                    <ul aria-label="Saved assemblies">
+                      {assemblies.map((a) => (
+                        <li key={a.id} className="flex items-center gap-1">
+                          <Boxes className="size-3.5 text-muted-foreground" />
+                          <span className="flex-1 truncate">
+                            {a.name} <span className="text-muted-foreground">({a.members.length})</span>
+                          </span>
+                          <button
+                            type="button"
+                            data-testid={`assembly-insert-${a.name}`}
+                            className="text-primary hover:underline"
+                            onClick={() => insertAssembly(a.id)}
+                          >
+                            Insert
+                          </button>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:underline"
+                            onClick={() => deleteAssembly(a.id)}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </section>
+            )}
             {browsing && prefs.recent.length > 0 && (
               <section aria-label="Recently used" className="mb-2">
                 <h3 className="mb-1 font-semibold text-muted-foreground">Recently used</h3>
