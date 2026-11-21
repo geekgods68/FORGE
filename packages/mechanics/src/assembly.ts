@@ -9,6 +9,7 @@ import {
   type FrameRef,
   type Mat4,
   type Mate,
+  type ModelInterface,
   type NodeTransform,
   type RelationshipReport,
   type SceneGraph,
@@ -168,7 +169,29 @@ export function bodyInterfaces(graph: SceneGraph, nodeId: string): ComponentInte
     const p = evaluatePart(n.features);
     return p.ok ? p.geometry.interfaces : `"${n.name}": ${p.message}`;
   }
+  if (n.kind === 'model-instance')
+    return n.model.interfaces.length
+      ? n.model.interfaces.map(modelInterfaceAsComponent)
+      : `"${n.name}" is an imported model with no declared interfaces; define them in its inspector.`;
   return `"${n.name}" (${n.kind}) declares no interfaces; use a frame reference.`;
+}
+
+/**
+ * A user-declared imported-model interface in the catalogue interface shape (so the same
+ * compatibility, measurement and fastener checks apply). Declared dimensions are exposed
+ * as descriptors only when the user also tagged them; nothing is derived from the mesh.
+ */
+export function modelInterfaceAsComponent(i: ModelInterface): ComponentInterface {
+  return {
+    id: i.id,
+    name: i.name,
+    type: i.type,
+    position: i.position,
+    direction: i.direction,
+    gender: i.gender,
+    compatibility: i.compatibility,
+    limits: [],
+  };
 }
 
 export function makeRefResolver(graph: SceneGraph): RefResolver {
@@ -184,6 +207,12 @@ export function makeRefResolver(graph: SceneGraph): RefResolver {
     const n = graph.nodes[nodeId];
     if (!n) return `Body "${nodeId}" does not exist.`;
     if (ref.kind === 'frame') return frame(ref.origin, ref.axis, ref.xRef);
+    if (n.kind === 'model-instance') {
+      // User-declared frames carry their own orientation reference (xRef).
+      const mi = n.model.interfaces.find((x) => x.id === ref.interfaceId);
+      if (!mi) return `"${n.name}" has no declared interface "${ref.interfaceId}".`;
+      return frame(mi.position, mi.direction, mi.xRef);
+    }
     const list = interfacesOf(n);
     if (typeof list === 'string') return list;
     const i = list.find((x) => x.id === ref.interfaceId);
@@ -453,7 +482,7 @@ export function solveAssembly(
     for (const rel of relationships)
       if (!rel.satisfied && rel.role !== 'check')
         messages.push(
-          `${rel.type} mate “${names.get(rel.id) ?? rel.id}” cannot be satisfied (residual ${rel.residual.toExponential(2)}).`,
+          `${rel.type} ${rel.kind} “${names.get(rel.id) ?? rel.id}” cannot be satisfied (residual ${rel.residual.toExponential(2)}).`,
         );
   if (implicitGround)
     messages.push('No body is grounded: the first related body is used as the fixed reference.');

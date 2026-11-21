@@ -11,6 +11,7 @@ import {
   type CommandSource,
   type CommandType,
   type HistoryInfo,
+  type Mate,
   type PayloadInput,
   type Project,
   ModelRefSchema,
@@ -20,6 +21,7 @@ import {
 } from '@forge/engineering-core';
 import { createMemoryAssetStore, type AssetStore } from '@/assets/assetStore';
 import { readBundle, writeBundle } from '@/assets/bundle';
+import { snapCommand, type SnapTarget } from '@/features/snap/snapLogic';
 import {
   checkInterference,
   createMechanicsService,
@@ -168,6 +170,17 @@ function saveLibraryPrefs(p: LibraryPrefs) {
   }
 }
 
+/** A drag-to-snap released near compatible interfaces, awaiting confirm/cancel (Phase 4.1). */
+export interface MateSnapPending {
+  nodeId: string;
+  /** Candidate targets in reach at release, nearest first. */
+  candidates: SnapTarget[];
+  chosen: string;
+  type: Mate['type'];
+  alignment: Mate['alignment'];
+  message: { ok: boolean; text: string } | null;
+}
+
 export type CameraPreset = {
   position: [number, number, number];
   target: [number, number, number];
@@ -191,6 +204,11 @@ export interface EditorState {
   status: Status;
   physics: PhysicsStatus;
   cameraResetRequest: number;
+  /** Incremented to frame the selected node in the viewport. */
+  frameRequest: number;
+  /** Drag-to-snap mode: dragging the selected body offers interface mates instead of the gizmo. */
+  mateSnapMode: boolean;
+  mateSnap: MateSnapPending | null;
   dragging: boolean;
   cancelDragRequest: number;
   collapsed: Record<string, boolean>;
@@ -251,6 +269,15 @@ export interface EditorState {
   toggleCollapsed(id: string): void;
   setContinuous(reason: string, on: boolean): void;
   requestCameraReset(): void;
+  requestFrameSelection(): void;
+  setMateSnapMode(on: boolean): void;
+  /** A snap drag was released near compatible interfaces: preview the nearest one's mate. */
+  beginMateSnap(p: Omit<MateSnapPending, 'message'>): void;
+  updateMateSnap(patch: Partial<Pick<MateSnapPending, 'chosen' | 'type' | 'alignment'>>): void;
+  /** Commit the previewed snap mate (one validated, undoable command). */
+  confirmMateSnap(): boolean;
+  /** Discard the snap: nothing is committed; the body is shown at its unchanged position. */
+  cancelMateSnap(text?: string): void;
   setPhysics(status: PhysicsStatus): void;
   setStatus(status: Status): void;
 
@@ -277,6 +304,8 @@ export interface EditorState {
   saveCustomModel(bytes: Uint8Array, ref: ModelRef): Promise<boolean>;
   insertCustomModel(assetHash: string): string | null;
   removeCustomModel(assetHash: string): void;
+  /** Replace a custom component's declared interfaces (library definition; placed instances keep theirs). */
+  updateCustomModelInterfaces(assetHash: string, interfaces: ModelRef['interfaces']): boolean;
   /** Re-check which referenced model assets are missing from the asset store. */
   auditAssets(): Promise<readonly string[]>;
   /** Project + every referenced model asset in one portable file (refused if any is missing). */
@@ -401,6 +430,9 @@ export function createEditorStore(
       status: initialStatus,
       physics: { state: 'loading' },
       cameraResetRequest: 0,
+      frameRequest: 0,
+      mateSnapMode: false,
+      mateSnap: null,
       dragging: false,
       cancelDragRequest: 0,
       collapsed: {},
@@ -462,6 +494,7 @@ export function createEditorStore(
 
       undo() {
         if (get().dragging) return;
+        get().cancelMateSnap();
         if (layoutLayer()) {
           // Layout edits have their own history, independent of the engineering project.
           const w = workspace.undo();
@@ -478,6 +511,7 @@ export function createEditorStore(
 
       redo() {
         if (get().dragging) return;
+        get().cancelMateSnap();
         if (layoutLayer()) {
           const w = workspace.redo();
           set({ status: { tone: 'info', text: w.ok ? `Redid layout “${w.label}”` : w.message } });
@@ -517,6 +551,67 @@ export function createEditorStore(
         if (next.length !== cur.length) set({ continuousReasons: next });
       },
       requestCameraReset: () => set({ cameraResetRequest: get().cameraResetRequest + 1 }),
+      requestFrameSelection: () => set({ frameRequest: get().frameRequest + 1 }),
+
+      setMateSnapMode(on) {
+        if (!on && get().mateSnap) get().cancelMateSnap();
+        set({
+          mateSnapMode: on,
+          status: {
+            tone: 'info',
+            text: on
+              ? 'Snap mode: drag the selected component onto a compatible interface, then confirm the mate.'
+              : 'Snap mode off: the transform gizmo is back.',
+          },
+        });
+      },
+
+      beginMateSnap(p) {
+        set({ mateSnap: { ...p, message: null } });
+        get().updateMateSnap({});
+      },
+
+      updateMateSnap(patch) {
+        const cur = get().mateSnap;
+        if (!cur) return;
+        const next = { ...cur, ...patch };
+        const target = next.candidates.find((c) => c.key === next.chosen);
+        if (!target) return;
+        const cmd = snapCommand(engine.getProject().scene, next.nodeId, target, next.type, next.alignment);
+        const r = get().previewCommand(cmd.type, cmd.payload as never);
+        set({
+          mateSnap: {
+            ...next,
+            message: r.ok
+              ? { ok: true, text: 'Preview: the solved mate is shown. Confirm to apply, or cancel.' }
+              : { ok: false, text: r.error.message },
+          },
+        });
+      },
+
+      confirmMateSnap() {
+        const cur = get().mateSnap;
+        const target = cur?.candidates.find((c) => c.key === cur.chosen);
+        if (!cur || !target) return false;
+        const cmd = snapCommand(engine.getProject().scene, cur.nodeId, target, cur.type, cur.alignment);
+        get().clearPreview();
+        const r = get().run(cmd.type, cmd.payload as never, {
+          label: `Snap mate (${cur.type}) to ${target.targetBodyName}`,
+        });
+        if (!r.ok) {
+          // Rejected: nothing changed; keep the choices open so another target can be tried.
+          set({ mateSnap: { ...cur, message: { ok: false, text: r.error.message } } });
+          return false;
+        }
+        set({ mateSnap: null });
+        return true;
+      },
+
+      cancelMateSnap(text = 'Snap cancelled — nothing was changed.') {
+        if (!get().mateSnap) return;
+        get().clearPreview();
+        set({ mateSnap: null, status: { tone: 'info', text } });
+      },
       setPhysics: (physics) => set({ physics }),
       setStatus: (status) => set({ status }),
 
@@ -740,6 +835,24 @@ export function createEditorStore(
         if (!r.ok) return null;
         get().select(r.affectedIds[0]!);
         return r.affectedIds[0]!;
+      },
+
+      updateCustomModelInterfaces(assetHash, interfaces) {
+        const parsed = ModelRefSchema.shape.interfaces.safeParse(interfaces);
+        const ref = get().customModels.find((m) => m.assetHash === assetHash);
+        if (!ref || !parsed.success) return false;
+        const customModels = get().customModels.map((m) =>
+          m.assetHash === assetHash ? { ...m, interfaces: parsed.data } : m,
+        );
+        saveCustomModels(customModels);
+        set({
+          customModels,
+          status: {
+            tone: 'success',
+            text: `Saved ${parsed.data.length} interface${parsed.data.length === 1 ? '' : 's'} to the custom component “${ref.name}”.`,
+          },
+        });
+        return true;
       },
 
       removeCustomModel(assetHash) {

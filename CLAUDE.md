@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** Phases 0–3 are complete and merged. Phase 4 (mechanical CAD, mates/constraints) is implemented on `phase-4/mechanical-cad` and pending owner acceptance (docs/PHASE_4_REPORT.md). Phase 5 (simulation/robotics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
+- **Phase discipline:** Phases 0–3 are complete and merged. Phase 4 (mechanical CAD, mates/constraints) and Phase 4.1 (assembly interaction completion: mate/constraint editors, drag-to-snap, imported-model interfaces) are implemented on `phase-4/mechanical-cad` and pending owner acceptance (docs/PHASE_4_REPORT.md). Phase 5 (simulation/robotics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).

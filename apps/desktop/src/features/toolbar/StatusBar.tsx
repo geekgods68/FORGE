@@ -1,5 +1,5 @@
 import { degToRad, radToDeg } from '@forge/engineering-core';
-import { Camera, Magnet, Move3d, Rotate3d, Scaling } from 'lucide-react';
+import { Camera, Focus, Link2, Magnet, Move3d, Rotate3d, Scaling } from 'lucide-react';
 import { NumberField } from '@/components/NumberField';
 import { useEditor, type ToolMode } from '@/app/store';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,10 @@ export function StatusBar() {
   const physics = useEditor((s) => s.physics);
   const view = useEditor((s) => s.view);
   const editLayer = useEditor((s) => s.editLayer);
-  const { setSnap, setToolMode, requestCameraReset } = useEditor((s) => s);
+  const { setSnap, setToolMode, requestCameraReset, requestFrameSelection, setMateSnapMode } = useEditor(
+    (s) => s,
+  );
+  const mateSnapMode = useEditor((s) => s.mateSnapMode);
 
   return (
     <footer className="flex h-9 shrink-0 items-center gap-3 border-t border-border bg-card px-3 text-xs">
@@ -53,6 +56,20 @@ export function StatusBar() {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        title="Snap to interface (S): drag the selected component onto a compatible interface to create a mate"
+        aria-label="Snap to interface"
+        aria-pressed={mateSnapMode}
+        data-testid="tool-mate-snap"
+        onClick={() => setMateSnapMode(!mateSnapMode)}
+        className={cn(
+          'grid size-7 place-items-center rounded [&_svg]:size-4',
+          mateSnapMode ? 'bg-emerald-600 text-white' : 'hover:bg-secondary',
+        )}
+      >
+        <Link2 />
+      </button>
       <label className="flex items-center gap-1" title="Snapping for gizmo manipulation">
         <input
           type="checkbox"
@@ -107,6 +124,17 @@ export function StatusBar() {
         onClick={requestCameraReset}
       >
         <Camera />
+      </button>
+      <button
+        type="button"
+        title="Frame selection (F)"
+        aria-label="Frame selection"
+        data-testid="frame-selection"
+        disabled={selectionCount === 0}
+        className="grid size-7 place-items-center rounded hover:bg-secondary disabled:opacity-40 [&_svg]:size-4"
+        onClick={requestFrameSelection}
+      >
+        <Focus />
       </button>
     </footer>
   );

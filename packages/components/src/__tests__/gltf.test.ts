@@ -31,3 +31,11 @@ describe('GLB / glTF validation', () => {
     expect(modelSizeToMetres([1, 1, 1], 'in', 'Y')[0]).toBeCloseTo(0.0254, 12);
   });
 });
+
+describe('imported-model interface vocabulary', () => {
+  it('matches the catalogue interface types (same compatibility rules apply)', async () => {
+    const { MODEL_INTERFACE_TYPES } = await import('@forge/engineering-core');
+    const { INTERFACE_TYPES } = await import('../schemas');
+    expect([...MODEL_INTERFACE_TYPES]).toEqual([...INTERFACE_TYPES]);
+  });
+});

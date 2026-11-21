@@ -1,6 +1,6 @@
 # Phase 4 report: mechanical CAD, assembly constraints & precision engineering
 
-Date: 2026-11-21 · Branch: `phase-4/mechanical-cad` (from `main` = `7af7260`, Phase 3 fast-forwarded at the start of this phase) · Status: **implemented and verified, pending owner acceptance**, with the limitations in §10. Phase 5 has not been started. Nothing was merged or pushed.
+Date: 2026-11-21, Phase 4.1 addendum 2026-11-22 · Branch: `phase-4/mechanical-cad` (from `main` = `7af7260`, Phase 3 fast-forwarded at the start of this phase) · Status: **implemented and verified, pending owner acceptance**, with the limitations in §10. Phase 4.1 (§13) completed the assembly interactions that kept Phase 4 partial. Phase 5 has not been started. Nothing was merged or pushed.
 
 ## 1. Starting state and resources
 
@@ -10,14 +10,15 @@ Date: 2026-11-21 · Branch: `phase-4/mechanical-cad` (from `main` = `7af7260`, P
 
 ## 2. Milestones
 
-| Milestone                          | Commit         | Content                                                                                                                                      |
-| ---------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| A–B — foundations and solver       | `3a7dd27`      | Schema v4, mates/constraints/sketch/part/model schemas, `@forge/mechanics`, assembly + sketch solvers, part kernel, measurement, 25 commands |
-| E (part) — constrained robot arm   | `60bc500`      | Robotic-arm sample rebuilt as a grounded assembly with 4 limited revolute joints and fastener mates                                          |
-| C — assembly construction UI       | `e623ee5`      | Assembly inspector, joints with live dry-run preview, mate creation + preview, explode, interference, mass; `engine.preview`                 |
-| D — CAD UI                         | `25ed1ec`      | Part and sketch editors, measurement tool                                                                                                    |
-| E — assets and reusable assemblies | `7f43011`      | IndexedDB asset store, GLB custom components, bundles, templates v2 with mates, assembly files                                               |
-| F — performance and release        | (final commit) | Instanced component rendering, benchmarks, 18-step workflow test, docs                                                                       |
+| Milestone                          | Commit       | Content                                                                                                                                      |
+| ---------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| A–B — foundations and solver       | `3a7dd27`    | Schema v4, mates/constraints/sketch/part/model schemas, `@forge/mechanics`, assembly + sketch solvers, part kernel, measurement, 25 commands |
+| E (part) — constrained robot arm   | `60bc500`    | Robotic-arm sample rebuilt as a grounded assembly with 4 limited revolute joints and fastener mates                                          |
+| C — assembly construction UI       | `e623ee5`    | Assembly inspector, joints with live dry-run preview, mate creation + preview, explode, interference, mass; `engine.preview`                 |
+| D — CAD UI                         | `25ed1ec`    | Part and sketch editors, measurement tool                                                                                                    |
+| E — assets and reusable assemblies | `7f43011`    | IndexedDB asset store, GLB custom components, bundles, templates v2 with mates, assembly files                                               |
+| F — performance and release        | `5657935`    | Instanced component rendering, benchmarks, 18-step workflow test, docs                                                                       |
+| 4.1 — interaction completion       | (4.1 commit) | Mate/constraint editors, constraint creation, drag-to-snap, imported-model interfaces, facility instancing, GPU benchmarks (§13)             |
 
 ## 3. Mechanical assembly architecture
 
@@ -123,7 +124,7 @@ Benchmarks (headless Chromium, **software WebGL**, M3 8 GB; timings are indicati
 | Robotic arm         | 80         | 7,698     | joint move ≈ 42–53 ms        | —                |
 | Mixed (arm + 1,000) | 82         | 558,698   | 268 ms; elbow move ≈ 183 ms  | —                |
 
-Draw calls are independent of component count. The raw results are in `docs/archive/phase4-benchmarks.json`, and the details in PERFORMANCE_BASELINE.md. Instancing is project-view only: the facility view still renders per node.
+Draw calls are independent of component count. The raw results are in `docs/archive/phase4-benchmarks.json`, and the details in PERFORMANCE_BASELINE.md. In Phase 4 instancing was project-view only; Phase 4.1 extended it to the facility view and added real-GPU render timings (§13).
 
 ## 9. Tests
 
@@ -152,47 +153,55 @@ Final counts: **237 unit/integration tests and 44 browser tests passing** (§11)
   - all Phase 0–3 specs.
 - Two Phase 3 browser assertions expected schema v3 and were updated to v4.
 
-## 10. Known limitations (not concealed)
+## 10. Known limitations (not concealed; updated for 4.1)
+
+Resolved in Phase 4.1 (§13): the missing mate-editing form, constraint creation form, drag-to-snap, interfaces on imported models, project-view-only instancing, the absence of real-GPU timings, and the GPU-memory readout.
 
 - **Solver:**
   - It is dense and local: it is designed for tens of joints, and stays on the current configuration branch.
   - Ball limits are per-axis boxes.
   - There are no gear, cam, screw or path mates, and no tolerance analysis.
-- **Mate editing UI:**
-  - The UI creates, deletes, moves joints and grounds members.
-  - Alignment, offset, limits, home and suppression are editable through `assembly.mate.update` (command, tested), but **there is no inspector form for them yet**.
-  - Constraints (distance, angle and so on) are available as commands and shown in the inspector, but there is **no creation form**.
-- **Snapping:** interface-to-interface alignment comes from mates, with preview and confirm. There is **no drag-to-snap** of one component onto another interface in the viewport.
+  - A revolute closure cannot detect a flipped alignment (a hinge axis has no sign); a distance constraint cannot move bodies out of coincident origins (zero gradient). Both are documented in CONSTRAINT_SOLVER.md.
+- **Relationship editing:**
+  - Mate type changes are limited to the safe family {fixed, revolute, prismatic, cylindrical}; ball and planar mates must be deleted and re-created.
+  - Constraints have no separate _suppressed_ flag; check-only (non-driving) is their suppression.
+  - Constraint references are declared interfaces or body-origin axes (+X/+Y/+Z); faces, edges and points cannot be picked from the geometry.
+- **Drag-to-snap:**
+  - Only bodies with declared interfaces can snap, onto declared-compatible interfaces; frame-referenced bodies cannot.
+  - The drag is a translation in a camera-facing plane (no rotation while dragging); the solved mate supplies the final orientation.
+  - Candidates are found in screen space (36 px); interfaces that overlap on screen are all offered, nearest first, and the user picks.
+  - A body already in an assembly snaps only onto members of that assembly.
+  - Browser-tested in the project view; the same code runs in the facility view but is not browser-tested there.
+- **Imported-model interfaces:** entered numerically (no click-to-place on the mesh); declared dimensions are informational; library definitions are updated by saving from a placed instance.
 - **CAD:**
   - The kernel is prismatic only. Sketch-to-part is a copy, not a live link.
   - There are no fillets, chamfers, revolves or lofts, and no STEP/IGES/STL import or export.
 - **Interference:** box-based. Curved parts give "possible" results only, and there is no mesh/B-rep intersection.
-- **GLB:**
-  - Self-contained files only.
-  - The asset store is per browser profile (use bundles to move work).
-  - Imported models have no interfaces, so mating them requires explicit frames; the UI only offers interface-based mates.
-- **Performance:**
-  - Instancing applies in the project view only.
-  - Timings come from software WebGL. Real-GPU frame times were not measured (Phase 10).
-- **Rendering diagnostics:** the existing `gpuEstimate` debug readout does not account for instance buffers correctly, so it was excluded from the benchmark results.
-- **Layout gizmo test:** the Phase 2 `layout-gizmo` browser test failed once in a full-suite run and passed on its own, on rerun and in the final run. It is timing-sensitive under memory pressure.
+- **GLB:** self-contained files only; the asset store is per browser profile (use bundles to move work).
+- **Performance:** real-GPU numbers come from one scripted run in Chromium's headless mode on ANGLE/Metal, as GPU-complete render cost of the current view — not interactive frame pacing with a visible window, not repeated trials, no VR.
+- **Rendering diagnostics:** `gpuEstimate` is corrected and unit-tested but remains an estimate (no driver measurement exists in WebGL); it is never shown in the UI.
+- **Layout gizmo test:** the Phase 2 `layout-gizmo` browser test failed once in a Phase 4 full-suite run. It passed in every Phase 4.1 full run (2 runs).
+- **Disk:** free space was about 8.0 GB at the start of Phase 4.1 and 7.0 GB at the end, below the 8 GB pause line. The workspace itself is about 0.5 GB; the drop is outside it (most likely swap on this 8 GB machine while Chromium ran). No assets were downloaded, and nothing outside the workspace was inspected or deleted.
 
-## 11. Final validation (final run, this machine)
+## 11. Final validation (Phase 4.1 final run, this machine)
 
-| Command                          | Exit | Result                                    |
-| -------------------------------- | ---- | ----------------------------------------- |
-| `pnpm install --frozen-lockfile` | 0    | lockfile unchanged (run with `--offline`) |
-| `pnpm lint`                      | 0    |                                           |
-| `pnpm typecheck`                 | 0    |                                           |
-| `pnpm format:check`              | 0    |                                           |
-| `pnpm test`                      | 0    | **237 passed** (25 files)                 |
-| `pnpm build`                     | 0    |                                           |
-| `pnpm test:e2e`                  | 0    | **44 passed** (4.1 min)                   |
+| Command                                    | Exit | Result                                     |
+| ------------------------------------------ | ---- | ------------------------------------------ |
+| `pnpm install --frozen-lockfile --offline` | 0    | lockfile unchanged                         |
+| `pnpm lint`                                | 0    |                                            |
+| `pnpm typecheck`                           | 0    |                                            |
+| `pnpm format:check`                        | 0    |                                            |
+| `pnpm test`                                | 0    | **257 passed** (28 files)                  |
+| `pnpm build`                               | 0    |                                            |
+| `pnpm test:e2e`                            | 0    | **51 passed** (3.2 min)                    |
+| `FORGE_BENCH_GPU=1` performance spec       | 0    | 5 passed (real GPU: ANGLE Metal, Apple M3) |
 
-Earlier full-suite runs during this phase had intermittent failures, which are reported here rather than hidden:
+Phase 4 (for reference): 237 unit/integration and 44 browser tests, all exit 0. Earlier Phase 4 full-suite runs had intermittent failures, reported rather than hidden:
 
 - Phase 2 `layout-gizmo` failed once, then passed alone, on rerun and in the final run.
 - The new `workflow.spec.ts` failed once, because a poll helper threw before the reloaded project was ready. It was fixed (the poll now retries), then passed 3/3 on repeat and in the final run.
+
+Phase 4.1 runs: the two full browser-suite runs passed 51/51. While the new specs were written, failures were test-side and fixed before the final run: a position check that should have been an orientation check (the gripper's origin is its wrist interface), a 7-vs-4 instancing expectation (selecting a nut drops its batch below the 4-instance threshold), and a virtualized-tree scroll helper. One product bug was found by the new tests and fixed: suppressed mates and check-only constraints still marked a body as mate-driven (§13).
 
 ## 12. Readiness for Phase 5
 
@@ -215,3 +224,23 @@ Earlier full-suite runs during this phase had intermittent failures, which are r
 - validation references for dynamics.
 
 Phase 5 will not start without the owner's go-ahead.
+
+## 13. Phase 4.1: mechanical assembly interaction completion
+
+Status: **COMPLETE** against the brief's completion gate, which is browser-tested in one session (`phase41-gate.spec.ts`), with the limitations in §10.
+
+| Task                         | Result                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Mate editing              | Inspector **Edit** per mate: name, type (safe conversions only), alignment, offset (°), limits and home (° / mm), suppression. Continuous dry-run validation shows limit errors and solver conflicts (naming the relationships) before Apply; Preview / Apply / Cancel; one undoable command. `assembly.mate.update` gained `type` (`convertMate`) and a home-within-limits check.                                                 |
+| 2. Constraint creation       | **New constraint** form for distance, angle, concentric, coincident, parallel, perpendicular; references = declared interfaces or body-origin axes; current measured value shown; Preview; contradictory constraints shown and refused with the assembly unchanged. **Edit** (value, references, driving / check-only) via the new `assembly.constraint.update`; delete; undo/redo.                                                |
+| 3. Drag-to-snap              | Snap mode (status bar / **S**) replaces the gizmo; render-only drag; compatible targets highlighted from declared metadata only; screen-space candidates with a dry-run **ghost**; release opens a panel (target, type, alignment, preview) → Confirm = one command (insert + mate as one batch if needed); Cancel / Escape / release elsewhere restore the body; undo/redo. **F** frames the selection.                           |
+| 4. Imported-model interfaces | User-declared interfaces on GLB/glTF instances (name, type, gender, local position, mounting axis, roll, tags, dimensions), validated, undoable (`model.instance.interfaces.set`), drawn as markers, saved to the custom component, carried by projects, bundles and templates; usable in mates, constraints, snap, measurement and fastener checks; interfaces in use cannot be removed. Nothing inferred from the mesh.          |
+| 5. Rendering and diagnostics | Facility-view instancing implemented (low risk: one shared `ProjectContent` inside the existing mount frame; facility resource tests still pass). `gpuEstimate` corrected (dedup by buffer, instance colours, morph targets, all textures), unit-tested, labelled an estimate. Real-GPU benchmarks run (ANGLE Metal, Apple M3): 5,000 instanced components 5.6 ms/frame GPU-complete vs 677 ms software (PERFORMANCE_BASELINE.md). |
+| 6. Verification              | +20 unit/integration tests (mate edits and conversion, invalid alignment, constraint edits, driven-body rule, model interfaces incl. legacy files and template round trip, snap logic, GPU estimate, vocabulary parity) and +7 browser tests (mate editor, invalid alignment, constraints, drag-to-snap, rendering, GLB interfaces, completion gate). All Phase 0–4 tests preserved and passing.                                   |
+| 7. Docs and Git              | Updated: this report, MECHANICAL_ASSEMBLY, CONSTRAINT_SOLVER, ASSET_IMPORT, PERFORMANCE_BASELINE (+ CLAUDE.md phase line). Committed on `phase-4/mechanical-cad`; not merged, not pushed.                                                                                                                                                                                                                                          |
+
+**Product fix found by the new tests:** suppressed mates and check-only constraints are ignored by the solver, but `isMateDriven` (member badges, gizmo lock) and the engine's transform refusal still counted them. Both now count only driving relationships (`drivingRelations`), with a unit test.
+
+**Compatibility:** project schema stays v4. `ModelRef.interfaces` defaults to an empty list, so files written before 4.1 load unchanged (unit- and browser-tested); no migration is needed. New commands: `assembly.constraint.update`, `model.instance.interfaces.set`; `assembly.mate.update` accepts `type`.
+
+**Completion gate (brief) → evidence:** 1 open the arm, 2 select components, 3–4 drag a screw to a hole, preview, confirm, 5 edit the mate's alignment, 6 create and edit a constraint, 7 import a GLB, declare an interface, mate it to a screw, 8 save, reload, reopen with identical relationships and DOF, 9 undo/redo — all in `phase41-gate.spec.ts`; 10 no regressions — full suite 51/51 and 257/257.

@@ -1,4 +1,4 @@
-# Asset import: GLB / glTF custom components (Phase 4)
+# Asset import: GLB / glTF custom components (Phase 4; interfaces in 4.1)
 
 ## Pipeline
 
@@ -17,7 +17,29 @@
    - A shared, reference-counted template serves all instances: they share geometry and materials, and the GPU resources are disposed with the last instance.
    - The confirmed scale is applied, plus a −90° X rotation for Z-up sources.
 
-**No engineering data is inferred.** An imported model has no mass, material, interfaces or simulation properties: its mass reports as _unknown_. It can still be mated using explicit frame references.
+**No engineering data is inferred.** An imported model has no mass, material or simulation properties (its mass reports as _unknown_), and it starts with **no interfaces**. Connection interfaces exist only when the user declares them (below); nothing is derived from the mesh or its appearance, and no manufacturer dimensions are guessed.
+
+## Connection interfaces (Phase 4.1)
+
+Select a placed imported model: its inspector has **Connection interfaces**.
+
+| Field                 | Meaning                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Name, id              | id is derived from the name (lowercase, `-`/`_`); unique per model                                                                       |
+| Type                  | the catalogue interface vocabulary (mechanical-mount, bolt-hole, shaft-coupling, revolute-joint, slider, electrical/data/fluid/optical…) |
+| Gender                | male / female / neutral / none                                                                                                           |
+| Local position (mm)   | in the model's local frame: the confirmed unit and up-axis applied; the model's bounds are shown                                         |
+| Mounting axis         | ±X, ±Y, ±Z or a custom direction (normalised): the outward axis, i.e. the mate frame's +Z                                                |
+| Roll about the axis   | degrees; sets the orientation reference (+X of the frame, kept perpendicular to the axis)                                                |
+| Compatibility tags    | at least one descriptor, e.g. `M4-clearance`, `servo-horn-mount` — compatibility is decided only by these, the type and the gender       |
+| Dimensions (optional) | declared diameter, length, width (mm)                                                                                                    |
+
+- Stored as `ModelRef.interfaces` (Zod-validated: unit vectors, perpendicular orientation, ≤ 64 interfaces, unique ids). Files written before 4.1 have no such field and load with none (unit- and browser-tested).
+- Each **Add / Apply / Delete** is one undoable command (`model.instance.interfaces.set`). Removing an interface that a mate or constraint uses is refused.
+- Declared interfaces are drawn on the selected model as markers (dot + mounting-axis arrow).
+- **Save to library** copies the instance's interfaces into the custom component (`localStorage` library entry), so new instances carry them; the library list shows each component's interface count. Placed instances keep their own copy (definition vs instance: editing one does not silently change the other), and the inspector says whether they differ.
+- Interfaces travel with the project, bundles and reusable-assembly files because they are part of the instance's `ModelRef`.
+- With interfaces, an imported model takes part in every supported mate and constraint, the mate and constraint forms, drag-to-snap, measurement and fastener checks (through its tags).
 
 ## No silently broken references
 
@@ -47,9 +69,13 @@
 5. Importing the bundle restores the asset and the model **loads**.
 6. A tampered bundle fails the integrity check.
 
+Phase 4.1 (`tests/end-to-end/model-interfaces.spec.ts`): a GLB saved as a custom component, a project file without the `interfaces` field loads, an interface is declared through the form (a missing tag and a duplicate id are refused), its marker is drawn, undo/redo, Save to library, the model is snap-mated to a screw (frames coincide to 1e-9 m), the mate form lists the interface, everything survives save + reload, and removing the used interface is refused.
+
 ## Limits
 
 - Supported: GLB and self-contained glTF only. External `.bin` and texture URIs are not fetched.
 - No STEP / IGES / STL / OBJ.
 - No mesh repair, decimation or unit auto-detection. The user confirms the unit and up-axis.
 - The asset store is per browser profile: use bundles to move work between machines.
+- Interfaces are entered numerically; there is no click-to-place on the mesh surface, and declared dimensions are informational (fastener checks read the compatibility tags, e.g. `M4-clearance`, not the diameter field).
+- Library definitions are edited by saving from a placed instance; there is no separate interface editor in the library panel.

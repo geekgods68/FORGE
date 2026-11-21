@@ -17,6 +17,8 @@ export function isTypingTarget(target: EventTarget | null): boolean {
  *   ⌘/Ctrl+⇧+Z, Ctrl+Y   redo
  *   ⌘/Ctrl+D             duplicate selected
  *   Delete               delete selected
+ *   S                    toggle drag-to-snap mode (interface mates)
+ *   F                    frame the selection
  */
 export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): boolean {
   if (isTypingTarget(e.target)) return false;
@@ -66,6 +68,18 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
     return true;
   }
   if (mod || e.altKey) return false;
+  if (key === 'escape' && s.mateSnap) {
+    s.cancelMateSnap();
+    return true;
+  }
+  if (key === 's' && !e.shiftKey) {
+    s.setMateSnapMode(!s.mateSnapMode);
+    return true;
+  }
+  if (key === 'f' && !e.shiftKey && selected) {
+    s.requestFrameSelection();
+    return true;
+  }
   if (key === 'escape') {
     if (s.dragging) s.requestCancelDrag();
     else s.select(null);

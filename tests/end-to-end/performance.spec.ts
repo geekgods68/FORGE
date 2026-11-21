@@ -6,10 +6,18 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
  * selection, visibility, undo preserved) and indicative benchmarks at 100 / 1,000 /
  * 5,000 components, a mixed scene and the constrained robotic arm.
  *
- * Timings are measured in HEADLESS Chromium with SOFTWARE WebGL on the development
- * machine: they are indicative only (not GPU performance). Draw-call and instance counts
- * are deterministic.
+ * By default timings are measured in HEADLESS Chromium with SOFTWARE WebGL (indicative
+ * only). With FORGE_BENCH_GPU=1 the same benchmarks run in Chromium's new headless mode on
+ * the machine's GPU (ANGLE/Metal on macOS) and are written to a separate results file; the
+ * renderer string actually used is recorded with the results. Draw-call and instance
+ * counts are deterministic.
  */
+const GPU = process.env.FORGE_BENCH_GPU === '1';
+if (GPU)
+  test.use({
+    channel: 'chromium',
+    launchOptions: { args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] },
+  });
 type F = Record<string, (...a: never[]) => unknown>;
 const call = <T>(page: Page, name: string, ...args: unknown[]) =>
   page.evaluate(
@@ -116,7 +124,7 @@ async function settledFrame(page: Page) {
   return call<{ drawCalls: number; triangles: number }>(page, 'lastFrame');
 }
 
-const OUT = 'test-results/phase4-benchmarks.json';
+const OUT = GPU ? 'test-results/phase41-benchmarks-gpu.json' : 'test-results/phase4-benchmarks.json';
 /** Merge one benchmark into the results file (each test records its own entry). */
 function record(key: string, value: unknown) {
   mkdirSync('test-results', { recursive: true });
@@ -124,9 +132,17 @@ function record(key: string, value: unknown) {
   writeFileSync(OUT, JSON.stringify({ ...prev, ...results, [key]: value }, null, 2));
 }
 const results: Record<string, unknown> = {
-  environment:
-    'Headless Chromium (Playwright), software WebGL, MacBook Air M3 8 GB — timings indicative only; draw calls / instances deterministic.',
+  environment: GPU
+    ? 'Chromium new headless (Playwright), hardware WebGL via ANGLE/Metal, MacBook Air M3 8 GB (renderer string recorded per run).'
+    : 'Headless Chromium (Playwright), software WebGL, MacBook Air M3 8 GB — timings indicative only; draw calls / instances deterministic.',
 };
+/** Mean GPU-complete render time of the current view (ms/frame) and the renderer used. */
+async function renderCost(page: Page) {
+  return {
+    renderMsPerFrame: await call<number>(page, 'benchRender', 30),
+    renderer: await call<string>(page, 'rendererName'),
+  };
+}
 
 test.describe.configure({ mode: 'serial' });
 
@@ -187,6 +203,7 @@ for (const n of [100, 1000, 5000]) {
       times.push(await timedInsert(page, `Grid ${per}`, base + k * (per + 1)));
     await page.getByTestId('library-toggle').click();
     const frame = await settledFrame(page);
+    const cost = await renderCost(page);
     const inst = (await instancing(page))!;
     expect(inst.instanced).toBe(n);
     expect(inst.batches).toBe(4);
@@ -204,6 +221,7 @@ for (const n of [100, 1000, 5000]) {
       instancedNodes: inst.instanced,
       batches: inst.batches,
       undoLastInsertMs: undoMs,
+      ...cost,
     });
     // Draw calls stay bounded by configurations × appearances, not by component count.
     expect(frame.drawCalls).toBeLessThan(60);
@@ -238,6 +256,7 @@ test('benchmark: robotic arm joints and a mixed scene', async ({ page }) => {
     jointMs.push(Date.now() - t0);
   }
   const armFrame = await settledFrame(page);
+  const armCost = await renderCost(page);
   const t1 = Date.now();
   await page.getByTestId('interference-check').click();
   await expect(page.getByTestId('interference-results')).toBeVisible();
@@ -248,6 +267,7 @@ test('benchmark: robotic arm joints and a mixed scene', async ({ page }) => {
   const insertMs = await timedInsert(page, 'Grid 1000', base + 1001);
   await page.getByTestId('library-toggle').click();
   const mixedFrame = await settledFrame(page);
+  const mixedCost = await renderCost(page);
   // Joints still respond in the mixed scene (scroll the virtualized tree back to the top).
   await deselect(page);
   await page.getByRole('tree').evaluate((el) => {
@@ -266,6 +286,7 @@ test('benchmark: robotic arm joints and a mixed scene', async ({ page }) => {
     drawCalls: armFrame.drawCalls,
     triangles: armFrame.triangles,
     interferenceCheckMs: interferenceMs,
+    ...armCost,
   });
   record('mixed', {
     insert1000Ms: insertMs,
@@ -273,5 +294,6 @@ test('benchmark: robotic arm joints and a mixed scene', async ({ page }) => {
     triangles: mixedFrame.triangles,
     instancing: await instancing(page),
     elbowMoveMs: mixedJointMs,
+    ...mixedCost,
   });
 });

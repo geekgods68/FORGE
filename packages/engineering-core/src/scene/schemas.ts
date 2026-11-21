@@ -290,6 +290,62 @@ export const FeatureSchema = z.discriminatedUnion('type', [
 
 // -- imported models (GLB / glTF) -----------------------------------------------------
 
+/** Connection interface types (same vocabulary as catalogue component interfaces). */
+export const MODEL_INTERFACE_TYPES = [
+  'mechanical-mount',
+  'bolt-hole',
+  'shaft-coupling',
+  'revolute-joint',
+  'slider',
+  'electrical-terminal',
+  'gpio-pin',
+  'power-terminal',
+  'data-connector',
+  'fluid-port',
+  'optical-interface',
+] as const;
+
+/**
+ * A connection interface DECLARED BY THE USER on an imported model (Phase 4.1). Nothing
+ * here is inferred from the mesh: position, axis, orientation, tags and dimensions are
+ * exactly what the user entered. Frame: the model-instance node's local frame (metres,
+ * after the confirmed unit and up-axis conversion). `direction` is the mounting axis
+ * (outward normal, the frame's +Z for mates) and `xRef` the in-plane reference (+X).
+ */
+export const ModelInterfaceSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/, 'use lowercase letters, digits, - or _ (max 64)'),
+    name: z.string().trim().min(1).max(200),
+    type: z.enum(MODEL_INTERFACE_TYPES),
+    gender: z.enum(['male', 'female', 'neutral']).nullable(),
+    position: z.tuple([finite, finite, finite]),
+    direction: unitVec,
+    xRef: unitVec,
+    /** Mating descriptors, e.g. 'M3-clearance', 'servo-horn-mount' (at least one). */
+    compatibility: z.array(z.string().trim().min(1).max(64)).min(1).max(16),
+    /** Declared dimensions (metres), e.g. a hole or shaft diameter. */
+    dimensions: z
+      .object({ diameter: length.optional(), length: length.optional(), width: length.optional() })
+      .default({}),
+  })
+  .refine(
+    (i) =>
+      Math.abs(i.direction[0] * i.xRef[0] + i.direction[1] * i.xRef[1] + i.direction[2] * i.xRef[2]) < 1e-6,
+    { message: 'the orientation reference must be perpendicular to the mounting axis', path: ['xRef'] },
+  );
+
+export const ModelInterfacesSchema = z
+  .array(ModelInterfaceSchema)
+  .max(64)
+  .superRefine((list, ctx) => {
+    const seen = new Set<string>();
+    list.forEach((i, k) => {
+      if (seen.has(i.id))
+        ctx.addIssue({ code: 'custom', path: [k, 'id'], message: `duplicate interface id "${i.id}"` });
+      seen.add(i.id);
+    });
+  });
+
 export const ModelRefSchema = z.object({
   /** Content address of the stored asset bytes. */
   assetHash: z.string().regex(/^sha256-[0-9a-f]{64}$/),
@@ -311,6 +367,8 @@ export const ModelRefSchema = z.object({
   minM: z.tuple([finite, finite, finite]),
   /** User-supplied, untrusted metadata (plain strings only). */
   metadata: z.record(z.string().min(1).max(64), z.string().max(500)),
+  /** User-declared connection interfaces (Phase 4.1; absent in older files → none). */
+  interfaces: ModelInterfacesSchema.default([]),
 });
 
 export const SceneNodeSchema = z.discriminatedUnion('kind', [
@@ -393,5 +451,6 @@ export type SketchConstraint = z.infer<typeof SketchConstraintSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type Feature = z.infer<typeof FeatureSchema>;
 export type ModelRef = z.infer<typeof ModelRefSchema>;
+export type ModelInterface = z.infer<typeof ModelInterfaceSchema>;
 export type ComponentConnection = z.infer<typeof ComponentConnectionSchema>;
 export type ComponentParamValue = z.infer<typeof ComponentParamValueSchema>;

@@ -97,4 +97,42 @@ The Phase 2 maintenance numbers still stand: 5,000-object select 91 ms, edit 47 
 
 - Draw calls stay **constant** in the component count. The 43 is the fixed overhead of the grid, axes, gizmo helper and lights, plus one call per batch appearance. Without instancing, each instance costs one call per appearance; that figure is derived, not measured here.
 - Robotic arm: `assembly.joint.setPosition` round trip through the UI is ≈ 42–53 ms (251 ms on the first, cold call). An interference check on the arm takes 64 ms. In the mixed scene, an elbow move takes ≈ 183 ms.
-- Not measured: frame time on a real GPU (Phase 10), and VR.
+- Not measured in Phase 4: frame time on a real GPU (measured in Phase 4.1, below), and VR.
+
+## Phase 4.1: real-GPU benchmarks, facility instancing, GPU-memory estimate
+
+### Method
+
+- The same `performance.spec.ts` scenes, run twice on the MacBook Air M3 (8 GB):
+  - **software WebGL:** the default headless Chromium (renderer reported: SwiftShader);
+  - **real GPU:** `FORGE_BENCH_GPU=1` → Chromium's new headless mode with ANGLE/Metal (renderer reported: `ANGLE (Apple, ANGLE Metal Renderer: Apple M3)`). The renderer string actually used is stored with every result.
+- **Render cost** = the debug hook `benchRender(30)`: renders the current view 30 times, then reads back one pixel, which cannot complete before the GPU has finished every queued draw; mean ms per frame (includes that one synchronisation). A first version used `gl.finish()`, which does not block in Chromium and gave impossible software figures (< 1 ms for 2.75 M triangles); it was replaced before any number was recorded.
+- One scripted run per mode (not repeated trials). Results: `docs/archive/phase41-benchmarks-gpu.json` and `docs/archive/phase41-benchmarks-software.json`.
+
+### Results
+
+| Scene               | Draw calls | Triangles | Render, real GPU | Render, software | Insert per batch, GPU / software    | Undo last insert, GPU / software |
+| ------------------- | ---------- | --------- | ---------------- | ---------------- | ----------------------------------- | -------------------------------- |
+| 100 components      | 43         | 55,334    | 1.04 ms/frame    | 20.6 ms/frame    | 89 / 468 ms                         | 33 / 55 ms                       |
+| 1,000 components    | 43         | 551,234   | 2.07 ms/frame    | 139 ms/frame     | 129 / 726 ms                        | 44 / 29 ms                       |
+| 5,000 components    | 43         | 2,755,234 | 5.61 ms/frame    | 677 ms/frame     | 115–158 / 662–1,474 ms (×5 batches) | 81 / 671 ms                      |
+| Robotic arm         | 80         | 7,698     | 0.77 ms/frame    | 8.80 ms/frame    | joint move 37–69 / 50–196 ms        | —                                |
+| Mixed (arm + 1,000) | 82         | 558,698   | 2.33 ms/frame    | 141 ms/frame     | 93 / 410 ms; elbow move 53 / 191 ms | —                                |
+
+- On the real GPU, 5,000 instanced components cost ≈ 5.6 ms of GPU-complete render time per frame (≈ 180 frames/s of headroom); software WebGL is two orders of magnitude slower, which is why Phase 4's software insert timings were dominated by the first frame.
+- Insert/undo latencies on the GPU run are command + first-frame round trips through the UI (as in Phase 4).
+- **Not measured:** interactive frame pacing with a visible window and compositor, sustained thermal behaviour, VR.
+
+### Facility-view instancing
+
+Phase 4 drew repeated components instanced in the project view only. Phase 4.1 renders the project through one `ProjectContent` component in **both** views (in the facility it sits inside the bench mount frame, as a sibling of the project root, so instance matrices stay in the project frame). Browser-tested: the arm on bench C in Lab 20 draws its 4 screws + 4 nuts in 2 batches, and selecting a nut takes it out of its batch. Clicks on instances are ignored in layout mode and while walking, like individually drawn bodies. The facility zone-resource tests (resources return to baseline) still pass.
+
+### GPU-memory debug readout (corrected)
+
+`__forge.gpuEstimate()` is now `rendering/gpuEstimate.ts`, unit-tested, and always labelled `kind: 'estimate'`; it is never shown in the UI. The Phase 4 report's claim that it ignored instance buffers was **not reproducible** (8 instanced fasteners → 512 B, exactly 8 × 64 B; browser-tested), but the readout had real inaccuracies, now fixed:
+
+- vertex/index data counted **once per underlying buffer** (interleaved attributes and shared buffers were counted once per attribute);
+- instance colours and morph targets included;
+- every distinct material texture counted (RGBA8, ×4/3 with mipmaps), not only signs.
+
+It remains an estimate (no driver measurement exists in WebGL): no shader programs, driver padding, compressed formats or render targets.

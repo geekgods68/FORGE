@@ -287,7 +287,8 @@ function Library() {
                           <span className="flex-1 truncate" title={m.description || m.name}>
                             {m.name}{' '}
                             <span className="text-muted-foreground">
-                              ({m.boundsM.map((v) => (v * 1000).toFixed(0)).join('×')} mm · imported model)
+                              ({m.boundsM.map((v) => (v * 1000).toFixed(0)).join('×')} mm · imported model ·{' '}
+                              {m.interfaces.length} interface{m.interfaces.length === 1 ? '' : 's'})
                             </span>
                           </span>
                           <button

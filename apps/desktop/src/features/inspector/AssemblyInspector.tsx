@@ -1,6 +1,5 @@
 import { checkCompatibility } from '@forge/components';
 import {
-  degToRad,
   isMateDriven,
   MATE_COORDINATES,
   MATE_TYPES,
@@ -21,12 +20,14 @@ import {
   worldBounds,
   type InterferenceResult,
 } from '@forge/mechanics';
-import { Anchor, Home, Link2, Ruler, ScanSearch, Trash2 } from 'lucide-react';
+import { Anchor, Home, Link2, Pencil, Ruler, ScanSearch, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberField } from '@/components/NumberField';
 import { formatLength, formatMass } from '@/components3d/format';
 import { useEditor } from '@/app/store';
+import { ConstraintEditor, MateEditor, NewConstraint } from './RelationshipEditors';
+import { fromUi, toUi } from './relationshipUnits';
 
 type AssemblyNode = Extract<SceneNode, { kind: 'assembly' }>;
 
@@ -85,6 +86,7 @@ export function AssemblyInspector({ node, locked }: { node: AssemblyNode; locked
       <Members node={node} locked={locked} freeBodies={report?.freeBodies ?? []} />
       <Relationships node={node} locked={locked} residuals={report?.relationships ?? []} />
       {!locked && <NewMate node={node} />}
+      {!locked && <NewConstraint node={node} />}
       <Measure node={node} />
       <ViewTools node={node} />
     </section>
@@ -154,10 +156,6 @@ function Members({
     </details>
   );
 }
-
-/** Joint coordinate display/edit: angles in degrees, lengths in millimetres (UI only). */
-const toUi = (kind: 'angle' | 'length', v: number) => (kind === 'angle' ? radToDeg(v) : v * 1000);
-const fromUi = (kind: 'angle' | 'length', v: number) => (kind === 'angle' ? degToRad(v) : v / 1000);
 
 function Joints({ node, locked }: { node: AssemblyNode; locked: boolean }) {
   const run = useEditor((s) => s.run);
@@ -283,6 +281,8 @@ function Relationships({
 }) {
   const run = useEditor((s) => s.run);
   const scene = useEditor((s) => s.project.scene);
+  const clearPreview = useEditor((s) => s.clearPreview);
+  const [editing, setEditing] = useState<string | null>(null);
   const byId = new Map(residuals.map((r) => [r.id, r]));
   const rows = [
     ...node.mechanical.mates.map((m) => ({ ...m, rel: 'mate' as const })),
@@ -290,39 +290,83 @@ function Relationships({
   ];
   if (rows.length === 0) return null;
   return (
-    <details open={rows.length <= 12}>
+    <details open={rows.length <= 12} data-testid="relationships-section">
       <summary className="cursor-pointer font-semibold">Mates &amp; constraints ({rows.length})</summary>
-      <ul className="mt-1 max-h-56 space-y-0.5 overflow-auto" data-testid="assembly-relationships">
+      <ul className="mt-1 max-h-96 space-y-0.5 overflow-auto" data-testid="assembly-relationships">
         {rows.map((r) => {
           const rep = byId.get(r.id);
+          const suppressed = r.rel === 'mate' && r.suppressed;
+          const checkOnly = r.rel === 'constraint' && !r.driving;
           return (
-            <li key={r.id} className="flex items-center gap-1" data-relationship={r.id}>
-              <span className={rep && !rep.satisfied ? 'text-red-300' : 'text-emerald-300'}>●</span>
-              <span className="min-w-0 flex-1 truncate" title={`${r.a.nodeId} ↔ ${r.b.nodeId}`}>
-                {r.name} · {r.type} · {scene.nodes[r.a.nodeId]?.name} ↔ {scene.nodes[r.b.nodeId]?.name}
-                {rep ? ` · ${rep.role}` : ''}
-              </span>
-              <button
-                type="button"
-                aria-label={`Delete ${r.name}`}
-                disabled={locked}
-                className="text-muted-foreground hover:text-red-300"
-                onClick={() =>
-                  r.rel === 'mate'
-                    ? run(
-                        'assembly.mate.delete',
-                        { assemblyId: node.id, mateId: r.id },
-                        { label: 'Delete mate' },
-                      )
-                    : run(
-                        'assembly.constraint.delete',
-                        { assemblyId: node.id, constraintId: r.id },
-                        { label: 'Delete constraint' },
-                      )
-                }
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+            <li key={r.id} data-relationship={r.id}>
+              <div className="flex items-center gap-1">
+                <span
+                  className={
+                    suppressed
+                      ? 'text-muted-foreground'
+                      : rep && !rep.satisfied
+                        ? 'text-red-300'
+                        : 'text-emerald-300'
+                  }
+                  title={rep && !rep.satisfied ? `residual ${rep.residual.toExponential(2)}` : undefined}
+                >
+                  {suppressed ? '○' : '●'}
+                </span>
+                <span className="min-w-0 flex-1 truncate" title={`${r.a.nodeId} ↔ ${r.b.nodeId}`}>
+                  {r.name} · {r.type} · {scene.nodes[r.a.nodeId]?.name} ↔ {scene.nodes[r.b.nodeId]?.name}
+                  {suppressed ? ' · suppressed' : checkOnly ? ' · check only' : rep ? ` · ${rep.role}` : ''}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Edit ${r.name}`}
+                  aria-expanded={editing === r.id}
+                  disabled={locked}
+                  className="text-muted-foreground hover:text-sky-300"
+                  onClick={() => {
+                    clearPreview();
+                    setEditing(editing === r.id ? null : r.id);
+                  }}
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Delete ${r.name}`}
+                  disabled={locked}
+                  className="text-muted-foreground hover:text-red-300"
+                  onClick={() =>
+                    r.rel === 'mate'
+                      ? run(
+                          'assembly.mate.delete',
+                          { assemblyId: node.id, mateId: r.id },
+                          { label: 'Delete mate' },
+                        )
+                      : run(
+                          'assembly.constraint.delete',
+                          { assemblyId: node.id, constraintId: r.id },
+                          { label: 'Delete constraint' },
+                        )
+                  }
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+              {editing === r.id &&
+                (r.rel === 'mate' ? (
+                  <MateEditor
+                    key={r.id}
+                    assemblyId={node.id}
+                    mate={node.mechanical.mates.find((m) => m.id === r.id)!}
+                    onClose={() => setEditing(null)}
+                  />
+                ) : (
+                  <ConstraintEditor
+                    key={r.id}
+                    assembly={node}
+                    constraint={node.mechanical.constraints.find((c) => c.id === r.id)!}
+                    onClose={() => setEditing(null)}
+                  />
+                ))}
             </li>
           );
         })}

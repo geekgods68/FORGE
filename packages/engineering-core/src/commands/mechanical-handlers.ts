@@ -1,3 +1,4 @@
+import { convertMate, drivingRelations } from '../mechanics';
 import { identityNodeTransform } from '../project/create';
 import { descendantsOf, isEffectivelyLocked, localTransformFor, worldMatrix } from '../scene/graph';
 import {
@@ -71,7 +72,8 @@ export function isSolverDriven(tx: GraphTransaction, nodeId: string): boolean {
   const n = tx.find(nodeId);
   const parent = n?.parentId ? tx.find(n.parentId) : undefined;
   if (!n || parent?.kind !== 'assembly') return false;
-  return relationsOf(parent, nodeId).length > 0 && !parent.mechanical.grounded.includes(nodeId);
+  if (parent.mechanical.grounded.includes(nodeId)) return false;
+  return drivingRelations(parent.mechanical).some((r) => r.a.nodeId === nodeId || r.b.nodeId === nodeId);
 }
 
 /**
@@ -242,6 +244,17 @@ function checkPart(ctx: HandlerContext, features: Feature[]) {
     );
 }
 
+/** distance ≥ 0 (m), 0 ≤ angle ≤ π (rad); value-less types take no value. */
+function checkConstraintValue(type: AssemblyConstraint['type'], value: number | null | undefined) {
+  const needsValue = type === 'distance' || type === 'angle';
+  if (needsValue && (value === undefined || value === null))
+    throw new CommandError('invalid-command', `A ${type} constraint needs a value.`);
+  if (type === 'distance' && value! < 0)
+    throw new CommandError('invalid-command', 'A distance cannot be negative.');
+  if (type === 'angle' && (value! < 0 || value! > Math.PI + 1e-12))
+    throw new CommandError('invalid-command', 'An angle constraint must be between 0° and 180°.');
+}
+
 // ----------------------------------------------------------------- handlers
 
 export const MECHANICAL_HANDLERS: { [K in MechanicalCommandType]: MHandler<K> } = {
@@ -374,16 +387,25 @@ export const MECHANICAL_HANDLERS: { [K in MechanicalCommandType]: MHandler<K> } 
     assertAssemblyEditable(tx, a);
     const m = a.mechanical.mates.find((x) => x.id === mateId);
     if (!m) throw new CommandError('not-found', `Mate "${mateId}" not found.`);
-    const next: Mate = { ...m, ...patch } as Mate;
+    let base: Mate = m;
+    if (patch.type && patch.type !== m.type) {
+      const c = convertMate(m, patch.type);
+      if (!c.ok) throw new CommandError('unsupported', c.message);
+      base = { ...m, type: patch.type, coordinates: c.coordinates, home: c.home, limits: c.limits };
+    }
+    const { type: _type, ...rest } = patch;
+    const next: Mate = { ...base, ...rest } as Mate;
     const n = MATE_COORDINATES[next.type].length;
     if (next.limits.length !== n || next.home.length !== n)
       throw new CommandError('invalid-command', `${next.type} mates have ${n} coordinate(s).`);
     next.limits.forEach((l, i) => {
-      if (l && (next.coordinates[i]! < l.min || next.coordinates[i]! > l.max))
+      if (l && (next.coordinates[i]! < l.min - 1e-12 || next.coordinates[i]! > l.max + 1e-12))
         throw new CommandError(
           'out-of-limits',
           `The current coordinate is outside the new limits; move the joint first.`,
         );
+      if (l && (next.home[i]! < l.min - 1e-12 || next.home[i]! > l.max + 1e-12))
+        throw new CommandError('out-of-limits', `The home position is outside the joint limits.`);
     });
     putMechanical(tx, a, {
       ...a.mechanical,
@@ -464,8 +486,7 @@ export const MECHANICAL_HANDLERS: { [K in MechanicalCommandType]: MHandler<K> } 
     if ([...a.mechanical.mates, ...a.mechanical.constraints].some((x) => x.id === id))
       throw new CommandError('duplicate-id', `Relationship id "${id}" already exists.`);
     const needsValue = input.type === 'distance' || input.type === 'angle';
-    if (needsValue && (input.value === undefined || input.value === null))
-      throw new CommandError('invalid-command', `A ${input.type} constraint needs a value.`);
+    checkConstraintValue(input.type, input.value);
     const c: AssemblyConstraint = {
       id,
       name: input.name ?? `${input.type} ${a.mechanical.constraints.length + 1}`,
@@ -476,6 +497,32 @@ export const MECHANICAL_HANDLERS: { [K in MechanicalCommandType]: MHandler<K> } 
       driving: input.driving ?? true,
     };
     putMechanical(tx, a, { ...a.mechanical, constraints: [...a.mechanical.constraints, c] });
+    resolveAssembly(tx, ctx, assemblyId);
+    return [assemblyId];
+  },
+
+  'assembly.constraint.update'(tx, { assemblyId, constraintId, patch }, ctx) {
+    const a = getAssembly(tx, assemblyId);
+    assertAssemblyEditable(tx, a);
+    const c = a.mechanical.constraints.find((x) => x.id === constraintId);
+    if (!c) throw new CommandError('not-found', `Constraint "${constraintId}" not found.`);
+    const next: AssemblyConstraint = {
+      ...c,
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.a ? { a: patch.a } : {}),
+      ...(patch.b ? { b: patch.b } : {}),
+      ...(patch.driving !== undefined ? { driving: patch.driving } : {}),
+      ...(patch.value !== undefined ? { value: patch.value } : {}),
+    };
+    assertBody(tx, a, next.a.nodeId);
+    assertBody(tx, a, next.b.nodeId);
+    if (next.a.nodeId === next.b.nodeId)
+      throw new CommandError('invalid-operation', 'A constraint needs two different bodies.');
+    checkConstraintValue(next.type, next.value);
+    putMechanical(tx, a, {
+      ...a.mechanical,
+      constraints: a.mechanical.constraints.map((x) => (x.id === constraintId ? next : x)),
+    });
     resolveAssembly(tx, ctx, assemblyId);
     return [assemblyId];
   },
@@ -701,5 +748,31 @@ export const MECHANICAL_HANDLERS: { [K in MechanicalCommandType]: MHandler<K> } 
     const p = tx.get(parent);
     tx.put({ ...p, childIds: [...p.childIds, id] });
     return [id];
+  },
+
+  'model.instance.interfaces.set'(tx, { nodeId, interfaces }, ctx) {
+    const n = tx.get(nodeId);
+    if (n.kind !== 'model-instance')
+      throw new CommandError('invalid-operation', `"${n.name}" is not an imported model instance.`);
+    if (isEffectivelyLocked(tx.graph, nodeId)) throw new CommandError('locked', `"${n.name}" is locked.`);
+    // Refuse to orphan a relationship: every interface a mate/constraint uses must remain.
+    const parent = n.parentId ? tx.find(n.parentId) : undefined;
+    if (parent?.kind === 'assembly') {
+      const kept = new Set(interfaces.map((i) => i.id));
+      const used = relationsOf(parent, nodeId).filter((r) =>
+        [r.a, r.b].some(
+          (e) => e.nodeId === nodeId && e.ref.kind === 'interface' && !kept.has(e.ref.interfaceId),
+        ),
+      );
+      if (used.length)
+        throw new CommandError(
+          'invalid-operation',
+          `Interfaces in use by ${used.map((r) => `"${r.name}"`).join(', ')} cannot be removed; delete those relationships first.`,
+        );
+    }
+    tx.put({ ...n, model: { ...n.model, interfaces } });
+    // Moved interfaces move what is mated to them (or the edit is refused on conflict).
+    resolveOwner(tx, ctx, nodeId);
+    return [nodeId];
   },
 };

@@ -10,16 +10,7 @@ import {
 import { Edges, GizmoHelper, GizmoViewport, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Box3,
-  Box3Helper,
-  Color,
-  InstancedMesh,
-  Mesh,
-  Vector3,
-  type BufferGeometry,
-  type Object3D,
-} from 'three';
+import { Box3, Box3Helper, Color, Sphere, InstancedMesh, Vector3, type Object3D } from 'three';
 import { ComponentMesh } from '@/components3d/ComponentMesh';
 import { PartMesh, SketchLines } from '@/components3d/PartMesh';
 import { ModelInstanceMesh } from '@/components3d/ModelInstanceMesh';
@@ -32,7 +23,7 @@ import { FacilityScene } from '@/facility/FacilityScene';
 import { WalkControls } from '@/facility/WalkControls';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
 import { resourceStats } from '@/rendering/resources';
-import { signTextureStats } from '@/facility/signTextures';
+import { estimateGpuMemory } from '@/rendering/gpuEstimate';
 import type {
   OrbitControls as OrbitControlsImpl,
   TransformControls as TransformControlsImpl,
@@ -42,6 +33,11 @@ import { explodeOffsets } from '@forge/mechanics';
 import { InstancedBatch } from '@/rendering/InstancedComponents';
 import { planComponentBatches } from '@/rendering/componentBatches';
 import { useEditor, useEditorStore } from '@/app/store';
+import { FrameMarkers, type MarkerItem } from '@/components3d/FrameMarkers';
+import { frameMarkerStats } from '@/components3d/markers';
+import { snapDiagnostics } from '@/features/snap/snapDiagnostics';
+import { SnapController } from './SnapDrag';
+import { bodyInterfaces } from '@forge/mechanics';
 
 const PhysicsLayer = lazy(() => import('./PhysicsLayer'));
 
@@ -106,7 +102,7 @@ export function EngineeringViewport() {
         >
           {view === 'facility' ? (
             // Facility: architecture + workspace + the project mounted on its bench (frame M).
-            <FacilityScene project={<NodeView id={rootId} />} />
+            <FacilityScene project={<ProjectContent rootId={rootId} />} />
           ) : (
             <ProjectStage rootId={rootId} />
           )}
@@ -125,6 +121,12 @@ export function EngineeringViewport() {
           {walking && <WalkControls />}
           <ConjureGhost />
           <ConnectionMarkers registry={registry} />
+          <SnapController
+            registry={registry}
+            rootId={rootId}
+            onDragEnd={() => (lastDragEnd.current = performance.now())}
+          />
+          <SelectedInterfaceMarkers registry={registry} />
           <InterferenceHighlights />
           <DebugProbe />
         </Canvas>
@@ -135,16 +137,6 @@ export function EngineeringViewport() {
 
 /** Project view: the engineering scene at its own origin with the measurement grid. */
 function ProjectStage({ rootId }: { rootId: string }) {
-  const graph = useEditor((s) => s.previewScene ?? s.project.scene);
-  const selection = useEditor((s) => s.selection);
-  const offsets = useContext(ExplodeContext);
-  const batches = useMemo(() => planComponentBatches(graph, selection), [graph, selection]);
-  const instanced = useMemo(() => new Set(batches.flatMap((b) => b.ids)), [batches]);
-  useEffect(() => {
-    instancingStats.batches = batches.length;
-    instancingStats.instanced = instanced.size;
-    instancingStats.drawn = batches.map((b) => ({ definitionId: b.definitionId, count: b.ids.length }));
-  }, [batches, instanced]);
   return (
     <>
       <color attach="background" args={['#2a2d33']} />
@@ -160,6 +152,30 @@ function ProjectStage({ rootId }: { rootId: string }) {
         position={[0, -0.0005, 0]}
       />
       <axesHelper args={[0.5]} />
+      <ProjectContent rootId={rootId} />
+    </>
+  );
+}
+
+/**
+ * The engineering scene graph as rendered in either view (project stage, or mounted on a
+ * bench in the facility): repeated identical components are drawn by instanced batches,
+ * everything else by NodeView. Batches are siblings of the root node's group, so both are
+ * in the same (project) frame wherever the project is mounted.
+ */
+function ProjectContent({ rootId }: { rootId: string }) {
+  const graph = useEditor((s) => s.previewScene ?? s.project.scene);
+  const selection = useEditor((s) => s.selection);
+  const offsets = useContext(ExplodeContext);
+  const batches = useMemo(() => planComponentBatches(graph, selection), [graph, selection]);
+  const instanced = useMemo(() => new Set(batches.flatMap((b) => b.ids)), [batches]);
+  useEffect(() => {
+    instancingStats.batches = batches.length;
+    instancingStats.instanced = instanced.size;
+    instancingStats.drawn = batches.map((b) => ({ definitionId: b.definitionId, count: b.ids.length }));
+  }, [batches, instanced]);
+  return (
+    <>
       <InstancedContext.Provider value={instanced}>
         <NodeView id={rootId} />
       </InstancedContext.Provider>
@@ -364,6 +380,24 @@ function InterferenceHighlights() {
   );
 }
 
+/** Declared interfaces of the selected imported model (cyan dot + mounting-axis arrow each). */
+function SelectedInterfaceMarkers({ registry }: { registry: Map<string, Object3D> }) {
+  const node = useEditor((s) =>
+    s.selection.length === 1 ? (s.previewScene ?? s.project.scene).nodes[s.selection[0]!] : undefined,
+  );
+  const items = useMemo((): MarkerItem[] => {
+    if (node?.kind !== 'model-instance') return [];
+    return node.model.interfaces.map((i) => ({
+      key: i.id,
+      nodeId: node.id,
+      position: i.position,
+      direction: i.direction,
+      color: '#22d3ee',
+    }));
+  }, [node]);
+  return items.length ? <FrameMarkers name="model-interfaces" items={items} registry={registry} /> : null;
+}
+
 function readTransform(o: Object3D): NodeTransform {
   return {
     position: [o.position.x, o.position.y, o.position.z],
@@ -406,6 +440,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
   const invalidate = useThree((s) => s.invalidate);
 
   const exploded = useEditor((s) => s.explode !== null);
+  const snapMode = useEditor((s) => s.mateSnapMode);
   // Mate-driven bodies are placed by the solver (edit joints instead); the exploded view
   // is a display offset, so direct manipulation is paused while it is shown.
   const editable =
@@ -413,6 +448,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
     node.kind !== 'root' &&
     node.visible &&
     !exploded &&
+    !snapMode && // drag-to-snap replaces the gizmo while its mode is on
     !isMateDriven(scene, node.id) &&
     !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.
@@ -481,6 +517,9 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
 
 function CameraRig() {
   const controls = useRef<OrbitControlsImpl>(null);
+  const registry = useContext(RegistryContext);
+  const store = useEditorStore();
+  const frameRequest = useEditor((s) => s.frameRequest);
   const resetRequest = useEditor((s) => s.cameraResetRequest);
   const preset = useEditor((s) => s.cameraPreset);
   const view = useEditor((s) => s.view);
@@ -492,6 +531,23 @@ function CameraRig() {
   useEffect(() => {
     if (resetRequest > 0) controls.current?.reset();
   }, [resetRequest]);
+  // Frame the selection: keep the viewing direction, centre and fit its rendered bounds.
+  useEffect(() => {
+    const c = controls.current;
+    const id = store.getState().selection[0];
+    const o = id ? registry.get(id) : undefined;
+    if (frameRequest === 0 || !c || !o) return;
+    const box = new Box3().setFromObject(o);
+    if (box.isEmpty()) return;
+    const sphere = box.getBoundingSphere(new Sphere());
+    const dir = c.object.position.clone().sub(c.target).normalize();
+    const fov = ((c.object as { fov?: number }).fov ?? 50) * (Math.PI / 180);
+    const dist = Math.max(sphere.radius / Math.sin(fov / 2), 0.08) * 1.4;
+    c.target.copy(sphere.center);
+    c.object.position.copy(sphere.center).addScaledVector(dir, dist);
+    c.update();
+    invalidate();
+  }, [frameRequest, registry, store, invalidate]);
   // Facility navigation: jump to zone/bench presets. Back in the project view, restore its home view.
   useEffect(() => {
     const c = controls.current;
@@ -522,6 +578,7 @@ function CameraRig() {
 /** Read-only diagnostics for automated browser tests (window.__forge). No mutations. */
 function DebugProbe() {
   const { camera, gl, size, scene } = useThree();
+  const store = useEditorStore();
   const frameloop = useThree((s) => s.frameloop);
   const frameloopRef = useRef(frameloop);
   useEffect(() => {
@@ -554,37 +611,42 @@ function DebugProbe() {
       cameraPosition: () => camera.position.toArray(),
       cameraDirection: () => camera.getWorldDirection(new Vector3()).toArray(),
       /**
-       * ESTIMATE of GPU memory held by the scene (not a driver measurement): bytes of every
-       * unique vertex/index buffer reachable from the scene, per-mesh instance buffers, sign
-       * textures (RGBA8 + mips) and the default framebuffer (colour + depth, ×4 if MSAA).
-       * Excludes shader programs and driver overhead.
+       * ESTIMATE of GPU memory held by the scene — not a driver measurement (see
+       * rendering/gpuEstimate.ts for what is and is not counted). Never shown in the UI.
        */
-      gpuEstimate: () => {
-        const geos = new Set<BufferGeometry>();
-        let instanceBytes = 0;
-        scene.traverse((o) => {
-          if (o instanceof Mesh) geos.add(o.geometry as BufferGeometry);
-          if (o instanceof InstancedMesh) instanceBytes += o.instanceMatrix.array.byteLength;
-        });
-        let geometryBytes = 0;
-        for (const g of geos) {
-          for (const a of Object.values(g.attributes))
-            geometryBytes += (a.array as ArrayLike<number> & { byteLength: number }).byteLength;
-          if (g.index) geometryBytes += g.index.array.byteLength;
-        }
-        const signs = signTextureStats();
-        const samples = gl.getContextAttributes()?.antialias ? 4 : 1;
-        const framebufferBytes = gl.domElement.width * gl.domElement.height * 8 * samples;
-        const total = geometryBytes + instanceBytes + signs.estimatedBytes + framebufferBytes;
-        return {
-          estimate: true,
-          geometryBytes,
-          instanceBytes,
-          signTextureBytes: signs.estimatedBytes,
-          framebufferBytes,
-          totalMB: +(total / 1048576).toFixed(2),
-          rendererInfo: { ...gl.info.memory },
-        };
+      gpuEstimate: () => ({
+        ...estimateGpuMemory(scene, {
+          width: gl.domElement.width,
+          height: gl.domElement.height,
+          samples: gl.getContextAttributes()?.antialias ? 4 : 1,
+        }),
+        estimate: true,
+        rendererInfo: { ...gl.info.memory },
+      }),
+      /** Unmasked WebGL renderer string (identifies software vs hardware rendering in benchmarks). */
+      rendererName: () => {
+        const ctx = gl.getContext();
+        const ext = ctx.getExtension('WEBGL_debug_renderer_info');
+        return ext ? String(ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : 'unknown';
+      },
+      /**
+       * Benchmark only: render the current view `frames` times, then read back one pixel —
+       * readPixels cannot return before the GPU has finished every queued draw (gl.finish()
+       * is not a reliable barrier in Chromium) — and return mean ms per frame, including
+       * that one synchronisation. Renderer-only — engineering state is untouched.
+       */
+      benchRender: (frames = 30) => {
+        const ctx = gl.getContext();
+        const px = new Uint8Array(4);
+        const sync = () => ctx.readPixels(0, 0, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, px);
+        gl.render(scene, camera);
+        sync();
+        const t0 = performance.now();
+        for (let i = 0; i < frames; i++) gl.render(scene, camera);
+        sync();
+        const ms = (performance.now() - t0) / frames;
+        gl.info.reset();
+        return +ms.toFixed(3);
       },
       /** Conjuring ghost state (renderer-only preview; never in the scene graph). */
       ghost: () => ({ ...ghostDiagnostics, inSceneGraph: false }),
@@ -643,6 +705,48 @@ function DebugProbe() {
         const o = registry.get(id);
         return o ? o.getWorldPosition(new Vector3()).toArray() : null;
       },
+      /** Drag-to-snap state (renderer diagnostics; read-only). */
+      snapState: () => {
+        const st = store.getState();
+        return {
+          mode: st.mateSnapMode,
+          dragging: snapDiagnostics.dragging,
+          candidates: snapDiagnostics.candidates.map((c) => ({ ...c })),
+          ghost: snapDiagnostics.ghost,
+          targetMarkers: snapDiagnostics.targets,
+          pending: st.mateSnap
+            ? {
+                nodeId: st.mateSnap.nodeId,
+                chosen: st.mateSnap.chosen,
+                candidates: st.mateSnap.candidates.map((c) => c.key),
+                type: st.mateSnap.type,
+                alignment: st.mateSnap.alignment,
+                message: st.mateSnap.message,
+              }
+            : null,
+        };
+      },
+      /** Interface markers currently drawn, per marker set. */
+      frameMarkers: () => Object.fromEntries(Object.entries(frameMarkerStats).map(([k, v]) => [k, [...v]])),
+      /** Client-pixel position of a body's declared interface as rendered (pointer tests). */
+      interfaceScreenPoint: (nodeId: string, interfaceId: string) => {
+        const o = registry.get(nodeId);
+        const list = bodyInterfaces(store.getState().project.scene, nodeId);
+        const i = Array.isArray(list) ? list.find((x) => x.id === interfaceId) : undefined;
+        if (!o || !i) return null;
+        o.updateWorldMatrix(true, false);
+        const v = new Vector3(...i.position).applyMatrix4(o.matrixWorld).project(camera);
+        const rect = gl.domElement.getBoundingClientRect();
+        return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
+      },
+      /** Client-pixel centre of a node's rendered bounds (a point on screen that presses the body). */
+      bodyScreenPoint: (id: string) => {
+        const o = registry.get(id);
+        if (!o) return null;
+        const v = new Box3().setFromObject(o).getCenter(new Vector3()).project(camera);
+        const rect = gl.domElement.getBoundingClientRect();
+        return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
+      },
       /** Client-pixel position of a node's origin, for pointer tests. */
       screenPointOf: (id: string) => {
         const o = registry.get(id);
@@ -652,6 +756,6 @@ function DebugProbe() {
         return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
       },
     };
-  }, [camera, gl, registry, size, scene]);
+  }, [camera, gl, registry, size, scene, store]);
   return null;
 }

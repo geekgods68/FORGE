@@ -1,4 +1,14 @@
-import type { Feature, NodeTransform, SceneGraph, SketchConstraint, SketchEntity } from './scene/schemas';
+import {
+  MATE_COORDINATES,
+  type AssemblyConstraint,
+  type Mechanical,
+  type Feature,
+  type Mate,
+  type NodeTransform,
+  type SceneGraph,
+  type SketchConstraint,
+  type SketchEntity,
+} from './scene/schemas';
 
 /**
  * Contracts for mechanical services injected into the engine (implemented by
@@ -83,14 +93,60 @@ export interface MechanicsService {
 
 /**
  * Read-only query: is `nodeId` a body placed by its parent assembly's mates/constraints
- * (so direct transform edits are refused)? Grounded bodies are not driven.
+ * (so direct transform edits are refused)? Grounded bodies are not driven, and neither
+ * suppressed mates nor check-only constraints position anything (the solver ignores them).
  */
 export function isMateDriven(graph: SceneGraph, nodeId: string): boolean {
   const n = graph.nodes[nodeId];
   const parent = n?.parentId ? graph.nodes[n.parentId] : undefined;
   if (!n || parent?.kind !== 'assembly') return false;
   if (parent.mechanical.grounded.includes(nodeId)) return false;
-  return [...parent.mechanical.mates, ...parent.mechanical.constraints].some(
-    (r) => r.a.nodeId === nodeId || r.b.nodeId === nodeId,
-  );
+  return drivingRelations(parent.mechanical).some((r) => r.a.nodeId === nodeId || r.b.nodeId === nodeId);
+}
+
+/** Relationships the solver actually uses: unsuppressed mates and driving constraints. */
+export function drivingRelations(m: Mechanical): (Mate | AssemblyConstraint)[] {
+  return [...m.mates.filter((x) => !x.suppressed), ...m.constraints.filter((c) => c.driving)];
+}
+
+/**
+ * Safe mate-type conversions (Phase 4.1). A conversion is offered only between the
+ * single-axis family {fixed, revolute, prismatic, cylindrical}, which share one frame
+ * convention (mate axis = interface +Z): every coordinate of the new type is carried over
+ * from a coordinate of the same kind (angle → angle, length → length) together with its
+ * limit and home value, and new coordinates start at 0 with no limit. Ball and planar
+ * joints use different coordinate meanings (rotation vector; in-plane translation), so
+ * converting to or from them is refused rather than guessed.
+ */
+const CONVERTIBLE = new Set<Mate['type']>(['fixed', 'revolute', 'prismatic', 'cylindrical']);
+
+export function canConvertMate(from: Mate['type'], to: Mate['type']): boolean {
+  return from === to || (CONVERTIBLE.has(from) && CONVERTIBLE.has(to));
+}
+
+/** Coordinates/home/limits of `m` re-expressed for `type` (see canConvertMate), or an error. */
+export function convertMate(
+  m: Pick<Mate, 'type' | 'coordinates' | 'home' | 'limits'>,
+  type: Mate['type'],
+):
+  | { ok: true; coordinates: number[]; home: number[]; limits: Mate['limits'] }
+  | { ok: false; message: string } {
+  if (m.type === type)
+    return { ok: true, coordinates: [...m.coordinates], home: [...m.home], limits: [...m.limits] };
+  if (!canConvertMate(m.type, type))
+    return {
+      ok: false,
+      message: `A ${m.type} mate cannot be converted to ${type} safely (different joint coordinates); delete it and create a new mate.`,
+    };
+  const from = MATE_COORDINATES[m.type];
+  const coordinates: number[] = [];
+  const home: number[] = [];
+  const limits: Mate['limits'] = [];
+  for (const kind of MATE_COORDINATES[type]) {
+    const i = from.indexOf(kind);
+    coordinates.push(i >= 0 ? m.coordinates[i]! : 0);
+    home.push(i >= 0 ? m.home[i]! : 0);
+    limits.push(i >= 0 ? (m.limits[i] ?? null) : null);
+  }
+  return { ok: true, coordinates, home, limits };
 }

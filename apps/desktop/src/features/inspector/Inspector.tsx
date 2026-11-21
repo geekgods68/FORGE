@@ -1,6 +1,7 @@
 import { GroupInspector } from './GroupInspector';
 import { ComponentInspector } from './ComponentInspector';
 import { AssemblyInspector } from './AssemblyInspector';
+import { ModelInterfacesEditor } from './ModelInterfacesEditor';
 import { PartInspector, SketchInspector } from './CadInspector';
 import {
   degToRad,
@@ -159,6 +160,9 @@ export function Inspector() {
           {node.kind === 'primitive' && <GeometrySummary g={node.geometry} />}
           {node.kind === 'component-instance' && node.component && (
             <ComponentInspector key={node.id} node={node} locked={locked} />
+          )}
+          {node.kind === 'model-instance' && (
+            <ModelInterfacesEditor key={`mi-${node.id}`} node={node} locked={locked} />
           )}
           {node.kind === 'part' && <PartInspector key={`part-${node.id}`} node={node} locked={locked} />}
           {node.kind === 'sketch' && (

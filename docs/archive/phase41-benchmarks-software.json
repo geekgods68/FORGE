@@ -1,0 +1,95 @@
+{
+  "environment": "Headless Chromium (Playwright), software WebGL, MacBook Air M3 8 GB — timings indicative only; draw calls / instances deterministic.",
+  "components-100": {
+    "insertMsPerBatch": [
+      468
+    ],
+    "drawCalls": 43,
+    "triangles": 55334,
+    "instancedNodes": 100,
+    "batches": 4,
+    "undoLastInsertMs": 55,
+    "renderMsPerFrame": 20.64,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "components-1000": {
+    "insertMsPerBatch": [
+      726
+    ],
+    "drawCalls": 43,
+    "triangles": 551234,
+    "instancedNodes": 1000,
+    "batches": 4,
+    "undoLastInsertMs": 29,
+    "renderMsPerFrame": 138.96,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "components-5000": {
+    "insertMsPerBatch": [
+      728,
+      662,
+      936,
+      1190,
+      1474
+    ],
+    "drawCalls": 43,
+    "triangles": 2755234,
+    "instancedNodes": 5000,
+    "batches": 4,
+    "undoLastInsertMs": 671,
+    "renderMsPerFrame": 677.383,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "robotic-arm": {
+    "jointSetPositionMs": [
+      196,
+      53,
+      55,
+      53,
+      50
+    ],
+    "drawCalls": 80,
+    "triangles": 7698,
+    "interferenceCheckMs": 30,
+    "renderMsPerFrame": 8.803,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "mixed": {
+    "insert1000Ms": 410,
+    "drawCalls": 82,
+    "triangles": 558698,
+    "instancing": {
+      "batches": 6,
+      "instanced": 1010,
+      "drawn": [
+        {
+          "definitionId": "ball-bearing",
+          "count": 251
+        },
+        {
+          "definitionId": "towerpro-sg90",
+          "count": 251
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 250
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 250
+        }
+      ]
+    },
+    "elbowMoveMs": 191,
+    "renderMsPerFrame": 141.487,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)"
+  }
+}

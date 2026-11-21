@@ -8,6 +8,7 @@ import {
   MATE_TYPES,
   MateEndSchema,
   MetadataSchema,
+  ModelInterfacesSchema,
   ModelRefSchema,
   PositionSchema,
   PrimitiveGeometrySchema,
@@ -127,6 +128,8 @@ export const MECHANICAL_PAYLOAD_SCHEMAS = {
     mateId: IdSchema,
     patch: z.object({
       name: Name.optional(),
+      /** Safe conversions only (see canConvertMate); coordinates carry over by kind. */
+      type: z.enum(MATE_TYPES).optional(),
       alignment: z.enum(['opposed', 'aligned']).optional(),
       offsetRad: finite.optional(),
       limits: z.array(JointLimitSchema.nullable()).max(3).optional(),
@@ -142,6 +145,17 @@ export const MECHANICAL_PAYLOAD_SCHEMAS = {
   }),
   'assembly.joint.home': z.object({ assemblyId: IdSchema }),
   'assembly.constraint.add': z.object({ assemblyId: IdSchema, constraint: ConstraintInput }),
+  'assembly.constraint.update': z.object({
+    assemblyId: IdSchema,
+    constraintId: IdSchema,
+    patch: z.object({
+      name: Name.optional(),
+      a: MateEndSchema.optional(),
+      b: MateEndSchema.optional(),
+      value: finite.nullable().optional(),
+      driving: z.boolean().optional(),
+    }),
+  }),
   'assembly.constraint.delete': z.object({ assemblyId: IdSchema, constraintId: IdSchema }),
   /** Alias of scene.component.configure that also re-solves the owning assembly. */
   'component.parameters.update': configurePayload,
@@ -206,6 +220,8 @@ export const MECHANICAL_PAYLOAD_SCHEMAS = {
   'geometry.feature.update': z.object({ partId: IdSchema, feature: FeatureSchema }),
   'geometry.feature.delete': z.object({ partId: IdSchema, featureId: IdSchema }),
   'model.instance.create': z.object({ ...placement, model: ModelRefSchema }),
+  /** Replace the user-declared connection interfaces of a placed imported model. */
+  'model.instance.interfaces.set': z.object({ nodeId: IdSchema, interfaces: ModelInterfacesSchema }),
 } as const;
 
 /** Payloads of the single-node scene commands (usable on their own or inside a batch). */
@@ -290,6 +306,7 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('assembly.joint.setPosition'),
   sub('assembly.joint.home'),
   sub('assembly.constraint.add'),
+  sub('assembly.constraint.update'),
   sub('assembly.constraint.delete'),
   sub('component.parameters.update'),
   sub('sketch.create'),
@@ -305,6 +322,7 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('geometry.feature.update'),
   sub('geometry.feature.delete'),
   sub('model.instance.create'),
+  sub('model.instance.interfaces.set'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -352,6 +370,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('assembly.joint.setPosition'),
   envelope('assembly.joint.home'),
   envelope('assembly.constraint.add'),
+  envelope('assembly.constraint.update'),
   envelope('assembly.constraint.delete'),
   envelope('component.parameters.update'),
   envelope('sketch.create'),
@@ -367,6 +386,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('geometry.feature.update'),
   envelope('geometry.feature.delete'),
   envelope('model.instance.create'),
+  envelope('model.instance.interfaces.set'),
   envelope('scene.batch'),
 ]);
 

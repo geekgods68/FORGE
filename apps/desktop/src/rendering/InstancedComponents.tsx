@@ -74,6 +74,7 @@ function AppearanceInstances({
   const ref = useRef<InstancedMesh>(null);
   const select = useEditor((s) => s.select);
   const layoutActive = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
+  const walkingNav = useEditor((s) => s.navMode === 'walk');
   const material = useSharedMaterial(appearanceSpec(app, getMaterial(materialId), 'none'));
   const invalidate = useThree((s) => s.invalidate);
   useLayoutEffect(() => {
@@ -92,7 +93,8 @@ function AppearanceInstances({
     return () => mesh?.dispose(); // per-mesh instance buffer only; geometry/material are shared
   }, []);
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (e.delta > 4 || layoutActive || e.instanceId === undefined) return;
+    // Same rules as individually drawn bodies: no edits from layout mode or while walking.
+    if (e.delta > 4 || layoutActive || walkingNav || e.instanceId === undefined) return;
     e.stopPropagation();
     select(ids[e.instanceId] ?? null);
   };

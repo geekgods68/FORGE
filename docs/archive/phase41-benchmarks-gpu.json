@@ -1,0 +1,95 @@
+{
+  "environment": "Chromium new headless (Playwright), hardware WebGL via ANGLE/Metal, MacBook Air M3 8 GB (renderer string recorded per run).",
+  "components-100": {
+    "insertMsPerBatch": [
+      89
+    ],
+    "drawCalls": 43,
+    "triangles": 55334,
+    "instancedNodes": 100,
+    "batches": 4,
+    "undoLastInsertMs": 33,
+    "renderMsPerFrame": 1.043,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"
+  },
+  "components-1000": {
+    "insertMsPerBatch": [
+      129
+    ],
+    "drawCalls": 43,
+    "triangles": 551234,
+    "instancedNodes": 1000,
+    "batches": 4,
+    "undoLastInsertMs": 44,
+    "renderMsPerFrame": 2.073,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"
+  },
+  "components-5000": {
+    "insertMsPerBatch": [
+      128,
+      115,
+      129,
+      126,
+      158
+    ],
+    "drawCalls": 43,
+    "triangles": 2755234,
+    "instancedNodes": 5000,
+    "batches": 4,
+    "undoLastInsertMs": 81,
+    "renderMsPerFrame": 5.613,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"
+  },
+  "robotic-arm": {
+    "jointSetPositionMs": [
+      69,
+      49,
+      40,
+      39,
+      37
+    ],
+    "drawCalls": 80,
+    "triangles": 7698,
+    "interferenceCheckMs": 39,
+    "renderMsPerFrame": 0.77,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"
+  },
+  "mixed": {
+    "insert1000Ms": 93,
+    "drawCalls": 82,
+    "triangles": 558698,
+    "instancing": {
+      "batches": 6,
+      "instanced": 1010,
+      "drawn": [
+        {
+          "definitionId": "ball-bearing",
+          "count": 251
+        },
+        {
+          "definitionId": "towerpro-sg90",
+          "count": 251
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 4
+        },
+        {
+          "definitionId": "hex-nut",
+          "count": 250
+        },
+        {
+          "definitionId": "machine-screw",
+          "count": 250
+        }
+      ]
+    },
+    "elbowMoveMs": 53,
+    "renderMsPerFrame": 2.333,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)"
+  }
+}

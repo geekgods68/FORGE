@@ -138,11 +138,14 @@ const SUMMARIES: Record<CommandType, string> = {
   'assembly.ground': 'Ground or unground a body (fixed reference for the solver)',
   'assembly.mate.create':
     'Create a mate (fixed, revolute, prismatic, cylindrical, ball, planar) and re-solve',
-  'assembly.mate.update': 'Edit a mate’s alignment, offset, limits, home or suppression and re-solve',
+  'assembly.mate.update':
+    'Edit a mate’s type (safe conversions), alignment, offset, limits, home or suppression and re-solve',
   'assembly.mate.delete': 'Delete a mate and re-solve',
   'assembly.joint.setPosition': 'Set a joint’s coordinates (within limits) and re-solve the assembly',
   'assembly.joint.home': 'Return every joint to its home coordinates',
   'assembly.constraint.add': 'Add a distance/angle/concentric/coincident/parallel/perpendicular constraint',
+  'assembly.constraint.update':
+    'Edit a constraint’s value, references or driving/check-only role and re-solve',
   'assembly.constraint.delete': 'Delete an assembly constraint and re-solve',
   'component.parameters.update': 'Change a component’s parameters/variant/material and re-solve its assembly',
   'sketch.create': 'Create a 2D sketch (optionally with entities and constraints)',
@@ -158,6 +161,8 @@ const SUMMARIES: Record<CommandType, string> = {
   'geometry.feature.update': 'Edit a feature’s parameters (geometry regenerates; invalid edits rejected)',
   'geometry.feature.delete': 'Delete a feature that nothing depends on',
   'model.instance.create': 'Place an imported model (GLB/glTF) by its stored asset hash',
+  'model.instance.interfaces.set':
+    'Set the user-declared connection interfaces of an imported model instance',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 

@@ -9,8 +9,8 @@ import { formatLength } from '@/components3d/format';
  * External model inspection (GLB / glTF 2.0): validates the container, parses it with
  * three's bundled GLTFLoader (lazy chunk), measures its bounding box in the unit and
  * up-axis the USER confirms, and reports a stable content hash. GPU/CPU resources are
- * disposed immediately after measuring. Imported models get no mass, material or
- * connection interfaces; saving them as library components is a later phase.
+ * disposed immediately after measuring. Imported models get no mass or material, and no
+ * connection interfaces are inferred: the user declares them on a placed instance.
  */
 interface Report {
   name: string;
@@ -111,6 +111,8 @@ export function ModelInspect() {
         meshes: String(report.meshes),
         triangles: String(report.triangles),
       },
+      // None inferred: interfaces are declared by the user afterwards (model inspector).
+      interfaces: [],
     });
     if (ok) setReport(null);
   };

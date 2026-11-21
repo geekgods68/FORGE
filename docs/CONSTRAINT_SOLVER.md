@@ -19,7 +19,7 @@ Implementation: `packages/mechanics/src/assembly.ts` (assembly solver), `sketch.
 | ball        | 3 angles (rotation vector)   | 3         |
 | planar      | 2 in-plane lengths + 1 angle | 3         |
 
-- A mate references a frame on each body: either a declared **interface**, whose position and direction come from the component definition or the part kernel, or an explicit **frame** (origin, axis and an x-reference perpendicular to the axis). Mate frames are in body-local metres.
+- A mate references a frame on each body: either a declared **interface**, whose position and direction come from the component definition, the part kernel or (4.1) the user's declaration on an imported model, or an explicit **frame** (origin, axis and an x-reference perpendicular to the axis). Mate frames are in body-local metres. Catalogue and part interfaces derive their x-reference from the axis (`defaultXRef`); imported-model interfaces carry the user's own orientation reference.
 
 ### Algorithm
 
@@ -55,6 +55,22 @@ Each relationship report carries its role (`tree`, `closure`, `driving` or `chec
 - A parameter change that removes or moves an interface used by a mate (`component.parameters.update` / `scene.component.configure`) re-solves the owning assembly. If the interface no longer exists, the change is refused (`invalid-reference`).
 - Deleting a body cascades its relationships. Duplicating an assembly remaps relationship ids and ends.
 - Mate-driven bodies cannot be moved directly: `scene.node.transform`, reparent, group and ungroup are refused for them. Moving a grounded body re-solves the assembly.
+- "Mate-driven" counts only what the solver uses (4.1 correction): **unsuppressed mates and driving constraints**. A body related only through a suppressed mate or a check-only constraint is free and can be moved; previously the UI still treated it as driven.
+- Changing an imported model's declared interfaces re-solves its assembly (moving what is mated to a moved interface); removing an interface in use is refused.
+
+## Editing relationships (Phase 4.1)
+
+| Command                              | Held during the re-solve       | Refused when                                                                                                |
+| ------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `assembly.mate.update`               | every other mate's coordinates | unsafe type conversion (`unsupported`); coordinate or home outside the limits (`out-of-limits`); conflict   |
+| `assembly.constraint.add` / `update` | nothing (all coordinates free) | missing / negative distance, angle outside 0–180° (`invalid-command`); references not members; conflict     |
+| `model.instance.interfaces.set`      | — (owner re-solved)            | invalid declaration (schema); an interface still used by a relationship; conflict after moving an interface |
+
+- **Type conversion** (`convertMate`, `@forge/engineering-core`): only within {fixed, revolute, prismatic, cylindrical}, which share the mate-axis convention; coordinates, limits and home carry over by kind and new coordinates start at 0. A converted mate keeps its current pose wherever the kept coordinates allow (revolute → cylindrical: identical pose, verified). Ball (rotation vector) and planar (in-plane translation) coordinates have other meanings, so those conversions are refused rather than guessed.
+- **Validation before commit:** the desktop editors run the exact command as an engine dry run (`engine.preview`) on every change of the draft, show the refusal or the solver's conflict message, and commit only on Apply. A refused Apply changes nothing (atomic transaction).
+- **Things the solver cannot tell apart (documented behaviour, not bugs):**
+  - A **revolute** closure is insensitive to its alignment: a hinge axis has no sign, so flipping it is not a contradiction. A **fixed** (or prismatic) closure is: its orientation is fully constrained, and the flip is refused as a conflict (verified).
+  - A **distance** constraint has a zero gradient when its two origins coincide, so it cannot move bodies out of that singular start. The constraint form shows the currently measured value ("Use current") so a value is chosen from a regular configuration.
 
 ### Verification (unit tests, `packages/mechanics/src/__tests__/solver.test.ts`, `sample.test.ts`)
 
@@ -68,6 +84,13 @@ Each relationship report carries its role (`tree`, `closure`, `driving` or `chec
 | Driving distance constraint on a slider                       | fully constrained at the requested value | **verified** |
 | Free body / implicit ground                                   | 6 DOF / reported                         | **verified** |
 | Robotic arm: 4 revolute joints, limits, home, save and reload | mobility 4, rigid dependent motion       | **verified** |
+| 4.1: alignment flip, offset, limits, home, suppression        | exact poses; refusals leave state intact | **verified** |
+| 4.1: safe type conversion (revolute → cylindrical)            | pose unchanged; ball/planar refused      | **verified** |
+| 4.1: alignment flip against a fixed loop closure              | refused (`constraint-conflict`), atomic  | **verified** |
+| 4.1: constraint value edit / check-only / contradictory edit  | exact; check-only reported; refused      | **verified** |
+| 4.1: mate on an imported model's declared interface           | interface frames coincide to 1e-9 m      | **verified** |
+
+The 4.1 rows are in `packages/mechanics/src/__tests__/interaction.test.ts` (unit) and the browser specs `assembly-interaction.spec.ts`, `model-interfaces.spec.ts` and `phase41-gate.spec.ts`.
 
 "Verified" refers to the kinematic geometry only: positions and orientations implied by ideal rigid joints. **No forces, torques, dynamics, friction, compliance, backlash or tolerances are modelled.** The solver is a kinematic positioning tool, not a mechanism simulator (that is Phase 5).
 

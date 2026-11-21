@@ -4,6 +4,7 @@ import { HierarchyPanel } from '@/features/hierarchy/HierarchyPanel';
 import { ItemInspector } from '@/features/workspace/ItemInspector';
 import { LibraryPanel } from '@/features/library/LibraryPanel';
 import { WalkHud } from '@/features/walk/WalkHud';
+import { SnapPanel } from '@/features/snap/SnapPanel';
 import { WorkspacePanel } from '@/features/workspace/WorkspacePanel';
 import { Inspector } from '@/features/inspector/Inspector';
 import { StatusBar } from '@/features/toolbar/StatusBar';
@@ -39,6 +40,7 @@ export function App({ store }: { store: StoreApi<EditorState> }) {
             >
               <EngineeringViewport />
             </ErrorBoundary>
+            <SnapPanel />
             <WalkHud />
             <LibraryPanel />
           </main>
