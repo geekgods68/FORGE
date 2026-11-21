@@ -9,7 +9,6 @@ export * from './gltf';
 export * from './materials';
 export * from './prefs';
 export * from './resolver';
-export * from './samples/robot-arm';
 export * from './schemas';
 export * from './search';
 export * from './taxonomy';

@@ -15,12 +15,12 @@ import {
   type Project,
   type SnapSettings,
 } from '@forge/engineering-core';
+import { createMechanicsService, createRoboticArmSample } from '@forge/mechanics';
 import {
   assemblyCommands,
   AssemblyTemplateSchema,
   auditProjectComponents,
   createCatalogResolver,
-  createRoboticArmSample,
   templateFromGroup,
   type AssemblyTemplate,
   parsePrefs,
@@ -280,7 +280,8 @@ export function createEditorStore(
     }
   }
   const resolver = createCatalogResolver();
-  const engine = new ForgeEngine(initial, { componentResolver: resolver });
+  const mechanics = createMechanicsService();
+  const engine = new ForgeEngine(initial, { componentResolver: resolver, mechanics });
   const workspace = new WorkspaceEngine(workspaceRepo.latest() ?? defaultWorkspaceLayout());
   const layoutLayer = () => store.getState().view === 'facility' && store.getState().editLayer === 'layout';
 

@@ -9,6 +9,7 @@ export * from './linalg';
 export * from './measure';
 export * from './part';
 export * from './pose';
+export * from './samples/robot-arm';
 export * from './sketch';
 
 /** Engine-injectable mechanics service (assembly solver, part kernel, sketch solver). */

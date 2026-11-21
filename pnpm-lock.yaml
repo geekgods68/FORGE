@@ -241,6 +241,9 @@ importers:
       '@forge/facility':
         specifier: workspace:*
         version: link:../../packages/facility
+      '@forge/mechanics':
+        specifier: workspace:*
+        version: link:../../packages/mechanics
       '@forge/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence
