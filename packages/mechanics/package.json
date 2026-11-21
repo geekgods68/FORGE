@@ -1,0 +1,19 @@
+{
+  "name": "@forge/mechanics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE mechanical services: kinematic assembly solver (mates, closures, DOF), sketch solver, prismatic feature kernel, measurement, fastener checks, interference, exploded views. Pure domain logic — no UI, no renderer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/components": "workspace:*",
+    "@forge/engineering-core": "workspace:*",
+    "polygon-clipping": "0.15.7",
+    "zod": "4.6.7"
+  }
+}

@@ -1,11 +1,20 @@
 import { z } from 'zod';
 import { IdSchema, QuatSchema } from '../schemas';
 import {
+  AssemblyConstraintSchema,
   ComponentParamValueSchema,
+  FeatureSchema,
+  JointLimitSchema,
+  MATE_TYPES,
+  MateEndSchema,
   MetadataSchema,
+  ModelRefSchema,
   PositionSchema,
   PrimitiveGeometrySchema,
+  ProfileSchema,
   ScaleSchema,
+  SketchConstraintSchema,
+  SketchEntitySchema,
 } from '../scene/schemas';
 
 /**
@@ -71,6 +80,134 @@ export const CreateNodeSpecSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+const configurePayload = z.object({
+  nodeId: IdSchema,
+  variantId: z.string().min(1).max(96).nullable().optional(),
+  parameters: z.record(z.string().min(1).max(64), ComponentParamValueSchema).optional(),
+  materialId: z.string().min(1).max(96).nullable().optional(),
+});
+const finite = z.number();
+const len = z.number().min(1e-6).max(1000);
+const Vec2 = z.tuple([finite, finite]);
+const placement = {
+  id: IdSchema.optional(),
+  name: Name.optional(),
+  parentId: IdSchema.optional(),
+  transform: PartialTransform.optional(),
+};
+const MateInput = z.object({
+  id: IdSchema.optional(),
+  name: Name.optional(),
+  type: z.enum(MATE_TYPES),
+  a: MateEndSchema,
+  b: MateEndSchema,
+  alignment: z.enum(['opposed', 'aligned']).optional(),
+  offsetRad: finite.optional(),
+  coordinates: z.array(finite).max(3).optional(),
+  home: z.array(finite).max(3).optional(),
+  limits: z.array(JointLimitSchema.nullable()).max(3).optional(),
+});
+const ConstraintInput = AssemblyConstraintSchema.extend({
+  id: IdSchema.optional(),
+  name: Name.optional(),
+  value: finite.nullable().optional(),
+  driving: z.boolean().optional(),
+});
+const featureId = { partId: IdSchema, id: IdSchema.optional() };
+
+/** Phase 4 mechanical / CAD commands (node-scoped: each edits nodes, so all work inside batches). */
+export const MECHANICAL_PAYLOAD_SCHEMAS = {
+  'assembly.create': z.object({ ...placement, nodeIds: z.array(IdSchema).max(10_000) }),
+  'assembly.insertComponent': z.object({ assemblyId: IdSchema, nodeId: IdSchema }),
+  'assembly.removeComponent': z.object({ assemblyId: IdSchema, nodeId: IdSchema }),
+  'assembly.ground': z.object({ assemblyId: IdSchema, nodeId: IdSchema, grounded: z.boolean() }),
+  'assembly.mate.create': z.object({ assemblyId: IdSchema, mate: MateInput }),
+  'assembly.mate.update': z.object({
+    assemblyId: IdSchema,
+    mateId: IdSchema,
+    patch: z.object({
+      name: Name.optional(),
+      alignment: z.enum(['opposed', 'aligned']).optional(),
+      offsetRad: finite.optional(),
+      limits: z.array(JointLimitSchema.nullable()).max(3).optional(),
+      home: z.array(finite).max(3).optional(),
+      suppressed: z.boolean().optional(),
+    }),
+  }),
+  'assembly.mate.delete': z.object({ assemblyId: IdSchema, mateId: IdSchema }),
+  'assembly.joint.setPosition': z.object({
+    assemblyId: IdSchema,
+    mateId: IdSchema,
+    coordinates: z.array(finite).min(1).max(3),
+  }),
+  'assembly.joint.home': z.object({ assemblyId: IdSchema }),
+  'assembly.constraint.add': z.object({ assemblyId: IdSchema, constraint: ConstraintInput }),
+  'assembly.constraint.delete': z.object({ assemblyId: IdSchema, constraintId: IdSchema }),
+  /** Alias of scene.component.configure that also re-solves the owning assembly. */
+  'component.parameters.update': configurePayload,
+  'sketch.create': z.object({
+    ...placement,
+    entities: z.array(SketchEntitySchema).max(2000).optional(),
+    constraints: z.array(SketchConstraintSchema).max(4000).optional(),
+  }),
+  'sketch.entity.add': z.object({
+    sketchId: IdSchema,
+    entities: z.array(SketchEntitySchema).min(1).max(2000),
+  }),
+  'sketch.constraint.add': z.object({
+    sketchId: IdSchema,
+    constraint: SketchConstraintSchema.extend({ id: IdSchema.optional() }),
+  }),
+  'sketch.constraint.delete': z.object({ sketchId: IdSchema, constraintId: IdSchema }),
+  'part.create': z.object({
+    ...placement,
+    materialId: z.string().min(1).max(96).nullable().optional(),
+    /** Base extrusion: an explicit profile, or the closed loop of a sketch (copied at creation). */
+    profile: ProfileSchema.optional(),
+    fromSketchId: IdSchema.optional(),
+    depth: len,
+  }),
+  'geometry.hole.create': z.object({ ...featureId, center: Vec2, diameter: len, depth: len.nullable() }),
+  'geometry.cut.create': z.object({
+    ...featureId,
+    profile: z.array(Vec2).min(3).max(512),
+    depth: len.nullable(),
+  }),
+  'geometry.boolean.create': z.object({
+    ...featureId,
+    op: z.enum(['union', 'difference', 'intersection']),
+    profile: z.array(Vec2).min(3).max(512),
+  }),
+  'geometry.pattern.create': z.discriminatedUnion('kind', [
+    z.object({
+      ...featureId,
+      kind: z.literal('rect'),
+      target: IdSchema,
+      countU: z.number().int().min(1).max(64),
+      countV: z.number().int().min(1).max(64),
+      spacingU: finite,
+      spacingV: finite,
+    }),
+    z.object({
+      ...featureId,
+      kind: z.literal('circ'),
+      target: IdSchema,
+      count: z.number().int().min(2).max(128),
+      center: Vec2,
+      totalAngle: finite,
+    }),
+  ]),
+  'geometry.mirror.create': z.object({
+    ...featureId,
+    target: IdSchema,
+    axis: z.enum(['u', 'v']),
+    offset: finite,
+  }),
+  'geometry.feature.update': z.object({ partId: IdSchema, feature: FeatureSchema }),
+  'geometry.feature.delete': z.object({ partId: IdSchema, featureId: IdSchema }),
+  'model.instance.create': z.object({ ...placement, model: ModelRefSchema }),
+} as const;
+
 /** Payloads of the single-node scene commands (usable on their own or inside a batch). */
 export const NODE_PAYLOAD_SCHEMAS = {
   'scene.node.create': z.object({ node: CreateNodeSpecSchema }),
@@ -117,15 +254,12 @@ export const NODE_PAYLOAD_SCHEMAS = {
    * overrides (merged onto the current values) and/or material. Validated by the
    * component resolver; one undoable step. Dimensions change here — never via scale.
    */
-  'scene.component.configure': z.object({
-    nodeId: IdSchema,
-    variantId: z.string().min(1).max(96).nullable().optional(),
-    parameters: z.record(z.string().min(1).max(64), ComponentParamValueSchema).optional(),
-    materialId: z.string().min(1).max(96).nullable().optional(),
-  }),
+  'scene.component.configure': configurePayload,
+  ...MECHANICAL_PAYLOAD_SCHEMAS,
 } as const;
 
 export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
+export type MechanicalCommandType = keyof typeof MECHANICAL_PAYLOAD_SCHEMAS;
 
 /** Upper bound on sub-commands in one batch (resource guard). */
 export const MAX_BATCH_COMMANDS = 10_000;
@@ -146,6 +280,31 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('scene.node.group'),
   sub('scene.node.ungroup'),
   sub('scene.component.configure'),
+  sub('assembly.create'),
+  sub('assembly.insertComponent'),
+  sub('assembly.removeComponent'),
+  sub('assembly.ground'),
+  sub('assembly.mate.create'),
+  sub('assembly.mate.update'),
+  sub('assembly.mate.delete'),
+  sub('assembly.joint.setPosition'),
+  sub('assembly.joint.home'),
+  sub('assembly.constraint.add'),
+  sub('assembly.constraint.delete'),
+  sub('component.parameters.update'),
+  sub('sketch.create'),
+  sub('sketch.entity.add'),
+  sub('sketch.constraint.add'),
+  sub('sketch.constraint.delete'),
+  sub('part.create'),
+  sub('geometry.hole.create'),
+  sub('geometry.cut.create'),
+  sub('geometry.boolean.create'),
+  sub('geometry.pattern.create'),
+  sub('geometry.mirror.create'),
+  sub('geometry.feature.update'),
+  sub('geometry.feature.delete'),
+  sub('model.instance.create'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -183,6 +342,31 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('scene.node.group'),
   envelope('scene.node.ungroup'),
   envelope('scene.component.configure'),
+  envelope('assembly.create'),
+  envelope('assembly.insertComponent'),
+  envelope('assembly.removeComponent'),
+  envelope('assembly.ground'),
+  envelope('assembly.mate.create'),
+  envelope('assembly.mate.update'),
+  envelope('assembly.mate.delete'),
+  envelope('assembly.joint.setPosition'),
+  envelope('assembly.joint.home'),
+  envelope('assembly.constraint.add'),
+  envelope('assembly.constraint.delete'),
+  envelope('component.parameters.update'),
+  envelope('sketch.create'),
+  envelope('sketch.entity.add'),
+  envelope('sketch.constraint.add'),
+  envelope('sketch.constraint.delete'),
+  envelope('part.create'),
+  envelope('geometry.hole.create'),
+  envelope('geometry.cut.create'),
+  envelope('geometry.boolean.create'),
+  envelope('geometry.pattern.create'),
+  envelope('geometry.mirror.create'),
+  envelope('geometry.feature.update'),
+  envelope('geometry.feature.delete'),
+  envelope('model.instance.create'),
   envelope('scene.batch'),
 ]);
 

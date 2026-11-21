@@ -81,7 +81,10 @@ describe('programmatic application API', () => {
     // Phase 3: conjuring is implemented (scene.node.create kind component-instance + scene.component.configure).
     expect(caps.future.map((f) => f.name)).not.toContain('component.conjure');
     expect(caps.commands.map((c) => c.type)).toContain('scene.component.configure');
-    expect(caps.future.map((f) => f.name)).toContain('assembly.mate');
+    // Phase 4: mates are implemented commands; Phase 5 simulation is still planned.
+    expect(caps.future.map((f) => f.name)).not.toContain('assembly.mate');
+    expect(caps.commands.map((c) => c.type)).toContain('assembly.mate.create');
+    expect(caps.future.map((f) => f.name)).toContain('simulation.run');
     expect(caps.sources.denied).toEqual(['vey']);
     expect(caps.queries).toContain('queryScene');
   });

@@ -16,7 +16,15 @@ import {
 } from '../scene/schemas';
 import { CommandError, type GraphTransaction } from '../scene/transaction';
 import { quatNormalize } from '../transform';
-import type { BatchSubCommand, NodeCommandType, PayloadOf } from './schemas';
+import type { MechanicsService } from '../mechanics';
+import {
+  isSolverDriven,
+  MECHANICAL_HANDLERS,
+  relationsOf,
+  resolveAssembly,
+  resolveOwner,
+} from './mechanical-handlers';
+import type { BatchSubCommand, MechanicalCommandType, NodeCommandType, PayloadOf } from './schemas';
 
 export interface ComponentResolveInput {
   definitionId: string;
@@ -44,6 +52,22 @@ export interface HandlerContext {
   newId: () => string;
   /** Component-library resolver; without one, catalogue components cannot be created or edited. */
   resolver?: ComponentResolver;
+  /** Mechanical solver / geometry kernel (Phase 4); without one, mechanical commands are refused. */
+  mechanics?: MechanicsService;
+}
+
+/** Reject structural moves of bodies that their assembly constrains (mates would dangle). */
+function assertNotConstrained(tx: GraphTransaction, nodeId: string, action: string) {
+  const n = tx.get(nodeId);
+  const parent = n.parentId ? tx.find(n.parentId) : undefined;
+  if (parent?.kind === 'assembly') {
+    const rel = relationsOf(parent, nodeId);
+    if (rel.length)
+      throw new CommandError(
+        'invalid-operation',
+        `"${n.name}" cannot be ${action}: it is constrained by ${rel.map((r) => r.name).join(', ')}. Delete those relationships first.`,
+      );
+  }
 }
 
 const isUnitScale = (t: NodeTransform) => t.scale.every((v) => Math.abs(v - 1) < 1e-12);
@@ -128,7 +152,8 @@ function detachChild(tx: GraphTransaction, parentId: string, childId: string): n
 
 const sameTransform = (a: NodeTransform, b: NodeTransform) => JSON.stringify(a) === JSON.stringify(b);
 
-export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
+type CoreCommandType = Exclude<NodeCommandType, MechanicalCommandType>;
+const CORE_HANDLERS: { [K in CoreCommandType]: Handler<K> } = {
   'scene.node.create'(tx, { node: spec }, ctx) {
     const parentId = spec.parentId ?? tx.rootId;
     tx.get(parentId);
@@ -206,6 +231,25 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
     const descendants = descendantsOf(tx.graph, nodeId);
     const lockedChild = descendants.find((d) => tx.get(d).locked);
     if (lockedChild) throw new CommandError('locked', `"${tx.get(lockedChild).name}" inside it is locked.`);
+    // Deleting a body also deletes the relationships that reference it (undo restores both).
+    const owner = tx.get(node.parentId!);
+    if (owner.kind === 'assembly' && relationsOf(owner, nodeId).length) {
+      const keep = <T extends { a: { nodeId: string }; b: { nodeId: string } }>(r: T) =>
+        r.a.nodeId !== nodeId && r.b.nodeId !== nodeId;
+      tx.put({
+        ...owner,
+        mechanical: {
+          grounded: owner.mechanical.grounded.filter((g) => g !== nodeId),
+          mates: owner.mechanical.mates.filter(keep),
+          constraints: owner.mechanical.constraints.filter(keep),
+        },
+      });
+    } else if (owner.kind === 'assembly' && owner.mechanical.grounded.includes(nodeId)) {
+      tx.put({
+        ...owner,
+        mechanical: { ...owner.mechanical, grounded: owner.mechanical.grounded.filter((g) => g !== nodeId) },
+      });
+    }
     detachChild(tx, node.parentId!, nodeId);
     for (const d of [...descendants].reverse()) tx.remove(d);
     tx.remove(nodeId);
@@ -240,6 +284,24 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
       });
       created.push(map.get(oldId)!);
     }
+    // Copied assemblies keep their mechanical relationships, re-addressed to the copies.
+    for (const oldId of ids) {
+      const copy = tx.get(map.get(oldId)!);
+      if (copy.kind !== 'assembly') continue;
+      const m = copy.mechanical;
+      const end = <E extends { nodeId: string }>(e: E): E => ({
+        ...e,
+        nodeId: map.get(e.nodeId) ?? e.nodeId,
+      });
+      tx.put({
+        ...copy,
+        mechanical: {
+          grounded: m.grounded.map((g) => map.get(g) ?? g),
+          mates: m.mates.map((x) => ({ ...x, id: ctx.newId(), a: end(x.a), b: end(x.b) })),
+          constraints: m.constraints.map((x) => ({ ...x, id: ctx.newId(), a: end(x.a), b: end(x.b) })),
+        },
+      });
+    }
     const parent = tx.get(source.parentId!);
     insertChild(tx, parent.id, map.get(nodeId)!, parent.childIds.indexOf(nodeId) + 1);
     return created;
@@ -252,16 +314,32 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
     return [nodeId];
   },
 
-  'scene.node.transform'(tx, { nodeId, position, rotation, scale }) {
+  'scene.node.transform'(tx, { nodeId, position, rotation, scale }, ctx) {
     if (scale) assertNoComponentDeformation(tx, nodeId, { ...tx.get(nodeId).transform, scale });
     const node = tx.get(nodeId);
     assertEditable(tx, nodeId, 'transformed');
+    if (isSolverDriven(tx, nodeId))
+      throw new CommandError(
+        'invalid-operation',
+        `"${node.name}" is positioned by its mates; change its joint coordinates (or move a grounded body) instead.`,
+      );
     const next = checkTransform({
       position: position ?? node.transform.position,
       rotation: rotation ?? node.transform.rotation,
       scale: scale ?? node.transform.scale,
     });
-    if (!sameTransform(next, node.transform)) tx.put({ ...node, transform: next });
+    if (!sameTransform(next, node.transform)) {
+      tx.put({ ...node, transform: next });
+      // A grounded body moved: its assembly re-solves so the mated chain follows.
+      const parent = node.parentId ? tx.find(node.parentId) : undefined;
+      if (parent?.kind === 'assembly' && parent.mechanical.grounded.includes(nodeId))
+        resolveAssembly(
+          tx,
+          ctx,
+          parent.id,
+          parent.mechanical.mates.map((m) => m.id),
+        );
+    }
     return [nodeId];
   },
 
@@ -269,6 +347,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
     const node = tx.get(nodeId);
     tx.get(parentId);
     assertEditable(tx, nodeId, 'moved');
+    if (parentId !== node.parentId) assertNotConstrained(tx, nodeId, 'moved to another parent');
     if (parentId === nodeId || isAncestor(tx.graph, nodeId, parentId))
       throw new CommandError('cycle', 'A node cannot be moved inside itself or one of its descendants.');
     assertParentEditable(tx, node.parentId!);
@@ -312,6 +391,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   'scene.node.group'(tx, { nodeIds, groupId, name }, ctx) {
     const nodes = nodeIds.map((id) => tx.get(id));
     for (const n of nodes) assertEditable(tx, n.id, 'grouped');
+    for (const n of nodes) assertNotConstrained(tx, n.id, 'grouped');
     const parentId = nodes[0]!.parentId!;
     if (nodes.some((n) => n.parentId !== parentId))
       throw new CommandError('invalid-operation', 'All nodes in a group must share the same parent.');
@@ -358,6 +438,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
       materialId: materialId === undefined ? cur.materialId : materialId,
     });
     tx.put({ ...node, component: { ...r.ref, connections: cur.connections } });
+    resolveOwner(tx, ctx, nodeId);
     return [nodeId];
   },
 
@@ -366,6 +447,12 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
     if (group.kind !== 'group' && group.kind !== 'assembly')
       throw new CommandError('invalid-operation', `"${group.name}" is not a group.`);
     assertEditable(tx, groupId, 'ungrouped');
+    if (group.kind === 'assembly' && (group.mechanical.mates.length || group.mechanical.constraints.length))
+      throw new CommandError(
+        'invalid-operation',
+        `"${group.name}" has mechanical relationships; delete them before dissolving the assembly.`,
+      );
+    assertNotConstrained(tx, groupId, 'dissolved');
     const lockedChild = group.childIds.find((c) => tx.get(c).locked);
     if (lockedChild) throw new CommandError('locked', `"${tx.get(lockedChild).name}" is locked.`);
     const parentId = group.parentId!;
@@ -392,33 +479,21 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   },
 };
 
+export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
+  ...CORE_HANDLERS,
+  ...MECHANICAL_HANDLERS,
+  'component.parameters.update': (tx, payload, ctx) =>
+    CORE_HANDLERS['scene.component.configure'](tx, payload, ctx),
+};
+
 /** Apply one single-node command inside a transaction (shared by direct commands and batches). */
 export function runNodeCommand(tx: GraphTransaction, cmd: BatchSubCommand, ctx: HandlerContext): string[] {
-  // Each case narrows `cmd` so the handler receives a precisely typed payload.
-  switch (cmd.type) {
-    case 'scene.node.create':
-      return HANDLERS['scene.node.create'](tx, cmd.payload, ctx);
-    case 'scene.node.delete':
-      return HANDLERS['scene.node.delete'](tx, cmd.payload, ctx);
-    case 'scene.node.duplicate':
-      return HANDLERS['scene.node.duplicate'](tx, cmd.payload, ctx);
-    case 'scene.node.rename':
-      return HANDLERS['scene.node.rename'](tx, cmd.payload, ctx);
-    case 'scene.node.transform':
-      return HANDLERS['scene.node.transform'](tx, cmd.payload, ctx);
-    case 'scene.node.reparent':
-      return HANDLERS['scene.node.reparent'](tx, cmd.payload, ctx);
-    case 'scene.node.visibility':
-      return HANDLERS['scene.node.visibility'](tx, cmd.payload, ctx);
-    case 'scene.node.lock':
-      return HANDLERS['scene.node.lock'](tx, cmd.payload, ctx);
-    case 'scene.node.group':
-      return HANDLERS['scene.node.group'](tx, cmd.payload, ctx);
-    case 'scene.node.ungroup':
-      return HANDLERS['scene.node.ungroup'](tx, cmd.payload, ctx);
-    case 'scene.component.configure':
-      return HANDLERS['scene.component.configure'](tx, cmd.payload, ctx);
-  }
+  const handler = HANDLERS[cmd.type] as (
+    tx: GraphTransaction,
+    payload: unknown,
+    ctx: HandlerContext,
+  ) => string[];
+  return handler(tx, cmd.payload, ctx);
 }
 
 /** Apply a batch: sub-commands run in order; the first failure aborts the whole transaction. */

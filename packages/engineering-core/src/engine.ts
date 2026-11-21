@@ -1,4 +1,5 @@
 import { runBatch, runNodeCommand, type ComponentResolver, type HandlerContext } from './commands/handlers';
+import type { AssemblySolveResult, MechanicsService } from './mechanics';
 import {
   COMMAND_TYPES,
   CommandEnvelopeSchema,
@@ -82,6 +83,8 @@ export interface CommandPolicy {
 export interface EngineOptions {
   /** Component-library resolver (from @forge/components); required to create/edit catalogue components. */
   componentResolver?: ComponentResolver;
+  /** Mechanical solver / geometry kernel (from @forge/mechanics); required for Phase 4 commands. */
+  mechanics?: MechanicsService;
   historyLimit?: number;
   newId?: () => string;
   now?: () => Date;
@@ -129,11 +132,36 @@ const SUMMARIES: Record<CommandType, string> = {
   'scene.node.group': 'Group sibling nodes under a new group',
   'scene.node.ungroup': 'Dissolve a group, preserving its children’s world transforms',
   'scene.component.configure': 'Change a component instance’s variant, parameters (dimensions) or material',
+  'assembly.create': 'Create a mechanical assembly (hierarchy + mates) from nodes',
+  'assembly.insertComponent': 'Move a body into an assembly, preserving its world placement',
+  'assembly.removeComponent': 'Move an unconstrained body out of an assembly',
+  'assembly.ground': 'Ground or unground a body (fixed reference for the solver)',
+  'assembly.mate.create':
+    'Create a mate (fixed, revolute, prismatic, cylindrical, ball, planar) and re-solve',
+  'assembly.mate.update': 'Edit a mate’s alignment, offset, limits, home or suppression and re-solve',
+  'assembly.mate.delete': 'Delete a mate and re-solve',
+  'assembly.joint.setPosition': 'Set a joint’s coordinates (within limits) and re-solve the assembly',
+  'assembly.joint.home': 'Return every joint to its home coordinates',
+  'assembly.constraint.add': 'Add a distance/angle/concentric/coincident/parallel/perpendicular constraint',
+  'assembly.constraint.delete': 'Delete an assembly constraint and re-solve',
+  'component.parameters.update': 'Change a component’s parameters/variant/material and re-solve its assembly',
+  'sketch.create': 'Create a 2D sketch (optionally with entities and constraints)',
+  'sketch.entity.add': 'Add points, lines, circles or arcs to a sketch (solved)',
+  'sketch.constraint.add': 'Add a sketch constraint; conflicting constraints are rejected',
+  'sketch.constraint.delete': 'Delete a sketch constraint',
+  'part.create': 'Create a parametric part from an extruded profile or a sketch',
+  'geometry.hole.create': 'Add a through or blind hole to a part',
+  'geometry.cut.create': 'Add a through or blind cut to a part',
+  'geometry.boolean.create': 'Union/difference/intersection of a part’s base profile with a profile',
+  'geometry.pattern.create': 'Rectangular or circular pattern of a hole/cut feature',
+  'geometry.mirror.create': 'Mirror a hole/cut feature about a profile axis',
+  'geometry.feature.update': 'Edit a feature’s parameters (geometry regenerates; invalid edits rejected)',
+  'geometry.feature.delete': 'Delete a feature that nothing depends on',
+  'model.instance.create': 'Place an imported model (GLB/glTF) by its stored asset hash',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 
 const FUTURE = [
-  { name: 'assembly.mate', plannedPhase: 4 },
   { name: 'simulation.run', plannedPhase: 5 },
   { name: 'experiment.record', plannedPhase: 7 },
   { name: 'vey.session', plannedPhase: 9 },
@@ -166,6 +194,7 @@ export class ForgeEngine {
     this.ctx = {
       newId: options.newId ?? defaultNewId,
       ...(options.componentResolver ? { resolver: options.componentResolver } : {}),
+      ...(options.mechanics ? { mechanics: options.mechanics } : {}),
     };
     this.now = options.now ?? (() => new Date());
     this.policy = options.policy ?? { deniedSources: ['vey'] };
@@ -324,6 +353,20 @@ export class ForgeEngine {
       redoDepth: this.redoStack.length,
       limit: this.historyLimit,
     };
+  }
+
+  /**
+   * Read-only mechanical analysis of an assembly (DOF, residuals, status) without changing
+   * anything. Returns null when no mechanics service is configured.
+   */
+  analyzeAssembly(assemblyId: string): AssemblySolveResult | null {
+    const n = this.project.scene.nodes[assemblyId];
+    if (!this.ctx.mechanics || n?.kind !== 'assembly') return null;
+    return this.ctx.mechanics.solveAssembly(
+      this.project.scene,
+      assemblyId,
+      n.mechanical.mates.map((m) => m.id),
+    );
   }
 
   getCapabilities(): Capabilities {

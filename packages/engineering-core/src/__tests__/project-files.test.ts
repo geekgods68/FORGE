@@ -163,7 +163,7 @@ describe('Phase 0 (schema v1) compatibility', () => {
     if (!r.ok) return;
     expect(r.migratedFrom).toBe(1);
     const p = r.project;
-    expect(p.schemaVersion).toBe(3); // v1 → current
+    expect(p.schemaVersion).toBe(4); // v1 → current
     expect(p.id).toBe(v1.id);
     expect(p.scene.rootId).toBe(v1.scenes[0].id);
     const inst = v1.scenes[0].instances[0];

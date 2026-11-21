@@ -22,6 +22,10 @@ export type CommandErrorCode =
   | 'permission-denied'
   | 'unknown-component'
   | 'invalid-parameters'
+  | 'constraint-conflict'
+  | 'out-of-limits'
+  | 'invalid-geometry'
+  | 'unsupported'
   | 'integrity';
 
 export class CommandError extends Error {

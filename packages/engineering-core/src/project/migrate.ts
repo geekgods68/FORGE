@@ -53,6 +53,7 @@ export function migrateV1ToV2(
       ...nodes[rootId]!,
       id: a.id,
       kind: 'assembly',
+      mechanical: { grounded: [], mates: [], constraints: [] },
       name: a.name,
       parentId: rootId,
       childIds: [],
@@ -130,11 +131,12 @@ export function loadProjectDocument(doc: unknown): DocumentResult {
       ? { ok: true, project: v.project, migratedFrom: 1 }
       : invalid('Migrated project failed validation.', v.errors);
   }
-  if (version === 2) {
-    // v2 → v3: no structural change (v3 only adds the optional component reference).
+  if (version === 2 || version === 3) {
+    // v2 → v4 / v3 → v4: no structural change (v3 added the optional component reference;
+    // v4 adds assemblies' mechanical data — defaulted — and new node kinds).
     const v = validateProject({ ...(doc as object), schemaVersion: PROJECT_SCHEMA_VERSION });
     return v.ok
-      ? { ok: true, project: v.project, migratedFrom: 2 }
+      ? { ok: true, project: v.project, migratedFrom: version }
       : invalid(
           `Project failed validation (${v.errors.length} problem${v.errors.length === 1 ? '' : 's'}).`,
           v.errors,

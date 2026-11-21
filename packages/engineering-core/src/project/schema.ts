@@ -9,13 +9,14 @@ import { validateGraph } from '../scene/graph';
 import { SceneGraphSchema } from '../scene/schemas';
 
 /**
- * FORGE project document, schema version 3 (Phase 3: component-library instances).
- * v1 (Phase 0) and v2 (Phases 1–2) documents are migrated on load — see ./migrate.ts.
- * v3 adds the optional `component` reference on component-instance nodes; a v2
- * document is structurally a valid v3 document.
+ * FORGE project document, schema version 4 (Phase 4: mechanical assemblies, sketches,
+ * parametric parts, imported models).
+ * v1 (Phase 0), v2 (Phases 1–2) and v3 (Phase 3) documents are migrated on load.
+ * v3 added the optional `component` reference; v4 adds `mechanical` on assembly nodes
+ * (defaulted when absent) and the `sketch`, `part` and `model-instance` node kinds.
  */
-export const PROJECT_SCHEMA_VERSION = 3 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3] as const;
+export const PROJECT_SCHEMA_VERSION = 4 as const;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
 
 export const ProjectSchema = z
   .object({
@@ -72,12 +73,48 @@ export const ProjectSchema = z
           'catalogue components must have unit scale (dimensions are parameters)',
         );
       n.component.connections.forEach((c, i) => {
+        if (!c) return;
         const t = p.scene.nodes[c.targetNodeId];
         if (!t || t.kind !== 'component-instance')
           issue(
             ['scene', 'nodes', n.id, 'component', 'connections', i],
             `connection target "${c.targetNodeId}" is not a component`,
           );
+      });
+    }
+    // Mechanical relationships: every reference must be a body directly inside the assembly
+    // (component, part, model or rigid subassembly); ids unique; grounded bodies valid.
+    const nodes = p.scene.nodes;
+    const bodyKinds = new Set([
+      'component-instance',
+      'part',
+      'model-instance',
+      'primitive',
+      'assembly',
+      'group',
+    ]);
+    const relIds = new Set<string>();
+    for (const a of Object.values(nodes)) {
+      if (a.kind !== 'assembly') continue;
+      const m = a.mechanical;
+      const isBody = (id: string) => nodes[id]?.parentId === a.id && bodyKinds.has(nodes[id]!.kind);
+      m.grounded.forEach((g, i) => {
+        if (!isBody(g))
+          issue(
+            ['scene', 'nodes', a.id, 'mechanical', 'grounded', i],
+            `grounded "${g}" is not a body of this assembly`,
+          );
+      });
+      [...m.mates, ...m.constraints].forEach((r) => {
+        if (relIds.has(r.id))
+          issue(['scene', 'nodes', a.id, 'mechanical'], `duplicate relationship id "${r.id}"`);
+        relIds.add(r.id);
+        for (const end of [r.a, r.b])
+          if (!isBody(end.nodeId))
+            issue(
+              ['scene', 'nodes', a.id, 'mechanical', r.id],
+              `"${end.nodeId}" is not a body of assembly "${a.name}"`,
+            );
       });
     }
   });

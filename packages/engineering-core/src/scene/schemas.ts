@@ -108,6 +108,211 @@ export const ComponentRefSchema = z.object({
   connections: z.array(ComponentConnectionSchema).max(512),
 });
 
+// ---------------------------------------------------------------------------
+// Phase 4: mechanical assemblies, sketches, parametric parts, imported models.
+// Units: metres and radians. Frames: right-handed; `axis` is a frame's +Z, `xRef` its +X.
+// ---------------------------------------------------------------------------
+
+const unitVec = z
+  .tuple([finite, finite, finite])
+  .refine((v) => Math.abs(Math.hypot(...v) - 1) < 1e-6, { message: 'must be a unit vector' });
+const point3 = PositionSchema;
+
+/** Reference geometry on a body: a declared component interface, or an explicit frame (body-local). */
+export const FrameRefSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('interface'), interfaceId: z.string().min(1).max(64) }),
+  z
+    .object({ kind: z.literal('frame'), origin: point3, axis: unitVec, xRef: unitVec })
+    .refine((f) => Math.abs(f.axis[0] * f.xRef[0] + f.axis[1] * f.xRef[1] + f.axis[2] * f.xRef[2]) < 1e-6, {
+      message: 'xRef must be perpendicular to axis',
+    }),
+]);
+export const MateEndSchema = z.object({ nodeId: IdSchema, ref: FrameRefSchema });
+
+export const MATE_TYPES = ['fixed', 'revolute', 'prismatic', 'cylindrical', 'ball', 'planar'] as const;
+/** Joint coordinates per mate type (radians / metres). */
+export const MATE_COORDINATES: Record<(typeof MATE_TYPES)[number], readonly ('angle' | 'length')[]> = {
+  fixed: [],
+  revolute: ['angle'],
+  prismatic: ['length'],
+  cylindrical: ['angle', 'length'],
+  ball: ['angle', 'angle', 'angle'],
+  planar: ['length', 'length', 'angle'],
+};
+export const JointLimitSchema = z
+  .object({ min: finite, max: finite })
+  .refine((l) => l.min <= l.max, { message: 'limit min must be ≤ max' });
+
+export const MateSchema = z
+  .object({
+    id: IdSchema,
+    name: z.string().trim().min(1).max(200),
+    type: z.enum(MATE_TYPES),
+    a: MateEndSchema,
+    b: MateEndSchema,
+    /** `opposed`: B's axis faces A's (face-to-face mounting); `aligned`: same direction. */
+    alignment: z.enum(['opposed', 'aligned']),
+    /** Fixed rotation about the mate axis (rad), applied before the joint motion. */
+    offsetRad: finite,
+    /** Current joint coordinates (rad / m), length = MATE_COORDINATES[type].length. */
+    coordinates: z.array(finite).max(3),
+    /** Home (reference) configuration. */
+    home: z.array(finite).max(3),
+    limits: z.array(JointLimitSchema.nullable()).max(3),
+    suppressed: z.boolean(),
+  })
+  .superRefine((m, ctx) => {
+    const n = MATE_COORDINATES[m.type].length;
+    for (const k of ['coordinates', 'home', 'limits'] as const)
+      if (m[k].length !== n)
+        ctx.addIssue({ code: 'custom', path: [k], message: `${m.type} mates have ${n} coordinate(s)` });
+    if (m.a.nodeId === m.b.nodeId)
+      ctx.addIssue({ code: 'custom', path: ['b'], message: 'a mate needs two different bodies' });
+    m.limits.forEach((l, i) => {
+      if (l && (m.coordinates[i]! < l.min - 1e-9 || m.coordinates[i]! > l.max + 1e-9))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['coordinates', i],
+          message: 'joint coordinate outside its limits',
+        });
+    });
+  });
+
+export const CONSTRAINT_TYPES = [
+  'distance',
+  'angle',
+  'concentric',
+  'coincident',
+  'parallel',
+  'perpendicular',
+] as const;
+export const AssemblyConstraintSchema = z.object({
+  id: IdSchema,
+  name: z.string().trim().min(1).max(200),
+  type: z.enum(CONSTRAINT_TYPES),
+  a: MateEndSchema,
+  b: MateEndSchema,
+  /** distance (m) or angle (rad); unused for the others. */
+  value: finite.nullable(),
+  /** Driving constraints position bodies; non-driving ones are only checked and reported. */
+  driving: z.boolean(),
+});
+
+export const MechanicalSchema = z.object({
+  grounded: z.array(IdSchema),
+  mates: z.array(MateSchema).max(2000),
+  constraints: z.array(AssemblyConstraintSchema).max(2000),
+});
+
+// -- sketches (2D, sketch-local XY plane = the sketch node's local XY plane) ----------
+
+export const SketchEntitySchema = z.discriminatedUnion('kind', [
+  z.object({ id: IdSchema, kind: z.literal('point'), x: finite, y: finite }),
+  z.object({ id: IdSchema, kind: z.literal('line'), p1: IdSchema, p2: IdSchema }),
+  z.object({ id: IdSchema, kind: z.literal('circle'), center: IdSchema, r: finite.positive() }),
+  z.object({ id: IdSchema, kind: z.literal('arc'), center: IdSchema, start: IdSchema, end: IdSchema }),
+]);
+export const SKETCH_CONSTRAINT_TYPES = [
+  'horizontal',
+  'vertical',
+  'coincident',
+  'parallel',
+  'perpendicular',
+  'equal',
+  'distance',
+  'radius',
+  'diameter',
+  'angle',
+  'fixed',
+] as const;
+export const SketchConstraintSchema = z.object({
+  id: IdSchema,
+  type: z.enum(SKETCH_CONSTRAINT_TYPES),
+  /** Referenced entity ids (1–2). */
+  refs: z.array(IdSchema).min(1).max(2),
+  /** Dimension value (m or rad) where applicable; fixed: [x, y] encoded as value + value2. */
+  value: finite.nullable(),
+  value2: finite.nullable(),
+});
+
+// -- parametric parts (features on the part's local XZ plane, extruded along +Y) --------
+
+const Vec2S = z.tuple([finite, finite]);
+const polygon = z.array(Vec2S).min(3).max(512);
+export const ProfileSchema = z.object({ outer: polygon, holes: z.array(polygon).max(256) });
+export const FeatureSchema = z.discriminatedUnion('type', [
+  z.object({
+    id: IdSchema,
+    type: z.literal('extrude'),
+    profile: ProfileSchema,
+    depth: length,
+    sourceSketchId: IdSchema.nullable(),
+  }),
+  z.object({
+    id: IdSchema,
+    type: z.literal('hole'),
+    center: Vec2S,
+    diameter: length,
+    depth: length.nullable() /* null = through */,
+  }),
+  z.object({ id: IdSchema, type: z.literal('cut'), profile: polygon, depth: length.nullable() }),
+  z.object({
+    id: IdSchema,
+    type: z.literal('boolean'),
+    op: z.enum(['union', 'difference', 'intersection']),
+    profile: polygon,
+  }),
+  z.object({
+    id: IdSchema,
+    type: z.literal('pattern-rect'),
+    target: IdSchema,
+    countU: z.number().int().min(1).max(64),
+    countV: z.number().int().min(1).max(64),
+    spacingU: finite,
+    spacingV: finite,
+  }),
+  z.object({
+    id: IdSchema,
+    type: z.literal('pattern-circ'),
+    target: IdSchema,
+    count: z.number().int().min(2).max(128),
+    center: Vec2S,
+    totalAngle: finite,
+  }),
+  z.object({
+    id: IdSchema,
+    type: z.literal('mirror'),
+    target: IdSchema,
+    axis: z.enum(['u', 'v']),
+    offset: finite,
+  }),
+]);
+
+// -- imported models (GLB / glTF) -----------------------------------------------------
+
+export const ModelRefSchema = z.object({
+  /** Content address of the stored asset bytes. */
+  assetHash: z.string().regex(/^sha256-[0-9a-f]{64}$/),
+  byteLength: z
+    .number()
+    .int()
+    .positive()
+    .max(16 * 1024 * 1024),
+  mediaType: z.enum(['model/gltf-binary', 'model/gltf+json']),
+  name: z.string().trim().min(1).max(200),
+  categoryId: z.enum(COMPONENT_CATEGORY_IDS),
+  description: z.string().max(2000),
+  /** Source unit confirmed by the user → metres. */
+  unitScale: finite.positive(),
+  upAxis: z.enum(['Y', 'Z']),
+  /** Measured bounding-box size in metres (after unit/axis conversion). */
+  boundsM: z.tuple([length, length, length]),
+  /** Bounding-box minimum (model space, metres) — lets the renderer place the base on y = 0. */
+  minM: z.tuple([finite, finite, finite]),
+  /** User-supplied, untrusted metadata (plain strings only). */
+  metadata: z.record(z.string().min(1).max(64), z.string().max(500)),
+});
+
 export const SceneNodeSchema = z.discriminatedUnion('kind', [
   z.object({ ...nodeBase, kind: z.literal('root') }),
   z.object({ ...nodeBase, kind: z.literal('group') }),
@@ -128,8 +333,28 @@ export const SceneNodeSchema = z.discriminatedUnion('kind', [
     definitionId: IdSchema,
     component: ComponentRefSchema.optional(),
   }),
-  /** Extension point (Phase 4): container that will carry mates/constraints. */
-  z.object({ ...nodeBase, kind: z.literal('assembly') }),
+  /** Mechanical assembly: hierarchy PLUS mechanical relationships (mates, constraints, grounding). */
+  z.object({
+    ...nodeBase,
+    kind: z.literal('assembly'),
+    mechanical: MechanicalSchema.default({ grounded: [], mates: [], constraints: [] }),
+  }),
+  /** 2D sketch in the node's local XY plane. */
+  z.object({
+    ...nodeBase,
+    kind: z.literal('sketch'),
+    entities: z.array(SketchEntitySchema).max(2000),
+    constraints: z.array(SketchConstraintSchema).max(4000),
+  }),
+  /** Parametric part built from an ordered feature list (prismatic features along local +Y). */
+  z.object({
+    ...nodeBase,
+    kind: z.literal('part'),
+    materialId: z.string().min(1).max(96).nullable(),
+    features: z.array(FeatureSchema).min(1).max(512),
+  }),
+  /** Placed imported model (asset referenced by content hash; bytes live in the asset store / bundle). */
+  z.object({ ...nodeBase, kind: z.literal('model-instance'), model: ModelRefSchema }),
 ]);
 
 export const NODE_KINDS = [
@@ -139,6 +364,9 @@ export const NODE_KINDS = [
   'reference',
   'component-instance',
   'assembly',
+  'sketch',
+  'part',
+  'model-instance',
 ] as const;
 
 export const SceneGraphSchema = z.object({
@@ -154,5 +382,16 @@ export type NodeKind = SceneNode['kind'];
 export type SceneGraph = z.infer<typeof SceneGraphSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
 export type ComponentRef = z.infer<typeof ComponentRefSchema>;
+export type FrameRef = z.infer<typeof FrameRefSchema>;
+export type MateEnd = z.infer<typeof MateEndSchema>;
+export type Mate = z.infer<typeof MateSchema>;
+export type MateType = Mate['type'];
+export type AssemblyConstraint = z.infer<typeof AssemblyConstraintSchema>;
+export type Mechanical = z.infer<typeof MechanicalSchema>;
+export type SketchEntity = z.infer<typeof SketchEntitySchema>;
+export type SketchConstraint = z.infer<typeof SketchConstraintSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;
+export type Feature = z.infer<typeof FeatureSchema>;
+export type ModelRef = z.infer<typeof ModelRefSchema>;
 export type ComponentConnection = z.infer<typeof ComponentConnectionSchema>;
 export type ComponentParamValue = z.infer<typeof ComponentParamValueSchema>;

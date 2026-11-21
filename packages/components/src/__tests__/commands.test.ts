@@ -220,13 +220,13 @@ describe('persistence', () => {
     expect(parseProjectFile(JSON.stringify(badSnap))).toMatchObject({ ok: false });
   });
 
-  it('legacy v2 projects load (migrated to v3) and newer-than-supported versions are refused', () => {
+  it('legacy v2 projects load (migrated to the current schema) and newer-than-supported versions are refused', () => {
     const doc = JSON.parse(serializeProject(createProject('Phase 2 project')));
     doc.schemaVersion = 2;
     const r = parseProjectFile(JSON.stringify(doc));
     expect(r).toMatchObject({ ok: true, migratedFrom: 2 });
-    if (r.ok) expect(r.project.schemaVersion).toBe(3);
-    expect(parseProjectFile(JSON.stringify({ ...doc, schemaVersion: 4 }))).toMatchObject({
+    if (r.ok) expect(r.project.schemaVersion).toBe(4);
+    expect(parseProjectFile(JSON.stringify({ ...doc, schemaVersion: 5 }))).toMatchObject({
       ok: false,
       error: { code: 'unsupported-version' },
     });
