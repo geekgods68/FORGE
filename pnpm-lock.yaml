@@ -232,6 +232,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@forge/components':
+        specifier: workspace:*
+        version: link:../../packages/components
       '@forge/engineering-core':
         specifier: workspace:*
         version: link:../../packages/engineering-core
