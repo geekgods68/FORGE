@@ -80,3 +80,17 @@ export interface MechanicsService {
   /** Solve a sketch's geometric constraints (numerically), returning updated entities. */
   solveSketch(entities: readonly SketchEntity[], constraints: readonly SketchConstraint[]): SketchSolveResult;
 }
+
+/**
+ * Read-only query: is `nodeId` a body placed by its parent assembly's mates/constraints
+ * (so direct transform edits are refused)? Grounded bodies are not driven.
+ */
+export function isMateDriven(graph: SceneGraph, nodeId: string): boolean {
+  const n = graph.nodes[nodeId];
+  const parent = n?.parentId ? graph.nodes[n.parentId] : undefined;
+  if (!n || parent?.kind !== 'assembly') return false;
+  if (parent.mechanical.grounded.includes(nodeId)) return false;
+  return [...parent.mechanical.mates, ...parent.mechanical.constraints].some(
+    (r) => r.a.nodeId === nodeId || r.b.nodeId === nodeId,
+  );
+}

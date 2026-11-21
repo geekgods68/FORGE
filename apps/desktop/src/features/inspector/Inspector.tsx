@@ -1,10 +1,12 @@
 import { GroupInspector } from './GroupInspector';
 import { ComponentInspector } from './ComponentInspector';
+import { AssemblyInspector } from './AssemblyInspector';
 import {
   degToRad,
   descendantsOf,
   eulerXYZFromQuat,
   isEffectivelyLocked,
+  isMateDriven,
   quatFromEulerXYZ,
   radToDeg,
   type PrimitiveGeometry,
@@ -45,6 +47,8 @@ export function Inspector() {
   }
 
   const locked = isEffectivelyLocked(scene, node.id);
+  const driven = isMateDriven(scene, node.id);
+  const fixedPose = locked || driven;
   const isRoot = node.kind === 'root';
   const t = node.transform;
   const euler = eulerXYZFromQuat(t.rotation); // full precision, radians
@@ -92,6 +96,11 @@ export function Inspector() {
 
       {!isRoot && (
         <>
+          {driven && (
+            <p className="text-xs text-sky-300" data-testid="mate-driven-note">
+              Placed by assembly mates — move it through its joints in the parent assembly.
+            </p>
+          )}
           <Fieldset title="Position (mm)">
             {AXES.map((a, i) => (
               <NumberField
@@ -101,7 +110,7 @@ export function Inspector() {
                 testId={`position-${a.toLowerCase()}`}
                 value={t.position[i]! * 1000}
                 decimals={3}
-                disabled={locked}
+                disabled={fixedPose}
                 onCommit={(v) => setPosition(i, v)}
               />
             ))}
@@ -115,7 +124,7 @@ export function Inspector() {
                 testId={`rotation-${a.toLowerCase()}`}
                 value={radToDeg(euler[i]!)}
                 decimals={3}
-                disabled={locked}
+                disabled={fixedPose}
                 onCommit={(v) => setRotation(i, v)}
               />
             ))}
@@ -149,6 +158,9 @@ export function Inspector() {
           {node.kind === 'primitive' && <GeometrySummary g={node.geometry} />}
           {node.kind === 'component-instance' && node.component && (
             <ComponentInspector key={node.id} node={node} locked={locked} />
+          )}
+          {node.kind === 'assembly' && (
+            <AssemblyInspector key={`asm-${node.id}`} node={node} locked={locked} />
           )}
           {(node.kind === 'group' || node.kind === 'assembly') && (
             <GroupInspector key={node.id} node={node} />

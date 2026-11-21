@@ -13,9 +13,15 @@ import {
   type HistoryInfo,
   type PayloadInput,
   type Project,
+  type SceneGraph,
   type SnapSettings,
 } from '@forge/engineering-core';
-import { createMechanicsService, createRoboticArmSample } from '@forge/mechanics';
+import {
+  checkInterference,
+  createMechanicsService,
+  createRoboticArmSample,
+  type InterferenceResult,
+} from '@forge/mechanics';
 import {
   assemblyCommands,
   AssemblyTemplateSchema,
@@ -182,6 +188,12 @@ export interface EditorState {
   /** Facility camera: orbit/overview (editing) or first-person walking (camera only). */
   navMode: 'orbit' | 'walk';
   cameraPreset: CameraPreset | null;
+  /** View-only exploded view of one assembly (never written to the model; 0 restores exactly). */
+  explode: { assemblyId: string; factor: number } | null;
+  /** Dry-run result shown in the viewport before a command is confirmed (never committed). */
+  previewScene: SceneGraph | null;
+  /** Last interference check (view-only highlights). */
+  interference: { assemblyId: string; revision: number; results: InterferenceResult[] } | null;
 
   run<T extends CommandType>(
     type: T,
@@ -220,6 +232,12 @@ export interface EditorState {
   insertAssembly(templateId: string): string | null;
   deleteAssembly(templateId: string): void;
   setConnectionFocus(f: { nodeId: string; interfaceId: string } | null): void;
+  setExplode(assemblyId: string | null, factor?: number): void;
+  /** Validate + run a command without committing; shows its result in the viewport. */
+  previewCommand<T extends CommandType>(type: T, payload: PayloadInput<T>): CommandResult;
+  clearPreview(): void;
+  checkAssemblyInterference(assemblyId: string): InterferenceResult[];
+  clearInterference(): void;
   toggleFavorite(definitionId: string): void;
   /** Begin ghost placement of a configured component (validated before any preview appears). */
   startConjure(c: Omit<ConjureState, 'yaw'>): boolean;
@@ -350,6 +368,9 @@ export function createEditorStore(
       connectionFocus: null,
       navMode: 'orbit',
       cameraPreset: null,
+      explode: null,
+      previewScene: null,
+      interference: null,
 
       run(type, payload, opts = {}) {
         const r = engine.execute(
@@ -627,6 +648,37 @@ export function createEditorStore(
         set({ connectionFocus });
       },
 
+      setExplode(assemblyId, factor = 0) {
+        set({ explode: assemblyId && factor > 0 ? { assemblyId, factor } : null });
+      },
+
+      previewCommand(type, payload) {
+        const { result, scene } = engine.preview(makeCommand(type, payload, 'desktop-ui'));
+        set({ previewScene: scene });
+        return result;
+      },
+
+      clearPreview() {
+        set({ previewScene: null });
+      },
+
+      checkAssemblyInterference(assemblyId) {
+        const p = engine.getProject();
+        const asm = p.scene.nodes[assemblyId];
+        if (!asm) return [];
+        const mated = new Set<string>();
+        if (asm.kind === 'assembly')
+          for (const r of [...asm.mechanical.mates, ...asm.mechanical.constraints])
+            mated.add(`${r.a.nodeId}|${r.b.nodeId}`);
+        const results = checkInterference(p.scene, asm.childIds, mated);
+        set({ interference: { assemblyId, revision: p.revision, results } });
+        return results;
+      },
+
+      clearInterference() {
+        set({ interference: null });
+      },
+
       toggleFavorite(definitionId) {
         const libraryPrefs = toggleFavoritePref(get().libraryPrefs, definitionId);
         saveLibraryPrefs(libraryPrefs);
@@ -841,13 +893,18 @@ export function createEditorStore(
         : null,
     }),
   );
-  engine.subscribe(() =>
+  engine.subscribe(() => {
+    const project = engine.getProject();
+    const explode = store.getState().explode;
     store.setState({
-      project: engine.getProject(),
+      project,
       selection: engine.getSelection(),
       history: engine.getHistory(),
-    }),
-  );
+      // Any committed change makes a pending preview stale.
+      previewScene: null,
+      explode: explode && project.scene.nodes[explode.assemblyId]?.kind === 'assembly' ? explode : null,
+    });
+  });
   return store;
 }
 

@@ -154,21 +154,29 @@ function constraintResidual(c: AssemblyConstraint, FA: Mat4, FB: Mat4): number[]
   }
 }
 
+/** Declared interfaces of a body (catalogue component or feature part), or why there are none. */
+export function bodyInterfaces(graph: SceneGraph, nodeId: string): ComponentInterface[] | string {
+  const n = graph.nodes[nodeId];
+  if (!n) return `Body "${nodeId}" does not exist.`;
+  if (n.kind === 'component-instance' && n.component) {
+    const def = getDefinition(n.definitionId);
+    return def
+      ? evaluate(def, n.component.parameters, n.component.materialId).interfaces
+      : `"${n.name}" references a component definition that is not in this library.`;
+  }
+  if (n.kind === 'part') {
+    const p = evaluatePart(n.features);
+    return p.ok ? p.geometry.interfaces : `"${n.name}": ${p.message}`;
+  }
+  return `"${n.name}" (${n.kind}) declares no interfaces; use a frame reference.`;
+}
+
 export function makeRefResolver(graph: SceneGraph): RefResolver {
   const cache = new Map<string, ComponentInterface[] | string>();
   const interfacesOf = (n: SceneNode): ComponentInterface[] | string => {
     const hit = cache.get(n.id);
     if (hit) return hit;
-    let r: ComponentInterface[] | string;
-    if (n.kind === 'component-instance' && n.component) {
-      const def = getDefinition(n.definitionId);
-      r = def
-        ? evaluate(def, n.component.parameters, n.component.materialId).interfaces
-        : `"${n.name}" references a component definition that is not in this library.`;
-    } else if (n.kind === 'part') {
-      const p = evaluatePart(n.features);
-      r = p.ok ? p.geometry.interfaces : `"${n.name}": ${p.message}`;
-    } else r = `"${n.name}" (${n.kind}) declares no interfaces; use a frame reference.`;
+    const r = bodyInterfaces(graph, n.id);
     cache.set(n.id, r);
     return r;
   };
@@ -438,11 +446,14 @@ export function solveAssembly(
     }),
   ];
   const conflicting = maxResidual > RESIDUAL_TOLERANCE;
+  const names = new Map<string, string>(
+    [...asm.mechanical.mates, ...asm.mechanical.constraints].map((r) => [r.id, r.name]),
+  );
   if (conflicting)
     for (const rel of relationships)
       if (!rel.satisfied && rel.role !== 'check')
         messages.push(
-          `${rel.type} ${rel.id} cannot be satisfied (residual ${rel.residual.toExponential(2)}).`,
+          `${rel.type} mate “${names.get(rel.id) ?? rel.id}” cannot be satisfied (residual ${rel.residual.toExponential(2)}).`,
         );
   if (implicitGround)
     messages.push('No body is grounded: the first related body is used as the fixed reference.');

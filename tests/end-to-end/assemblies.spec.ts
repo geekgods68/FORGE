@@ -74,6 +74,18 @@ test('groups: rename, move (members follow), duplicate; save as reusable assembl
   await expect
     .poll(async () => (await call<V3>(page, 'nodeWorldPosition', 'base-servo'))[0])
     .toBeCloseTo(before[0] + 0.05, 9);
+  // Save the controller group as a reusable assembly, then insert it (one undoable batch).
+  await page.getByTestId('tree-row-grp-controller').click();
+  await page.getByTestId('save-assembly').click();
+  await expect(page.getByTestId('status')).toContainText('reusable assembly (7 members)');
+  const count0 = Object.keys(await nodes(page)).length;
+  await page.getByTestId('library-toggle').click();
+  await page.getByTestId('assembly-insert-Controller & electronics').click();
+  await expect.poll(async () => Object.keys(await nodes(page)).length).toBe(count0 + 8);
+  await page.getByTestId('library-toggle').click();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async () => Object.keys(await nodes(page)).length).toBe(count0);
   // Duplicate the group: same members and configuration, new ids.
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await page.getByTestId('tree-row-grp-arm').click();
@@ -87,26 +99,19 @@ test('groups: rename, move (members follow), duplicate; save as reusable assembl
   expect(copy.childIds.map((id) => all[id]!.component)).toEqual(
     all['grp-arm']!.childIds.map((id) => all[id]!.component),
   );
+  // Mates are copied with the members (new ids, ends remapped to the copies).
+  const mates = (n: Node) =>
+    (n as Node & { mechanical: { mates: { a: { nodeId: string } }[] } }).mechanical.mates;
+  expect(mates(copy)).toHaveLength(mates(all['grp-arm']!).length);
+  expect(mates(copy).every((m) => copy.childIds.includes(m.a.nodeId))).toBe(true);
 
-  // Save the fastener set as a reusable assembly, then insert it (one undoable batch).
-  await page.getByTestId('tree-row-grp-fasteners').click();
-  await page.getByTestId('save-assembly').click();
-  await expect(page.getByTestId('status')).toContainText('reusable assembly (8 members)');
-  const count0 = Object.keys(await nodes(page)).length;
-  await page.getByTestId('library-toggle').click();
-  await page.getByTestId('assembly-insert-Fastener set (base)').click();
-  await expect.poll(async () => Object.keys(await nodes(page)).length).toBe(count0 + 9);
-  await page.getByTestId('library-toggle').click();
-  await page.locator('body').click({ position: { x: 5, y: 5 } });
-  await page.keyboard.press('ControlOrMeta+z');
-  await expect.poll(async () => Object.keys(await nodes(page)).length).toBe(count0);
   // Saved assemblies are local user data: they survive a reload.
   await page.reload();
   await page.waitForFunction(
     () => (window as unknown as { __forge?: { ready?: boolean } }).__forge?.ready === true,
   );
   await page.getByTestId('library-toggle').click();
-  await expect(page.getByTestId('assembly-insert-Fastener set (base)')).toBeVisible();
+  await expect(page.getByTestId('assembly-insert-Controller & electronics')).toBeVisible();
 });
 
 test('connection inspection: an Arduino 5 V pin lists compatible jumper/breadboard interfaces and highlights them', async ({

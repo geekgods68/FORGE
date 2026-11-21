@@ -13,7 +13,7 @@ import { newId as defaultNewId } from './project/create';
 import { validateProject } from './project/create';
 import type { Project } from './project/schema';
 import { flattenTree, isEffectivelyLocked, validateGraph, worldMatrix } from './scene/graph';
-import { SceneNodeSchema, type NodeTransform, type SceneNode } from './scene/schemas';
+import { SceneNodeSchema, type NodeTransform, type SceneGraph, type SceneNode } from './scene/schemas';
 import {
   applyOps,
   CommandError,
@@ -203,6 +203,25 @@ export class ForgeEngine {
   // ---------------------------------------------------------------- commands
 
   execute(input: unknown): CommandResult {
+    return this.executeInternal(input, false);
+  }
+
+  /**
+   * Dry run: validates and runs the command exactly as `execute` would, but commits
+   * nothing (no revision, history or listener change). On success `scene` is the graph
+   * the command would produce — used for previews (e.g. a mate before it is confirmed).
+   */
+  preview(input: unknown): { result: CommandResult; scene: SceneGraph | null } {
+    this.lastPreview = null;
+    const result = this.executeInternal(input, true);
+    const scene = result.ok ? (this.lastPreview ?? this.project.scene) : null;
+    this.lastPreview = null;
+    return { result, scene };
+  }
+
+  private lastPreview: SceneGraph | null = null;
+
+  private executeInternal(input: unknown, dryRun: boolean): CommandResult {
     const rev = this.project.revision;
     const fail = (
       code: CommandErrorCode,
@@ -271,6 +290,10 @@ export class ForgeEngine {
     const integrity = this.checkIntegrity(tx, forward);
     if (integrity) return fail('integrity', integrity, cmd.commandId, cmd.type);
 
+    if (dryRun) {
+      this.lastPreview = tx.graph;
+      return { ok: true, commandId: cmd.commandId, type: cmd.type, revision: rev, affectedIds, noop: false };
+    }
     this.commitScene(tx.graph);
     this.undoStack.push({
       commandId: cmd.commandId,

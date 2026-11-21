@@ -1,5 +1,6 @@
 import {
   isEffectivelyLocked,
+  isMateDriven,
   TransformSession,
   type ComponentDefinition,
   type NodeTransform,
@@ -20,6 +21,8 @@ import {
   type Object3D,
 } from 'three';
 import { ComponentMesh } from '@/components3d/ComponentMesh';
+import { PartMesh, SketchLines } from '@/components3d/PartMesh';
+import { ModelInstanceMesh } from '@/components3d/ModelInstanceMesh';
 import { ConjureGhost } from '@/components3d/ConjureGhost';
 import { ghostDiagnostics } from '@/components3d/ghost';
 import { componentCacheStats } from '@/components3d/cache';
@@ -35,6 +38,7 @@ import type {
   TransformControls as TransformControlsImpl,
 } from 'three-stdlib';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { explodeOffsets } from '@forge/mechanics';
 import { useEditor, useEditorStore } from '@/app/store';
 
 const PhysicsLayer = lazy(() => import('./PhysicsLayer'));
@@ -45,6 +49,8 @@ const ORBIT_TARGET: [number, number, number] = [0, 0.15, 0];
 
 /** node id → rendered Object3D. Renderer-side lookup only; never engineering state. */
 const RegistryContext = createContext<Map<string, Object3D>>(new Map());
+/** View-only explode offsets (parent-assembly frame, metres) for the exploded assembly's members. */
+const ExplodeContext = createContext<Record<string, [number, number, number]>>({});
 
 /**
  * The 3D viewport renders the engineering scene graph. It owns no engineering
@@ -62,51 +68,61 @@ export function EngineeringViewport() {
   const lastDragEnd = useRef(0);
   const walking = useEditor((s) => s.navMode === 'walk' && s.view === 'facility');
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
+  const explode = useEditor((s) => s.explode);
+  const sceneGraph = useEditor((s) => s.previewScene ?? s.project.scene);
+  const offsets = useMemo(
+    () => (explode ? explodeOffsets(sceneGraph, explode.assemblyId, explode.factor) : {}),
+    [explode, sceneGraph],
+  );
 
   return (
     <RegistryContext.Provider value={registry}>
-      <Canvas
-        camera={{ position: INITIAL_CAMERA, fov: 50, near: 0.005, far: 500 }}
-        dpr={[1, 2]}
-        frameloop={continuous ? 'always' : 'demand'}
-        gl={{ antialias: true }}
-        onCreated={({ gl }) => {
-          // Accumulate render stats across all passes per frame (reset in DebugProbe).
-          gl.info.autoReset = false;
-        }}
-        aria-label="FORGE 3D viewport"
-        onPointerDown={(e) => (pointerDownAt.current = { x: e.clientX, y: e.clientY })}
-        onPointerMissed={(e) => {
-          // Deselect only on a genuine click: pointer did not travel (orbit drag) and
-          // the click did not end a gizmo drag.
-          const down = pointerDownAt.current;
-          const moved = down ? Math.hypot(e.clientX - down.x, e.clientY - down.y) : 0;
-          if (e.type === 'click' && moved <= 4 && performance.now() - lastDragEnd.current > 250) select(null);
-        }}
-      >
-        {view === 'facility' ? (
-          // Facility: architecture + workspace + the project mounted on its bench (frame M).
-          <FacilityScene project={<NodeView id={rootId} />} />
-        ) : (
-          <ProjectStage rootId={rootId} />
-        )}
-        <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
-          <GizmoViewport axisColors={['#e5534b', '#57ab5a', '#539bf5']} labelColor="#111" />
-        </GizmoHelper>
-        <SelectionHighlight />
-        <Manipulator onDragEnd={() => (lastDragEnd.current = performance.now())} />
+      <ExplodeContext.Provider value={offsets}>
+        <Canvas
+          camera={{ position: INITIAL_CAMERA, fov: 50, near: 0.005, far: 500 }}
+          dpr={[1, 2]}
+          frameloop={continuous ? 'always' : 'demand'}
+          gl={{ antialias: true }}
+          onCreated={({ gl }) => {
+            // Accumulate render stats across all passes per frame (reset in DebugProbe).
+            gl.info.autoReset = false;
+          }}
+          aria-label="FORGE 3D viewport"
+          onPointerDown={(e) => (pointerDownAt.current = { x: e.clientX, y: e.clientY })}
+          onPointerMissed={(e) => {
+            // Deselect only on a genuine click: pointer did not travel (orbit drag) and
+            // the click did not end a gizmo drag.
+            const down = pointerDownAt.current;
+            const moved = down ? Math.hypot(e.clientX - down.x, e.clientY - down.y) : 0;
+            if (e.type === 'click' && moved <= 4 && performance.now() - lastDragEnd.current > 250)
+              select(null);
+          }}
+        >
+          {view === 'facility' ? (
+            // Facility: architecture + workspace + the project mounted on its bench (frame M).
+            <FacilityScene project={<NodeView id={rootId} />} />
+          ) : (
+            <ProjectStage rootId={rootId} />
+          )}
+          <GizmoHelper alignment="bottom-right" margin={[72, 72]}>
+            <GizmoViewport axisColors={['#e5534b', '#57ab5a', '#539bf5']} labelColor="#111" />
+          </GizmoHelper>
+          <SelectionHighlight />
+          <Manipulator onDragEnd={() => (lastDragEnd.current = performance.now())} />
 
-        <ErrorBoundary fallback={null} onError={(e) => setPhysics({ state: 'error', detail: e.message })}>
-          <Suspense fallback={null}>
-            <PhysicsLayer />
-          </Suspense>
-        </ErrorBoundary>
-        <CameraRig />
-        {walking && <WalkControls />}
-        <ConjureGhost />
-        <ConnectionMarkers registry={registry} />
-        <DebugProbe />
-      </Canvas>
+          <ErrorBoundary fallback={null} onError={(e) => setPhysics({ state: 'error', detail: e.message })}>
+            <Suspense fallback={null}>
+              <PhysicsLayer />
+            </Suspense>
+          </ErrorBoundary>
+          <CameraRig />
+          {walking && <WalkControls />}
+          <ConjureGhost />
+          <ConnectionMarkers registry={registry} />
+          <InterferenceHighlights />
+          <DebugProbe />
+        </Canvas>
+      </ExplodeContext.Provider>
     </RegistryContext.Provider>
   );
 }
@@ -134,15 +150,21 @@ function ProjectStage({ rootId }: { rootId: string }) {
 }
 
 function NodeView({ id }: { id: string }) {
-  const node = useEditor((s) => s.project.scene.nodes[id]);
+  // A pending dry-run (e.g. a mate being previewed) is displayed in place of the model.
+  const node = useEditor((s) => (s.previewScene ?? s.project.scene).nodes[id]);
   const definitions = useEditor((s) => s.project.definitions);
   const selected = useEditor((s) => s.selection.includes(id));
   const select = useEditor((s) => s.select);
   const layoutActive = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
   const walkingNav = useEditor((s) => s.navMode === 'walk');
   const registry = useContext(RegistryContext);
+  const offset = useContext(ExplodeContext)[id];
   if (!node) return null;
   const isRoot = node.kind === 'root';
+  const p = node.transform.position;
+  const position: [number, number, number] = offset
+    ? [p[0] + offset[0], p[1] + offset[1], p[2] + offset[2]]
+    : [p[0], p[1], p[2]];
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4) return; // it was an orbit drag, not a click
@@ -159,7 +181,7 @@ function NodeView({ id }: { id: string }) {
         if (o) registry.set(id, o);
         else registry.delete(id);
       }}
-      position={node.transform.position}
+      position={position}
       quaternion={node.transform.rotation}
       scale={node.transform.scale}
       visible={node.visible}
@@ -217,6 +239,13 @@ function NodeBody({
       </mesh>
     );
   }
+  if (node.kind === 'part')
+    return (
+      <PartMesh features={node.features} materialId={node.materialId} selected={selected} onClick={onClick} />
+    );
+  if (node.kind === 'sketch') return <SketchLines node={node} selected={selected} onClick={onClick} />;
+  if (node.kind === 'model-instance')
+    return <ModelInstanceMesh node={node} selected={selected} onClick={onClick} />;
   if (node.kind === 'reference')
     return (
       <group>
@@ -279,6 +308,38 @@ function SelectionHighlight() {
   return show ? <primitive object={helper} /> : null;
 }
 
+/** Bounding boxes of bodies involved in the last interference check (red: overlap, amber: possible). */
+function InterferenceHighlights() {
+  const interference = useEditor((s) => s.interference);
+  const revision = useEditor((s) => s.project.revision);
+  const registry = useContext(RegistryContext);
+  const items = useMemo(() => {
+    if (!interference || interference.revision !== revision) return [];
+    const out = new Map<string, 'interference' | 'possible'>();
+    for (const r of interference.results)
+      if (r.kind !== 'contact')
+        for (const id of [r.a, r.b]) if (out.get(id) !== 'interference') out.set(id, r.kind);
+    return [...out].map(([id, kind]) => ({
+      id,
+      helper: new Box3Helper(new Box3(), new Color(kind === 'interference' ? '#ef4444' : '#f59e0b')),
+    }));
+  }, [interference, revision]);
+  useEffect(() => () => items.forEach((i) => i.helper.dispose()), [items]);
+  useFrame(() => {
+    for (const { id, helper } of items) {
+      const o = registry.get(id);
+      if (o) helper.box.setFromObject(o);
+    }
+  });
+  return (
+    <>
+      {items.map(({ id, helper }) => (
+        <primitive key={id} object={helper} />
+      ))}
+    </>
+  );
+}
+
 function readTransform(o: Object3D): NodeTransform {
   return {
     position: [o.position.x, o.position.y, o.position.z],
@@ -320,7 +381,16 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
   const [target, setTarget] = useState<Object3D | null>(null);
   const invalidate = useThree((s) => s.invalidate);
 
-  const editable = !!node && node.kind !== 'root' && node.visible && !isEffectivelyLocked(scene, node.id);
+  const exploded = useEditor((s) => s.explode !== null);
+  // Mate-driven bodies are placed by the solver (edit joints instead); the exploded view
+  // is a display offset, so direct manipulation is paused while it is shown.
+  const editable =
+    !!node &&
+    node.kind !== 'root' &&
+    node.visible &&
+    !exploded &&
+    !isMateDriven(scene, node.id) &&
+    !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.
   useFrame(() => {
     const candidate = editable && id ? (registry.get(id) ?? null) : null;

@@ -155,6 +155,36 @@ describe('robotic arm kinematics (acceptance)', () => {
   };
   const same = (a: number[], b: number[], eps = 1e-9) => a.every((v, i) => Math.abs(v - b[i]!) <= eps);
 
+  it('preview (dry run) shows the solved pose without committing anything', () => {
+    const { e, W } = setup();
+    const before = e.getProject();
+    const listener = { calls: 0 };
+    e.subscribe(() => listener.calls++);
+    const pv = e.preview(
+      makeCommand(
+        'assembly.joint.setPosition',
+        { assemblyId: ARM_ASSEMBLY_ID, mateId: ARM_JOINTS.shoulder, coordinates: [0.5] },
+        'desktop-ui',
+      ) as CommandInput,
+    );
+    expect(pv.result.ok).toBe(true);
+    expect(pv.scene).not.toBeNull();
+    expect(e.getProject()).toBe(before); // same object: nothing committed
+    expect(e.getHistory().undoDepth).toBe(0);
+    expect(listener.calls).toBe(0);
+    expect(same(worldMatrix(pv.scene!, 'gripper'), W('gripper'))).toBe(false);
+    // A refused command previews as refused, with no scene.
+    const bad = e.preview(
+      makeCommand(
+        'assembly.joint.setPosition',
+        { assemblyId: ARM_ASSEMBLY_ID, mateId: ARM_JOINTS.shoulder, coordinates: [3] },
+        'desktop-ui',
+      ) as CommandInput,
+    );
+    expect(bad.result.ok).toBe(false);
+    expect(bad.scene).toBeNull();
+  });
+
   it('reports 4 free revolute joints (mobility 4) and no conflicts', () => {
     const { e } = setup();
     const a = e.analyzeAssembly(ARM_ASSEMBLY_ID)!;
