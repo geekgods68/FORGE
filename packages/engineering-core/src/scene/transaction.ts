@@ -20,6 +20,8 @@ export type CommandErrorCode =
   | 'unrepresentable-transform'
   | 'stale-revision'
   | 'permission-denied'
+  | 'unknown-component'
+  | 'invalid-parameters'
   | 'integrity';
 
 export class CommandError extends Error {

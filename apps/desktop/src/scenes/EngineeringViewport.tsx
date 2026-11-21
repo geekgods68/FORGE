@@ -19,6 +19,10 @@ import {
   type BufferGeometry,
   type Object3D,
 } from 'three';
+import { ComponentMesh } from '@/components3d/ComponentMesh';
+import { ConjureGhost } from '@/components3d/ConjureGhost';
+import { ghostDiagnostics } from '@/components3d/ghost';
+import { componentCacheStats } from '@/components3d/cache';
 import { FacilityScene } from '@/facility/FacilityScene';
 import { WalkControls } from '@/facility/WalkControls';
 import { useSharedGeometry, useSharedMaterial } from '@/rendering/hooks';
@@ -97,6 +101,7 @@ export function EngineeringViewport() {
         </ErrorBoundary>
         <CameraRig />
         {walking && <WalkControls />}
+        <ConjureGhost />
         <DebugProbe />
       </Canvas>
     </RegistryContext.Provider>
@@ -179,6 +184,15 @@ function NodeBody({
   if (node.kind === 'primitive')
     return (
       <PrimitiveMesh geometry={node.geometry} color={node.color} selected={selected} onClick={onClick} />
+    );
+  if (node.kind === 'component-instance' && node.component)
+    return (
+      <ComponentMesh
+        definitionId={node.definitionId}
+        component={node.component}
+        selected={selected}
+        onClick={onClick}
+      />
     );
   if (node.kind === 'component-instance') {
     const def = definitions.find((d) => d.id === node.definitionId);
@@ -306,7 +320,13 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
   const editable = !!node && node.kind !== 'root' && node.visible && !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.
   useFrame(() => {
-    const next = editable && id ? (registry.get(id) ?? null) : null;
+    const candidate = editable && id ? (registry.get(id) ?? null) : null;
+    // Only attach to objects actually in the rendered scene (e.g. not a project node while
+    // the facility view shows an unmounted project).
+    let attached = false;
+    for (let o: Object3D | null = candidate; o; o = o.parent)
+      if ((o as { isScene?: boolean }).isScene) attached = true;
+    const next = attached ? candidate : null;
     if (next !== target) setTarget(next);
   });
   // In demand mode, make sure a frame runs after the selection/editability changes.
@@ -469,6 +489,9 @@ function DebugProbe() {
           rendererInfo: { ...gl.info.memory },
         };
       },
+      /** Conjuring ghost state (renderer-only preview; never in the scene graph). */
+      ghost: () => ({ ...ghostDiagnostics, inSceneGraph: false }),
+      componentCache: () => componentCacheStats(),
       /** Ceiling groups in the scene → whether each is currently drawn (automatic cutaway). */
       ceilings: () => {
         const out: Record<string, boolean> = {};

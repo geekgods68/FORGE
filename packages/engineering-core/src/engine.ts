@@ -1,4 +1,4 @@
-import { runBatch, runNodeCommand, type HandlerContext } from './commands/handlers';
+import { runBatch, runNodeCommand, type ComponentResolver, type HandlerContext } from './commands/handlers';
 import {
   COMMAND_TYPES,
   CommandEnvelopeSchema,
@@ -80,6 +80,8 @@ export interface CommandPolicy {
 }
 
 export interface EngineOptions {
+  /** Component-library resolver (from @forge/components); required to create/edit catalogue components. */
+  componentResolver?: ComponentResolver;
   historyLimit?: number;
   newId?: () => string;
   now?: () => Date;
@@ -116,7 +118,7 @@ export interface Capabilities {
 }
 
 const SUMMARIES: Record<CommandType, string> = {
-  'scene.node.create': 'Create a group, primitive or reference node',
+  'scene.node.create': 'Create a group, primitive, reference or component-library instance (conjure)',
   'scene.node.delete': 'Delete a node and its descendants',
   'scene.node.duplicate': 'Duplicate a node and its descendants with new ids',
   'scene.node.rename': 'Rename a node',
@@ -126,12 +128,11 @@ const SUMMARIES: Record<CommandType, string> = {
   'scene.node.lock': 'Lock or unlock a node',
   'scene.node.group': 'Group sibling nodes under a new group',
   'scene.node.ungroup': 'Dissolve a group, preserving its children’s world transforms',
+  'scene.component.configure': 'Change a component instance’s variant, parameters (dimensions) or material',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 
 const FUTURE = [
-  { name: 'component.conjure', plannedPhase: 3 },
-  { name: 'component.search', plannedPhase: 3 },
   { name: 'assembly.mate', plannedPhase: 4 },
   { name: 'simulation.run', plannedPhase: 5 },
   { name: 'experiment.record', plannedPhase: 7 },
@@ -162,7 +163,10 @@ export class ForgeEngine {
     if (!v.ok) throw new Error(`Invalid initial project: ${v.errors.slice(0, 3).join('; ')}`);
     this.project = deepFreeze(structuredCloneJson(v.project));
     this.historyLimit = Math.max(1, options.historyLimit ?? 200);
-    this.ctx = { newId: options.newId ?? defaultNewId };
+    this.ctx = {
+      newId: options.newId ?? defaultNewId,
+      ...(options.componentResolver ? { resolver: options.componentResolver } : {}),
+    };
     this.now = options.now ?? (() => new Date());
     this.policy = options.policy ?? { deniedSources: ['vey'] };
   }

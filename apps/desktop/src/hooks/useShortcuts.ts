@@ -24,6 +24,17 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
   const mod = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
   const selected = s.selection[0];
+  // Conjuring (ghost placement): Esc cancels, R / Shift+R rotate 15°.
+  if (s.conjure) {
+    if (key === 'escape') {
+      s.cancelConjure();
+      return true;
+    }
+    if (key === 'r' && !mod) {
+      s.rotateConjure(((e.shiftKey ? -1 : 1) * Math.PI) / 12);
+      return true;
+    }
+  }
   // First-person walking owns movement keys; Escape leaves walking. Editing shortcuts
   // with a modifier (undo/redo) still work; bare-key editing shortcuts are suppressed.
   if (s.navMode === 'walk') {

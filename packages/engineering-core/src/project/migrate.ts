@@ -130,6 +130,16 @@ export function loadProjectDocument(doc: unknown): DocumentResult {
       ? { ok: true, project: v.project, migratedFrom: 1 }
       : invalid('Migrated project failed validation.', v.errors);
   }
+  if (version === 2) {
+    // v2 → v3: no structural change (v3 only adds the optional component reference).
+    const v = validateProject({ ...(doc as object), schemaVersion: PROJECT_SCHEMA_VERSION });
+    return v.ok
+      ? { ok: true, project: v.project, migratedFrom: 2 }
+      : invalid(
+          `Project failed validation (${v.errors.length} problem${v.errors.length === 1 ? '' : 's'}).`,
+          v.errors,
+        );
+  }
   if (version !== PROJECT_SCHEMA_VERSION)
     return {
       ok: false,

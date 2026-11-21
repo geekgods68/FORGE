@@ -7,14 +7,70 @@ import {
   localTransformFor,
   worldMatrix,
 } from '../scene/graph';
-import { NodeTransformSchema, type NodeTransform, type SceneNode } from '../scene/schemas';
+import {
+  NodeTransformSchema,
+  type ComponentParamValue,
+  type ComponentRef,
+  type NodeTransform,
+  type SceneNode,
+} from '../scene/schemas';
 import { CommandError, type GraphTransaction } from '../scene/transaction';
 import { quatNormalize } from '../transform';
 import type { BatchSubCommand, NodeCommandType, PayloadOf } from './schemas';
 
+export interface ComponentResolveInput {
+  definitionId: string;
+  variantId: string | null;
+  /** Overrides on top of defaults/variant (or a complete set — both are valid input). */
+  parameters: Record<string, ComponentParamValue>;
+  /** undefined = the definition's default material. */
+  materialId: string | null | undefined;
+}
+export type ComponentResolveResult =
+  | { ok: true; ref: Omit<ComponentRef, 'connections'>; defaultName: string }
+  | { ok: false; code: 'unknown-component' | 'invalid-parameters'; message: string };
+
+/**
+ * Validates component references against a component library. Injected into the
+ * engine so @forge/engineering-core stays independent of the catalogue package; the UI
+ * and (later) Vey reach components only through commands validated by this resolver.
+ */
+export interface ComponentResolver {
+  resolve(input: ComponentResolveInput): ComponentResolveResult;
+}
+
 export interface HandlerContext {
   /** Id source; ids are recorded in history so redo restores identical ids. */
   newId: () => string;
+  /** Component-library resolver; without one, catalogue components cannot be created or edited. */
+  resolver?: ComponentResolver;
+}
+
+const isUnitScale = (t: NodeTransform) => t.scale.every((v) => Math.abs(v - 1) < 1e-12);
+const isCatalogComponent = (n: SceneNode) => n.kind === 'component-instance' && !!n.component;
+
+/** Catalogue components are resized through parameters; scale on them (or their ancestors) would silently deform real parts. */
+function assertNoComponentDeformation(tx: GraphTransaction, nodeId: string, transform: NodeTransform) {
+  if (isUnitScale(transform)) return;
+  const affected = [nodeId, ...descendantsOf(tx.graph, nodeId)].some((id) => isCatalogComponent(tx.get(id)));
+  if (affected)
+    throw new CommandError(
+      'invalid-transform',
+      'Catalogue components cannot be scaled (directly or through a parent). Change their dimensions through component parameters instead.',
+    );
+}
+function hasScaledAncestor(tx: GraphTransaction, id: string): boolean {
+  for (let cur: string | null = id; cur; cur = tx.get(cur).parentId)
+    if (!isUnitScale(tx.get(cur).transform)) return true;
+  return false;
+}
+
+function resolveComponent(ctx: HandlerContext, input: ComponentResolveInput) {
+  if (!ctx.resolver)
+    throw new CommandError('unknown-component', 'No component library is available to this engine.');
+  const r = ctx.resolver.resolve(input);
+  if (!r.ok) throw new CommandError(r.code, r.message);
+  return r;
 }
 
 /** Returns the ids the command created or modified. */
@@ -112,6 +168,32 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
           sizeM: spec.sizeM,
         };
         break;
+      case 'component-instance': {
+        if (!isUnitScale(transform))
+          throw new CommandError(
+            'invalid-transform',
+            'Catalogue components are sized by their parameters; scale must be 1.',
+          );
+        if (hasScaledAncestor(tx, parentId))
+          throw new CommandError(
+            'invalid-transform',
+            'Catalogue components cannot be placed under a scaled parent.',
+          );
+        const r = resolveComponent(ctx, {
+          definitionId: spec.definitionId,
+          variantId: spec.variantId ?? null,
+          parameters: spec.parameters ?? {},
+          materialId: spec.materialId,
+        });
+        node = {
+          ...base,
+          kind: 'component-instance',
+          name: spec.name ?? r.defaultName,
+          definitionId: spec.definitionId,
+          component: { ...r.ref, connections: [] },
+        };
+        break;
+      }
     }
     tx.put(node);
     insertChild(tx, parentId, id, spec.index);
@@ -171,6 +253,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   },
 
   'scene.node.transform'(tx, { nodeId, position, rotation, scale }) {
+    if (scale) assertNoComponentDeformation(tx, nodeId, { ...tx.get(nodeId).transform, scale });
     const node = tx.get(nodeId);
     assertEditable(tx, nodeId, 'transformed');
     const next = checkTransform({
@@ -196,6 +279,15 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
       if (!r.ok) throw new CommandError('unrepresentable-transform', r.reason);
       transform = checkTransform(r.transform);
     }
+    const subtreeHasComponent = [nodeId, ...descendantsOf(tx.graph, nodeId)].some((id) =>
+      isCatalogComponent(tx.get(id)),
+    );
+    if (subtreeHasComponent && hasScaledAncestor(tx, parentId))
+      throw new CommandError(
+        'invalid-transform',
+        'Catalogue components cannot be moved under a scaled parent (it would deform them).',
+      );
+    assertNoComponentDeformation(tx, nodeId, transform);
     detachChild(tx, node.parentId!, nodeId);
     tx.put({ ...tx.get(nodeId), parentId, transform });
     insertChild(tx, parentId, nodeId, index);
@@ -248,6 +340,25 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
     for (const m of ordered) tx.put({ ...tx.get(m), parentId: id });
     insertChild(tx, parentId, id, insertAt);
     return [id, ...ordered];
+  },
+
+  'scene.component.configure'(tx, { nodeId, variantId, parameters, materialId }, ctx) {
+    const node = tx.get(nodeId);
+    if (node.kind !== 'component-instance' || !node.component)
+      throw new CommandError('invalid-operation', `"${node.name}" is not a component-library instance.`);
+    assertEditable(tx, nodeId, 'reconfigured');
+    const cur = node.component;
+    const variantChanged = variantId !== undefined && variantId !== cur.variantId;
+    // A new variant starts from that variant's values; otherwise edits merge onto the current set.
+    const base = variantChanged ? {} : cur.parameters;
+    const r = resolveComponent(ctx, {
+      definitionId: node.definitionId,
+      variantId: variantId === undefined ? cur.variantId : variantId,
+      parameters: { ...base, ...(parameters ?? {}) },
+      materialId: materialId === undefined ? cur.materialId : materialId,
+    });
+    tx.put({ ...node, component: { ...r.ref, connections: cur.connections } });
+    return [nodeId];
   },
 
   'scene.node.ungroup'(tx, { groupId }) {
@@ -305,6 +416,8 @@ export function runNodeCommand(tx: GraphTransaction, cmd: BatchSubCommand, ctx: 
       return HANDLERS['scene.node.group'](tx, cmd.payload, ctx);
     case 'scene.node.ungroup':
       return HANDLERS['scene.node.ungroup'](tx, cmd.payload, ctx);
+    case 'scene.component.configure':
+      return HANDLERS['scene.component.configure'](tx, cmd.payload, ctx);
   }
 }
 

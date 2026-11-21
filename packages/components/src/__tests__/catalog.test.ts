@@ -123,6 +123,7 @@ describe('search and filtering', () => {
     const ext = searchCatalog('2040');
     expect(ext[0]!.definition.id).toBe('t-slot-extrusion');
     expect(searchCatalog('m3 × 12')[0]!.variantId).toBe('m3x12');
+    expect(searchCatalog('aluminium plate')[0]).toMatchObject({ variantId: null });
     expect(searchCatalog('zzzz-no-such-thing')).toEqual([]);
   });
 

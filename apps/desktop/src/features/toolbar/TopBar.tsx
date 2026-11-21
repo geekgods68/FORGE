@@ -1,5 +1,6 @@
 import {
   Building2,
+  Sparkles,
   Download,
   Footprints,
   FilePlus2,
@@ -25,6 +26,8 @@ export function TopBar() {
   const workspaceHistory = useEditor((s) => s.workspaceHistory);
   const { setView, setEditLayer, setNavMode } = useEditor((s) => s);
   const navMode = useEditor((s) => s.navMode);
+  const libraryOpen = useEditor((s) => s.libraryOpen);
+  const setLibraryOpen = useEditor((s) => s.setLibraryOpen);
   const layoutLayer = view === 'facility' && editLayer === 'layout';
   const activeHistory = layoutLayer ? workspaceHistory : history;
   const { newProject, save, listSaved, openSaved, exportProject, importProjectText, undo, redo, setStatus } =
@@ -46,7 +49,7 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
       <div className="flex items-baseline gap-2">
         <span className="text-lg font-semibold tracking-[0.3em]">FORGE</span>
-        <span className="text-xs text-muted-foreground">Phase 1</span>
+        <span className="text-xs text-muted-foreground">Phase 3</span>
       </div>
       <span className="min-w-0 truncate text-sm" data-testid="project-name" title={name}>
         {name}
@@ -86,6 +89,9 @@ export function TopBar() {
           </Toggle>
         </div>
       )}
+      <Toggle pressed={libraryOpen} onClick={() => setLibraryOpen(!libraryOpen)} testId="library-toggle">
+        <Sparkles /> Library
+      </Toggle>
       {view === 'facility' && (
         <Toggle
           pressed={navMode === 'walk'}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { COMPONENT_CATEGORY_IDS } from '../categories';
 import { IdSchema, MAX_COORDINATE_M, QuatSchema } from '../schemas';
 
 /**
@@ -72,6 +73,41 @@ const nodeBase = {
 
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
+/**
+ * Reference from a component-instance node to a COMPONENT-LIBRARY definition (Phase 3,
+ * project schema v3). The definition itself (geometry generator, specs, interfaces)
+ * lives in the catalogue and is shared by every instance; the instance stores only its
+ * own configuration plus a small identity snapshot so that a project remains
+ * self-describing — and is shown as a labelled placeholder, never silently replaced —
+ * if its definition is unavailable.
+ */
+export const ComponentParamValueSchema = z.union([finite, z.string().max(200), z.boolean()]);
+export const ComponentConnectionSchema = z.object({
+  interfaceId: z.string().min(1).max(64),
+  targetNodeId: IdSchema,
+  targetInterfaceId: z.string().min(1).max(64),
+});
+export const ComponentRefSchema = z.object({
+  /** Catalogue revision the parameters were resolved against. */
+  catalogRevision: z.number().int().positive(),
+  variantId: z.string().min(1).max(96).nullable(),
+  /** Fully resolved parameter values (metres / radians / options). */
+  parameters: z.record(z.string().min(1).max(64), ComponentParamValueSchema),
+  materialId: z.string().min(1).max(96).nullable(),
+  snapshot: z.object({
+    name: z.string().min(1).max(200),
+    categoryId: z.enum(COMPONENT_CATEGORY_IDS),
+    subcategoryId: z.string().min(1).max(96),
+    family: z.string().min(1).max(200),
+    tier: z.enum(['A', 'B', 'C']),
+    dataStatus: z.string().min(1).max(32),
+    /** Bounding-box size [x, y, z] (m) at resolution time — sizes placeholders. */
+    boundsM: z.tuple([length, length, length]),
+  }),
+  /** Declared (not solved) connections to other component interfaces. Phase 4 adds mates. */
+  connections: z.array(ComponentConnectionSchema).max(512),
+});
+
 export const SceneNodeSchema = z.discriminatedUnion('kind', [
   z.object({ ...nodeBase, kind: z.literal('root') }),
   z.object({ ...nodeBase, kind: z.literal('group') }),
@@ -82,8 +118,16 @@ export const SceneNodeSchema = z.discriminatedUnion('kind', [
     referenceType: z.enum(['datum-axes', 'datum-point']),
     sizeM: length,
   }),
-  /** Extension point (Phase 3): a placed component-catalogue definition. */
-  z.object({ ...nodeBase, kind: z.literal('component-instance'), definitionId: IdSchema }),
+  /**
+   * A placed component. With `component`: a component-library definition (Phase 3).
+   * Without: a legacy project-level definition (Phase 0 files) listed in `definitions`.
+   */
+  z.object({
+    ...nodeBase,
+    kind: z.literal('component-instance'),
+    definitionId: IdSchema,
+    component: ComponentRefSchema.optional(),
+  }),
   /** Extension point (Phase 4): container that will carry mates/constraints. */
   z.object({ ...nodeBase, kind: z.literal('assembly') }),
 ]);
@@ -109,3 +153,6 @@ export type SceneNode = z.infer<typeof SceneNodeSchema>;
 export type NodeKind = SceneNode['kind'];
 export type SceneGraph = z.infer<typeof SceneGraphSchema>;
 export type Metadata = z.infer<typeof MetadataSchema>;
+export type ComponentRef = z.infer<typeof ComponentRefSchema>;
+export type ComponentConnection = z.infer<typeof ComponentConnectionSchema>;
+export type ComponentParamValue = z.infer<typeof ComponentParamValueSchema>;

@@ -1,3 +1,4 @@
+import { ComponentInspector } from './ComponentInspector';
 import {
   degToRad,
   descendantsOf,
@@ -118,20 +119,26 @@ export function Inspector() {
               />
             ))}
           </Fieldset>
-          <Fieldset title="Scale (ratio)">
-            {AXES.map((a, i) => (
-              <NumberField
-                key={a}
-                label={a}
-                testId={`scale-${a.toLowerCase()}`}
-                value={t.scale[i]!}
-                decimals={4}
-                disabled={locked}
-                min={1e-6}
-                onCommit={(v) => setScale(i, v)}
-              />
-            ))}
-          </Fieldset>
+          {node.kind === 'component-instance' && node.component ? (
+            <p className="text-xs text-muted-foreground" data-testid="scale-locked-note">
+              Scale is fixed at 1: catalogue parts are resized through their parameters below.
+            </p>
+          ) : (
+            <Fieldset title="Scale (ratio)">
+              {AXES.map((a, i) => (
+                <NumberField
+                  key={a}
+                  label={a}
+                  testId={`scale-${a.toLowerCase()}`}
+                  value={t.scale[i]!}
+                  decimals={4}
+                  disabled={locked}
+                  min={1e-6}
+                  onCommit={(v) => setScale(i, v)}
+                />
+              ))}
+            </Fieldset>
+          )}
           <FacilityReadout worldPosition={world?.position} />
           {world && (
             <p className="text-xs text-muted-foreground" data-testid="world-position">
@@ -139,6 +146,9 @@ export function Inspector() {
             </p>
           )}
           {node.kind === 'primitive' && <GeometrySummary g={node.geometry} />}
+          {node.kind === 'component-instance' && node.component && (
+            <ComponentInspector node={node} locked={locked} />
+          )}
           <ParentPicker node={node} />
           <div className="flex gap-2">
             <Button

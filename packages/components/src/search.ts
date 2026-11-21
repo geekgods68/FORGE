@@ -114,6 +114,7 @@ export function searchCatalog(
     let score = 0;
     let variantId: string | null = null;
     let all = true;
+    const variantOnly: string[] = [];
     for (const t of terms) {
       let s = 0;
       if (e.name.split(' ').some((w) => w === t)) s = 10;
@@ -122,8 +123,10 @@ export function searchCatalog(
       else if (e.keys.includes(t)) s = 5;
       else if (e.name.includes(t)) s = 4;
       else {
-        if (e.variants.some((x) => x.text.includes(t))) s = 4;
-        else if (e.body.includes(t)) s = 1;
+        if (e.variants.some((x) => x.text.includes(t))) {
+          s = 4;
+          variantOnly.push(t);
+        } else if (e.body.includes(t)) s = 1;
       }
       if (s === 0) {
         all = false;
@@ -132,12 +135,11 @@ export function searchCatalog(
       score += s;
     }
     if (all) {
-      // Best variant = the one matching the most query terms (first wins ties).
+      // A variant is preselected only for terms the family itself does not match
+      // (e.g. "m3 × 12" → M3×12, but "aluminium plate" → no variant).
       let best = 0;
       for (const v of e.variants) {
-        const n = terms.filter(
-          (t) => v.text.split(' ').some((w) => w === t || w.startsWith(t)) || v.text.includes(t),
-        ).length;
+        const n = variantOnly.filter((t) => v.text.includes(t)).length;
         if (n > best) {
           best = n;
           variantId = v.id;

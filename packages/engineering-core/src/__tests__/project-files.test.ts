@@ -156,14 +156,14 @@ describe('.forge.json export/import', () => {
 });
 
 describe('Phase 0 (schema v1) compatibility', () => {
-  it('migrates a genuine Phase 0 project file to v2, preserving ids, names and transforms', () => {
+  it('migrates a genuine Phase 0 project file to the current schema, preserving ids, names and transforms', () => {
     const v1 = JSON.parse(phase0Fixture);
     const r = parseProjectFile(phase0Fixture);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.migratedFrom).toBe(1);
     const p = r.project;
-    expect(p.schemaVersion).toBe(2);
+    expect(p.schemaVersion).toBe(3); // v1 → current
     expect(p.id).toBe(v1.id);
     expect(p.scene.rootId).toBe(v1.scenes[0].id);
     const inst = v1.scenes[0].instances[0];

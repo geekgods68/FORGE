@@ -78,7 +78,10 @@ describe('programmatic application API', () => {
     expect(caps.commands.map((c) => c.type)).toEqual(COMMAND_TYPES);
     expect(caps.commands.every((c) => c.status === 'implemented')).toBe(true);
     expect(caps.future.every((f) => f.status === 'planned')).toBe(true);
-    expect(caps.future.map((f) => f.name)).toContain('component.conjure');
+    // Phase 3: conjuring is implemented (scene.node.create kind component-instance + scene.component.configure).
+    expect(caps.future.map((f) => f.name)).not.toContain('component.conjure');
+    expect(caps.commands.map((c) => c.type)).toContain('scene.component.configure');
+    expect(caps.future.map((f) => f.name)).toContain('assembly.mate');
     expect(caps.sources.denied).toEqual(['vey']);
     expect(caps.queries).toContain('queryScene');
   });

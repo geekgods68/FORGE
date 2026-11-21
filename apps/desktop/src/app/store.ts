@@ -15,6 +15,15 @@ import {
   type SnapSettings,
 } from '@forge/engineering-core';
 import {
+  auditProjectComponents,
+  createCatalogResolver,
+  parsePrefs,
+  recordRecent,
+  toggleFavorite as toggleFavoritePref,
+  type LibraryPrefs,
+  type ParamValues,
+} from '@forge/components';
+import {
   CENTRAL_WORKSHOP_ID,
   defaultWorkspaceLayout,
   getEquipment,
@@ -68,6 +77,32 @@ export function zoneCameraPreset(zone: Zone): Omit<CameraPreset, 'nonce'> {
   return { position: local(0, big ? 22 : 13, big ? 20 : 9.5), target: [x, big ? 1.5 : 0.8, z] };
 }
 
+export interface ConjureState {
+  definitionId: string;
+  variantId: string | null;
+  /** Parameter overrides (metres/radians/options). */
+  parameters: ParamValues;
+  materialId: string | null | undefined;
+  /** Yaw about +Y (radians), changed with R / Shift+R during placement. */
+  yaw: number;
+}
+
+const PREFS_KEY = 'forge:library-prefs';
+function loadLibraryPrefs(): LibraryPrefs {
+  try {
+    return parsePrefs(JSON.parse(globalThis.localStorage?.getItem(PREFS_KEY) ?? 'null'));
+  } catch {
+    return parsePrefs(null);
+  }
+}
+function saveLibraryPrefs(p: LibraryPrefs) {
+  try {
+    globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch {
+    /* preferences are a convenience; ignore storage failures */
+  }
+}
+
 export type CameraPreset = {
   position: [number, number, number];
   target: [number, number, number];
@@ -106,6 +141,11 @@ export interface EditorState {
   editLayer: EditLayer;
   itemSelection: string | null;
   currentZoneId: string;
+  /** Component library panel open. */
+  libraryOpen: boolean;
+  libraryPrefs: LibraryPrefs;
+  /** Active conjuring (ghost placement) — nothing exists in the project until confirmed. */
+  conjure: ConjureState | null;
   /** At most one destination whose code is prefetched (directory hover/focus). */
   prefetchZoneId: string | null;
   /** Facility camera: orbit/overview (editing) or first-person walking (camera only). */
@@ -143,6 +183,14 @@ export interface EditorState {
   selectItem(id: string | null): void;
   goToZone(zoneId: string): void;
   setPrefetchZone(zoneId: string | null): void;
+  setLibraryOpen(open: boolean): void;
+  toggleFavorite(definitionId: string): void;
+  /** Begin ghost placement of a configured component (validated before any preview appears). */
+  startConjure(c: Omit<ConjureState, 'yaw'>): boolean;
+  rotateConjure(deltaRad: number): void;
+  cancelConjure(): void;
+  /** Create the component at a project-frame floor point via the validated command. */
+  confirmConjure(position: [number, number, number]): string | null;
   /** Zone change while walking: lifecycle follows, camera stays with the walker. */
   setCurrentZone(zoneId: string): void;
   setNavMode(mode: 'orbit' | 'walk'): void;
@@ -195,7 +243,8 @@ export function createEditorStore(
       };
     }
   }
-  const engine = new ForgeEngine(initial);
+  const resolver = createCatalogResolver();
+  const engine = new ForgeEngine(initial, { componentResolver: resolver });
   const workspace = new WorkspaceEngine(workspaceRepo.latest() ?? defaultWorkspaceLayout());
   const layoutLayer = () => store.getState().view === 'facility' && store.getState().editLayer === 'layout';
 
@@ -212,7 +261,19 @@ export function createEditorStore(
         });
         return false;
       }
-      set({ baselineRevision: engine.getProject().revision, status, collapsed: {} });
+      // Catalogue references are audited on every load: problems are recoverable warnings.
+      const warnings = auditProjectComponents(engine.getProject());
+      set({
+        baselineRevision: engine.getProject().revision,
+        status: warnings.length
+          ? {
+              tone: 'error',
+              text: `${status.text} ${warnings.length} component reference warning${warnings.length === 1 ? '' : 's'} — affected parts are shown as labelled placeholders.`,
+              details: warnings.slice(0, 6).map((w) => w.message),
+            }
+          : status,
+        collapsed: {},
+      });
       return true;
     };
     const dirty = () => engine.getProject().revision !== get().baselineRevision;
@@ -245,6 +306,9 @@ export function createEditorStore(
       itemSelection: null,
       currentZoneId: CENTRAL_WORKSHOP_ID,
       prefetchZoneId: null,
+      libraryOpen: false,
+      libraryPrefs: loadLibraryPrefs(),
+      conjure: null,
       navMode: 'orbit',
       cameraPreset: null,
 
@@ -471,6 +535,81 @@ export function createEditorStore(
           set({
             status: { tone: 'info', text: 'Walking: WASD to move, drag or click to look, Esc to stop.' },
           });
+      },
+
+      setLibraryOpen(libraryOpen) {
+        set({ libraryOpen });
+        if (!libraryOpen && get().conjure) set({ conjure: null });
+      },
+
+      toggleFavorite(definitionId) {
+        const libraryPrefs = toggleFavoritePref(get().libraryPrefs, definitionId);
+        saveLibraryPrefs(libraryPrefs);
+        set({ libraryPrefs });
+      },
+
+      startConjure(c) {
+        if (get().navMode === 'walk') get().setNavMode('orbit');
+        const r = resolver.resolve({
+          definitionId: c.definitionId,
+          variantId: c.variantId,
+          parameters: c.parameters,
+          materialId: c.materialId,
+        });
+        if (!r.ok) {
+          set({ status: { tone: 'error', text: r.message } });
+          return false;
+        }
+        const libraryPrefs = recordRecent(get().libraryPrefs, c.definitionId, c.variantId);
+        saveLibraryPrefs(libraryPrefs);
+        if (get().view === 'facility') set({ editLayer: 'project', itemSelection: null });
+        set({
+          conjure: { ...c, yaw: 0 },
+          libraryPrefs,
+          status: {
+            tone: 'info',
+            text: `Placing ${r.defaultName}: move over the ${get().view === 'facility' ? 'workbench' : 'build area'}, R / Shift+R to rotate, click to place, Esc to cancel.`,
+          },
+        });
+        return true;
+      },
+
+      rotateConjure(delta) {
+        const c = get().conjure;
+        if (c) set({ conjure: { ...c, yaw: Math.atan2(Math.sin(c.yaw + delta), Math.cos(c.yaw + delta)) } });
+      },
+
+      cancelConjure() {
+        if (get().conjure)
+          set({
+            conjure: null,
+            status: { tone: 'info', text: 'Conjuring cancelled — nothing was created.' },
+          });
+      },
+
+      confirmConjure(position) {
+        const c = get().conjure;
+        if (!c) return null;
+        const half = c.yaw / 2;
+        const r = get().run(
+          'scene.node.create',
+          {
+            node: {
+              kind: 'component-instance',
+              definitionId: c.definitionId,
+              variantId: c.variantId,
+              parameters: c.parameters,
+              ...(c.materialId !== undefined ? { materialId: c.materialId } : {}),
+              transform: { position, rotation: [0, Math.sin(half), 0, Math.cos(half)] },
+            },
+          },
+          { label: 'Conjure component', source: 'desktop-ui' },
+        );
+        if (!r.ok) return null;
+        const id = r.affectedIds[0]!;
+        set({ conjure: null });
+        get().select(id);
+        return id;
       },
 
       setPrefetchZone(prefetchZoneId) {

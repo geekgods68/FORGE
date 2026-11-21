@@ -184,7 +184,7 @@ test('export → modify → import restores the exact engineering state', async 
   expect(download.suggestedFilename()).toMatch(/\.forge\.json$/);
   const path = await download.path();
   const fileText = readFileSync(path, 'utf8');
-  expect(JSON.parse(fileText).schemaVersion).toBe(2);
+  expect(JSON.parse(fileText).schemaVersion).toBe(3); // Phase 3: project schema v3
 
   // Change the scene so the import has something to restore.
   await page.getByTestId(`tree-row-${id}`).click();

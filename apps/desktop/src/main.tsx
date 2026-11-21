@@ -1,3 +1,4 @@
+import { auditProjectComponents, catalogStats } from '@forge/components';
 import { FACILITY, getZone, itemChain, pointToFacility, requiredZones, roomCode } from '@forge/facility';
 import { BrowserStorageProjectRepository, BrowserStorageWorkspaceRepository } from '@forge/persistence';
 import { loadedZoneModules, renderedSigns } from './facility/loaded';
@@ -40,6 +41,10 @@ w.__forge = {
   workspaceHistory: () => store.getState().workspace.getHistory(),
   itemSelection: () => store.getState().itemSelection,
   navMode: () => store.getState().navMode,
+  conjure: () => store.getState().conjure,
+  libraryOpen: () => store.getState().libraryOpen,
+  catalogStats: () => catalogStats(),
+  componentWarnings: () => auditProjectComponents(engine.getProject()),
   currentZone: () => store.getState().currentZoneId,
   loadedZoneModules: () => loadedZoneModules(),
   /** Zone lifecycle snapshot (non-unloaded zones): state + role (+ error). */

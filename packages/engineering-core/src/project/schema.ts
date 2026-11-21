@@ -9,11 +9,13 @@ import { validateGraph } from '../scene/graph';
 import { SceneGraphSchema } from '../scene/schemas';
 
 /**
- * FORGE project document, schema version 2 (Phase 1).
- * v1 (Phase 0) documents are migrated on load — see ./migrate.ts.
+ * FORGE project document, schema version 3 (Phase 3: component-library instances).
+ * v1 (Phase 0) and v2 (Phases 1–2) documents are migrated on load — see ./migrate.ts.
+ * v3 adds the optional `component` reference on component-instance nodes; a v2
+ * document is structurally a valid v3 document.
  */
-export const PROJECT_SCHEMA_VERSION = 2 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const;
+export const PROJECT_SCHEMA_VERSION = 3 as const;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3] as const;
 
 export const ProjectSchema = z
   .object({
@@ -55,8 +57,28 @@ export const ProjectSchema = z
     });
     for (const g of validateGraph(p.scene)) issue(['scene', ...g.path.split('.')], g.message);
     for (const n of Object.values(p.scene.nodes)) {
-      if (n.kind === 'component-instance' && !definitionIds.has(n.definitionId))
-        issue(['scene', 'nodes', n.id, 'definitionId'], `unknown component definition "${n.definitionId}"`);
+      if (n.kind !== 'component-instance') continue;
+      if (!n.component) {
+        // Legacy (Phase 0) instance: its definition must be embedded in the project.
+        if (!definitionIds.has(n.definitionId))
+          issue(['scene', 'nodes', n.id, 'definitionId'], `unknown component definition "${n.definitionId}"`);
+        continue;
+      }
+      // Catalogue instance: definitions live in the component library (checked on load with
+      // warnings, never silently substituted). Structural rules are enforced here.
+      if (n.transform.scale.some((v) => Math.abs(v - 1) > 1e-12))
+        issue(
+          ['scene', 'nodes', n.id, 'transform', 'scale'],
+          'catalogue components must have unit scale (dimensions are parameters)',
+        );
+      n.component.connections.forEach((c, i) => {
+        const t = p.scene.nodes[c.targetNodeId];
+        if (!t || t.kind !== 'component-instance')
+          issue(
+            ['scene', 'nodes', n.id, 'component', 'connections', i],
+            `connection target "${c.targetNodeId}" is not a component`,
+          );
+      });
     }
   });
 

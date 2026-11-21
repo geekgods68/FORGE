@@ -1,5 +1,6 @@
 export * from './categories';
 export * from './commands/build';
+export type { ComponentResolveInput, ComponentResolver, ComponentResolveResult } from './commands/handlers';
 export * from './commands/schemas';
 export * from './editing/transform-session';
 export * from './engine';

@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { IdSchema, QuatSchema } from '../schemas';
-import { MetadataSchema, PositionSchema, PrimitiveGeometrySchema, ScaleSchema } from '../scene/schemas';
+import {
+  ComponentParamValueSchema,
+  MetadataSchema,
+  PositionSchema,
+  PrimitiveGeometrySchema,
+  ScaleSchema,
+} from '../scene/schemas';
 
 /**
  * Command contract v1 for the engineering scene graph.
@@ -46,6 +52,16 @@ export const CreateNodeSpecSchema = z.discriminatedUnion('kind', [
     kind: z.literal('primitive'),
     geometry: PrimitiveGeometrySchema,
     color: Color.optional(),
+  }),
+  z.object({
+    ...createCommon,
+    kind: z.literal('component-instance'),
+    /** Component-library definition id (validated by the engine's component resolver). */
+    definitionId: IdSchema,
+    variantId: z.string().min(1).max(96).nullable().optional(),
+    /** Parameter overrides (metres / radians / option values); defaults fill the rest. */
+    parameters: z.record(z.string().min(1).max(64), ComponentParamValueSchema).optional(),
+    materialId: z.string().min(1).max(96).nullable().optional(),
   }),
   z.object({
     ...createCommon,
@@ -96,6 +112,17 @@ export const NODE_PAYLOAD_SCHEMAS = {
     name: Name.optional(),
   }),
   'scene.node.ungroup': z.object({ groupId: IdSchema }),
+  /**
+   * Reconfigure a component instance through its definition: variant, parameter
+   * overrides (merged onto the current values) and/or material. Validated by the
+   * component resolver; one undoable step. Dimensions change here — never via scale.
+   */
+  'scene.component.configure': z.object({
+    nodeId: IdSchema,
+    variantId: z.string().min(1).max(96).nullable().optional(),
+    parameters: z.record(z.string().min(1).max(64), ComponentParamValueSchema).optional(),
+    materialId: z.string().min(1).max(96).nullable().optional(),
+  }),
 } as const;
 
 export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
@@ -118,6 +145,7 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('scene.node.lock'),
   sub('scene.node.group'),
   sub('scene.node.ungroup'),
+  sub('scene.component.configure'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -154,6 +182,7 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('scene.node.lock'),
   envelope('scene.node.group'),
   envelope('scene.node.ungroup'),
+  envelope('scene.component.configure'),
   envelope('scene.batch'),
 ]);
 
