@@ -5,7 +5,21 @@ import {
   type PrimitiveGeometry,
   type PrimitiveShape,
 } from '@forge/engineering-core';
-import { Axis3d, Box, Circle, Cone, Cylinder, Folder, Plus, Square, Torus } from 'lucide-react';
+import { rectangleEntities } from '@forge/mechanics';
+import {
+  Axis3d,
+  Box,
+  Boxes,
+  Circle,
+  Cone,
+  Cylinder,
+  Folder,
+  PenTool,
+  Plus,
+  Square,
+  Torus,
+  Wrench,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberField } from '@/components/NumberField';
@@ -104,6 +118,43 @@ export function CreateMenu() {
     }
   };
 
+  /** Phase 4: an empty mechanical assembly, a constrained rectangle sketch, or a feature part. */
+  const createMechanical = (kind: 'assembly' | 'sketch' | 'part') => {
+    const at = { position: [0.4, 0, 0] as [number, number, number] };
+    const where = parentId ? { parentId } : {};
+    const r =
+      kind === 'assembly'
+        ? run('assembly.create', { nodeIds: [], ...where }, { label: 'Create assembly' })
+        : kind === 'sketch'
+          ? run(
+              'sketch.create',
+              { ...rectangleEntities('r', -0.05, -0.03, 0.1, 0.06), ...where, transform: at },
+              { label: 'Create sketch' },
+            )
+          : run(
+              'part.create',
+              {
+                ...where,
+                transform: at,
+                depth: 0.005,
+                profile: {
+                  outer: [
+                    [-0.05, -0.03],
+                    [0.05, -0.03],
+                    [0.05, 0.03],
+                    [-0.05, 0.03],
+                  ],
+                  holes: [],
+                },
+              },
+              { label: 'Create part' },
+            );
+    if (r.ok) {
+      select(r.affectedIds[0]!);
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="relative">
       <Button size="sm" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="dialog">
@@ -159,6 +210,32 @@ export function CreateMenu() {
             </Button>
             <Button size="sm" variant="ghost" onClick={() => createOther('reference')}>
               <Axis3d /> Datum axes
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-1 border-t border-border pt-2" aria-label="Mechanical CAD">
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="create-assembly"
+              onClick={() => createMechanical('assembly')}
+            >
+              <Boxes /> Assembly
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="create-sketch"
+              onClick={() => createMechanical('sketch')}
+            >
+              <PenTool /> Sketch
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="create-part"
+              onClick={() => createMechanical('part')}
+            >
+              <Wrench /> Part
             </Button>
           </div>
           {parentId && (

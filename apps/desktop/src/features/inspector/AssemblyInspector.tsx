@@ -7,8 +7,20 @@ import {
   radToDeg,
   type Mate,
   type SceneNode,
+  worldMatrix,
 } from '@forge/engineering-core';
-import { assemblyMass, bodyInterfaces, checkFastener, type InterferenceResult } from '@forge/mechanics';
+import {
+  aabbGap,
+  assemblyMass,
+  axisAngle,
+  bodyInterfaces,
+  checkFastener,
+  pointDistance,
+  transformDir,
+  transformPoint,
+  worldBounds,
+  type InterferenceResult,
+} from '@forge/mechanics';
 import { Anchor, Home, Link2, Ruler, ScanSearch, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -73,6 +85,7 @@ export function AssemblyInspector({ node, locked }: { node: AssemblyNode; locked
       <Members node={node} locked={locked} freeBodies={report?.freeBodies ?? []} />
       <Relationships node={node} locked={locked} residuals={report?.relationships ?? []} />
       {!locked && <NewMate node={node} />}
+      <Measure node={node} />
       <ViewTools node={node} />
     </section>
   );
@@ -586,5 +599,122 @@ function ViewTools({ node }: { node: AssemblyNode }) {
         <p className="text-[10px] text-muted-foreground">{mass.note}</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Measurement between two members: distance between interface origins and the angle
+ * between interface axes (exact for declared interfaces — derived from the model, not
+ * the mesh), and the bounding-box clearance between bodies (approximate).
+ */
+function Measure({ node }: { node: AssemblyNode }) {
+  const scene = useEditor((s) => s.project.scene);
+  const [a, setA] = useState('');
+  const [ia, setIa] = useState('');
+  const [b, setB] = useState('');
+  const [ib, setIb] = useState('');
+  const bodies = node.childIds.filter((id) => !['group', 'assembly'].includes(scene.nodes[id]!.kind));
+  const list = (id: string) => {
+    const l = id ? bodyInterfaces(scene, id) : [];
+    return Array.isArray(l) ? l : [];
+  };
+  const frameOf = (id: string, ifc: string) => {
+    if (!id) return null;
+    const W = worldMatrix(scene, id);
+    const i = list(id).find((x) => x.id === ifc);
+    return i
+      ? { p: transformPoint(W, i.position), d: transformDir(W, i.direction), tags: i.compatibility }
+      : { p: transformPoint(W, [0, 0, 0]), d: null, tags: [] as string[] };
+  };
+  const fa = frameOf(a, ia);
+  const fb = frameOf(b, ib);
+  const ba = a ? worldBounds(scene, a) : null;
+  const bb = b ? worldBounds(scene, b) : null;
+  const holeDia = (tags: readonly string[]) =>
+    tags.map((t) => /^hole-([\d.]+)mm$/.exec(t)?.[1]).find(Boolean) ?? null;
+  const sel = 'h-7 w-full min-w-0 rounded border border-border bg-background px-1 text-xs';
+  return (
+    <details data-testid="measure">
+      <summary className="cursor-pointer font-semibold">
+        <Ruler className="mr-1 inline size-3.5" />
+        Measure
+      </summary>
+      <div className="mt-1 space-y-1">
+        {(
+          [
+            ['1', a, setA, ia, setIa],
+            ['2', b, setB, ib, setIb],
+          ] as const
+        ).map(([label, body, setBody, ifc, setIfc]) => (
+          <div key={label} className="grid grid-cols-2 gap-1">
+            <select
+              aria-label={`Measure body ${label}`}
+              className={sel}
+              value={body}
+              onChange={(e) => {
+                setBody(e.target.value);
+                setIfc('');
+              }}
+            >
+              <option value="">Body {label}…</option>
+              {bodies.map((id) => (
+                <option key={id} value={id}>
+                  {scene.nodes[id]!.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label={`Measure interface ${label}`}
+              className={sel}
+              value={ifc}
+              disabled={!body}
+              onChange={(e) => setIfc(e.target.value)}
+            >
+              <option value="">body origin</option>
+              {list(body).map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        {fa && fb && (
+          <dl className="grid grid-cols-[7rem_1fr] gap-y-0.5" data-testid="measure-results">
+            <dt className="text-muted-foreground">Distance</dt>
+            <dd className="font-mono" data-testid="measure-distance">
+              {(pointDistance(fa.p, fb.p) * 1000).toFixed(3)} mm{' '}
+              <span className="text-muted-foreground">(exact, model frames)</span>
+            </dd>
+            {fa.d && fb.d && (
+              <>
+                <dt className="text-muted-foreground">Axis angle</dt>
+                <dd className="font-mono" data-testid="measure-angle">
+                  {radToDeg(axisAngle(fa.d, fb.d)).toFixed(3)}°
+                </dd>
+              </>
+            )}
+            {ba && bb && a !== b && (
+              <>
+                <dt className="text-muted-foreground">Clearance</dt>
+                <dd className="font-mono">
+                  {Math.max(0, aabbGap(ba, bb) * 1000).toFixed(2)} mm{' '}
+                  <span className="text-muted-foreground">(approximate: bounding boxes)</span>
+                </dd>
+              </>
+            )}
+            {[fa, fb].map((f, i) => {
+              const d = holeDia(f.tags);
+              return d ? (
+                <div key={i} className="contents">
+                  <dt className="text-muted-foreground">Hole Ø ({i + 1})</dt>
+                  <dd className="font-mono">{d} mm (declared)</dd>
+                </div>
+              ) : null;
+            })}
+          </dl>
+        )}
+      </div>
+    </details>
   );
 }
