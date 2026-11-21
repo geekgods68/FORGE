@@ -53,6 +53,7 @@ import { Button } from '@/components/ui/button';
 import { NumberField } from '@/components/NumberField';
 import { useEditor } from '@/app/store';
 import { ModelInspect } from './ModelInspect';
+import { downloadText, MAX_BUNDLE_BYTES } from '@/lib/download';
 import { ComponentSketch } from '@/components3d/ComponentSketch';
 import { formatLength, formatMass } from '@/components3d/format';
 import { cn } from '@/lib/utils';
@@ -156,6 +157,12 @@ function Library() {
   const openSample = useEditor((s) => s.openSample);
   const insertAssembly = useEditor((s) => s.insertAssembly);
   const deleteAssembly = useEditor((s) => s.deleteAssembly);
+  const exportAssemblyFile = useEditor((s) => s.exportAssemblyFile);
+  const importAssemblyText = useEditor((s) => s.importAssemblyText);
+  const customModels = useEditor((s) => s.customModels);
+  const insertCustomModel = useEditor((s) => s.insertCustomModel);
+  const removeCustomModel = useEditor((s) => s.removeCustomModel);
+  const setLibraryStatus = useEditor((s) => s.setStatus);
   const [query, setQuery] = useState('');
   const deferred = useDeferredValue(query);
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -270,6 +277,59 @@ function Library() {
                   <Bot className="size-3.5 text-primary" /> Open sample project: robotic arm + controller
                 </button>
                 <ModelInspect />
+                {customModels.length > 0 && (
+                  <>
+                    <h3 className="font-semibold text-muted-foreground">My imported components</h3>
+                    <ul aria-label="Custom components" data-testid="custom-models">
+                      {customModels.map((m) => (
+                        <li key={m.assetHash} className="flex items-center gap-1">
+                          <Boxes className="size-3.5 text-muted-foreground" />
+                          <span className="flex-1 truncate" title={m.description || m.name}>
+                            {m.name}{' '}
+                            <span className="text-muted-foreground">
+                              ({m.boundsM.map((v) => (v * 1000).toFixed(0)).join('×')} mm · imported model)
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            data-testid={`custom-insert-${m.name}`}
+                            className="text-primary hover:underline"
+                            onClick={() => insertCustomModel(m.assetHash)}
+                          >
+                            Insert
+                          </button>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:underline"
+                            onClick={() => removeCustomModel(m.assetHash)}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <label className="flex items-center gap-1 text-muted-foreground">
+                  Import a reusable assembly (.forge-assembly.json)
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    data-testid="assembly-import-input"
+                    className="w-40 text-[10px]"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      if (f.size > MAX_BUNDLE_BYTES)
+                        return setLibraryStatus({
+                          tone: 'error',
+                          text: 'Assembly import failed: file exceeds 64 MiB.',
+                        });
+                      void importAssemblyText(await f.text());
+                    }}
+                  />
+                </label>
                 {assemblies.length > 0 && (
                   <>
                     <h3 className="font-semibold text-muted-foreground">Saved assemblies</h3>
@@ -287,6 +347,17 @@ function Library() {
                             onClick={() => insertAssembly(a.id)}
                           >
                             Insert
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`assembly-export-${a.name}`}
+                            className="text-muted-foreground hover:underline"
+                            onClick={async () => {
+                              const r = await exportAssemblyFile(a.id);
+                              if (r) downloadText(r.fileName, r.text);
+                            }}
+                          >
+                            Export
                           </button>
                           <button
                             type="button"

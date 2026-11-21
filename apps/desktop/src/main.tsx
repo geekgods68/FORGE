@@ -8,6 +8,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { createEditorStore } from './app/store';
+import { createDefaultAssetStore } from './assets/assetStore';
 import './styles/index.css';
 
 const namespace = import.meta.env.VITE_FORGE_STORAGE_NAMESPACE || 'forge';
@@ -15,7 +16,9 @@ const store = createEditorStore(
   new BrowserStorageProjectRepository(window.localStorage, namespace),
   window.localStorage,
   new BrowserStorageWorkspaceRepository(window.localStorage, namespace),
+  createDefaultAssetStore(namespace),
 );
+void store.getState().auditAssets();
 
 /**
  * Read-only diagnostics for local automated tests. Exposes the engine's QUERY
@@ -45,6 +48,9 @@ w.__forge = {
   libraryOpen: () => store.getState().libraryOpen,
   catalogStats: () => catalogStats(),
   componentWarnings: () => auditProjectComponents(engine.getProject()),
+  missingAssets: () => store.getState().missingAssets,
+  customModels: () => store.getState().customModels,
+  assetStoreKind: () => store.getState().assetStore.kind,
   currentZone: () => store.getState().currentZoneId,
   loadedZoneModules: () => loadedZoneModules(),
   /** Zone lifecycle snapshot (non-unloaded zones): state + role (+ error). */

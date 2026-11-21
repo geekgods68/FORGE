@@ -602,6 +602,16 @@ function DebugProbe() {
         const rect = gl.domElement.getBoundingClientRect();
         return { x: rect.left + ((v.x + 1) / 2) * size.width, y: rect.top + ((1 - v.y) / 2) * size.height };
       },
+      /** Imported model instances as rendered: loaded GLB, still loading, or missing asset placeholder. */
+      modelInstances: () => {
+        const out = { loaded: 0, loading: 0, missing: 0 };
+        scene.traverse((o) => {
+          if (o.name === 'model' && o.userData.modelState === 'loaded') out.loaded += 1;
+          if (o.name === 'model-placeholder') out.loading += 1;
+          if (o.name === 'model-missing') out.missing += 1;
+        });
+        return out;
+      },
       /** Rendered world position of a project node (proves where the renderer actually placed it). */
       nodeWorldPosition: (id: string) => {
         const o = registry.get(id);

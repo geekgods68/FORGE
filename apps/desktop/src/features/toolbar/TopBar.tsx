@@ -8,11 +8,13 @@ import {
   Redo2,
   Save,
   Undo2,
+  Package,
   Upload,
   Wrench,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { downloadText, MAX_BUNDLE_BYTES, MAX_IMPORT_BYTES } from '@/lib/download';
 import { isDirty, useEditor } from '@/app/store';
 import { CreateMenu } from '@/features/create/CreateMenu';
 
@@ -35,21 +37,22 @@ export function TopBar() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [openMenu, setOpenMenu] = useState(false);
 
+  const exportBundle = useEditor((s) => s.exportBundle);
+  const importBundleText = useEditor((s) => s.importBundleText);
   const doExport = () => {
     const { fileName, text } = exportProject();
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadText(fileName, text);
+  };
+  const doExportBundle = async () => {
+    const r = await exportBundle();
+    if (r) downloadText(r.fileName, r.text);
   };
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
       <div className="flex items-baseline gap-2">
         <span className="text-lg font-semibold tracking-[0.3em]">FORGE</span>
-        <span className="text-xs text-muted-foreground">Phase 3</span>
+        <span className="text-xs text-muted-foreground">Phase 4</span>
       </div>
       <span className="min-w-0 truncate text-sm" data-testid="project-name" title={name}>
         {name}
@@ -172,24 +175,41 @@ export function TopBar() {
         <Button size="sm" variant="ghost" onClick={doExport}>
           <Download /> Export
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          data-testid="export-bundle"
+          title="Project + every imported model it uses, in one portable file"
+          onClick={() => void doExportBundle()}
+        >
+          <Package /> Bundle
+        </Button>
         <input
           ref={fileInput}
           type="file"
-          accept=".json,.forge.json,application/json"
+          accept=".json,.forge.json,.forge-bundle.json,application/json"
           className="hidden"
           data-testid="import-input"
           onChange={async (e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
             if (!file) return;
-            if (file.size > 10 * 1024 * 1024) {
+            if (file.size > MAX_BUNDLE_BYTES) {
               setStatus({
                 tone: 'error',
-                text: 'Import failed: file exceeds the 10 MiB limit. The current project was left unchanged.',
+                text: 'Import failed: file exceeds the 64 MiB limit. The current project was left unchanged.',
               });
               return;
             }
-            importProjectText(await file.text());
+            const text = await file.text();
+            // Portable bundles carry their model assets; plain project files do not.
+            if (/^\s*\{\s*"format"\s*:\s*"forge-bundle"/.test(text)) void importBundleText(text);
+            else if (file.size > MAX_IMPORT_BYTES)
+              setStatus({
+                tone: 'error',
+                text: 'Import failed: project files are limited to 10 MiB. The current project was left unchanged.',
+              });
+            else importProjectText(text);
           }}
         />
       </div>

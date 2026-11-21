@@ -16,7 +16,7 @@ import {
   type Project,
 } from '@forge/engineering-core';
 import { describe, expect, it } from 'vitest';
-import { createMechanicsService } from '../index';
+import { createMechanicsService, evaluatePart } from '../index';
 import { mul, inv } from '../pose';
 import {
   ARM_ASSEMBLY_ID,
@@ -120,6 +120,121 @@ describe('reusable assemblies', () => {
     expect(e.getHistory().undoDepth).toBe(1);
     e.undo();
     expect(e.getNode(rootId)).toBeNull();
+  });
+
+  it('v2: saves a constrained assembly with its mates; inserting twice gives independent, conflict-free copies', () => {
+    const p = createRoboticArmSample(NOW);
+    const t = templateFromGroup(p, ARM_ASSEMBLY_ID, 'tpl-arm', NOW);
+    expect(t.ok).toBe(true);
+    if (!t.ok) return;
+    expect(t.template.version).toBe(2);
+    expect(t.template.topKind).toBe('assembly');
+    expect(t.template.mechanics).toHaveLength(1);
+    const arm = p.scene.nodes[ARM_ASSEMBLY_ID]!;
+    if (arm.kind !== 'assembly') throw new Error('expected assembly');
+    expect(t.template.mechanics[0]!.mates).toHaveLength(arm.mechanical.mates.length);
+    // File round trip (export → import) through the schema.
+    const parsed = AssemblyTemplateSchema.parse(JSON.parse(JSON.stringify(t.template)));
+    expect(parsed).toEqual(t.template);
+    let n = 0;
+    const e = new ForgeEngine(p, {
+      componentResolver: createCatalogResolver(),
+      mechanics: createMechanicsService(),
+      newId: () => `new-${++n}`,
+    });
+    const insert = (x: number) => {
+      const { rootId, commands } = assemblyCommands(parsed, p.scene.rootId, [x, 0, 0], () => `ins-${++n}`);
+      const r = e.execute(makeCommand('scene.batch', { commands }, 'desktop-ui') as CommandInput);
+      expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+      return rootId;
+    };
+    const c1 = insert(1);
+    const c2 = insert(2);
+    for (const id of [c1, c2]) {
+      const a = e.analyzeAssembly(id)!;
+      expect(a.ok && a.report).toMatchObject({ status: 'under-constrained', mobility: 4 });
+      const node = e.getNode(id)!;
+      expect(node.kind === 'assembly' && node.mechanical.mates.length).toBe(arm.mechanical.mates.length);
+    }
+    // Relative poses preserved: gripper relative to the base plate matches the original.
+    const scene = e.getProject().scene;
+    const rel = (asm: string) => {
+      const kids = scene.nodes[asm]!.childIds;
+      const byName = (nm: string) => kids.find((k) => scene.nodes[k]!.name === nm)!;
+      const plate = byName(p.scene.nodes['base-plate']!.name);
+      const grip = byName(p.scene.nodes['gripper']!.name);
+      return mul(inv(worldMatrix(scene, plate)), worldMatrix(scene, grip));
+    };
+    const orig = mul(inv(worldMatrix(scene, 'base-plate')), worldMatrix(scene, 'gripper'));
+    for (const id of [c1, c2]) rel(id).forEach((v, i) => expect(v).toBeCloseTo(orig[i]!, 9));
+    // Copies are independent: moving a joint in copy 1 does not move copy 2 or the original.
+    const node1 = e.getNode(c1)!;
+    const shoulder1 =
+      node1.kind === 'assembly' ? node1.mechanical.mates.find((m) => m.name === 'Shoulder joint')! : null;
+    const before2 = JSON.stringify(rel(c2));
+    const r = e.execute(
+      makeCommand(
+        'assembly.joint.setPosition',
+        { assemblyId: c1, mateId: shoulder1!.id, coordinates: [0.3] },
+        'desktop-ui',
+      ) as CommandInput,
+    );
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(rel(c2))).toBe(before2);
+  });
+
+  it('v2: feature parts are re-created feature by feature (same geometry, same feature ids)', () => {
+    const p = createRoboticArmSample(NOW);
+    let n = 0;
+    const e = new ForgeEngine(p, {
+      componentResolver: createCatalogResolver(),
+      mechanics: createMechanicsService(),
+      newId: () => `id-${++n}`,
+    });
+    const run = (type: string, payload: unknown) => {
+      const r = e.execute(makeCommand(type as never, payload as never, 'desktop-ui') as CommandInput);
+      expect(r.ok, r.ok ? '' : r.error.message).toBe(true);
+      return r.ok ? r.affectedIds[0]! : '';
+    };
+    const g = run('scene.node.create', { node: { kind: 'group', name: 'Plates' } });
+    const part = run('part.create', {
+      parentId: g,
+      depth: 0.004,
+      profile: {
+        outer: [
+          [-0.04, -0.02],
+          [0.04, -0.02],
+          [0.04, 0.02],
+          [-0.04, 0.02],
+        ],
+        holes: [],
+      },
+    });
+    run('geometry.hole.create', { partId: part, id: 'h1', center: [-0.03, 0], diameter: 0.004, depth: null });
+    run('geometry.pattern.create', {
+      partId: part,
+      kind: 'rect',
+      target: 'h1',
+      countU: 4,
+      countV: 1,
+      spacingU: 0.02,
+      spacingV: 0,
+    });
+    const t = templateFromGroup(e.getProject(), g, 'tpl-p', NOW);
+    expect(t.ok).toBe(true);
+    if (!t.ok) return;
+    const { rootId, commands } = assemblyCommands(t.template, p.scene.rootId, [0, 0, 0.3], () => `x-${++n}`);
+    expect(e.execute(makeCommand('scene.batch', { commands }, 'desktop-ui') as CommandInput).ok).toBe(true);
+    const copy = e.getNode(e.getNode(rootId)!.childIds[0]!)!;
+    const orig = e.getNode(part)!;
+    expect(copy.kind === 'part' && orig.kind === 'part').toBe(true);
+    if (copy.kind !== 'part' || orig.kind !== 'part') return;
+    expect(copy.features.slice(1)).toEqual(orig.features.slice(1));
+    const vol = (f: typeof copy.features) => {
+      const r = evaluatePart(f);
+      return r.ok ? r.geometry.volumeM3 : NaN;
+    };
+    expect(vol(copy.features)).toBeCloseTo(vol(orig.features), 15);
   });
 
   it('refuses unsupported members and non-groups', () => {

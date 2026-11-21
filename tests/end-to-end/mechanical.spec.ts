@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 /**
  * Phase 4: the constrained robotic-arm acceptance workflow (hierarchy, joint editing
@@ -178,4 +179,46 @@ test('invalid mates are refused atomically and the editor recovers', async ({ pa
   await page.getByTestId('tree-row-gripper').click();
   await expect(page.getByTestId('mate-driven-note')).toBeVisible();
   await expect(page.getByTestId('position-x')).toBeDisabled();
+});
+
+test('reusable assembly with mates: export to a file, import in a fresh profile, insert twice without id conflicts', async ({
+  page,
+  browser,
+}) => {
+  await openSample(page);
+  await page.getByTestId('tree-row-grp-arm').click();
+  await page.getByTestId('save-assembly').click();
+  await expect(page.getByTestId('status')).toContainText('reusable assembly');
+  await page.getByTestId('library-toggle').click();
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('assembly-export-Robotic arm').click();
+  const text = readFileSync((await (await dl).path())!, 'utf8');
+  expect(JSON.parse(text).format).toBe('forge-assembly');
+
+  const ctx = await browser.newContext();
+  const fresh = await ctx.newPage();
+  fresh.on('dialog', (d) => d.accept());
+  await fresh.goto('/');
+  await fresh.waitForFunction(
+    () => (window as unknown as { __forge?: { ready?: boolean } }).__forge?.ready === true,
+  );
+  await fresh.getByTestId('library-toggle').click();
+  await fresh.getByTestId('assembly-import-input').setInputFiles({
+    name: 'arm.forge-assembly.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(text),
+  });
+  await expect(fresh.getByTestId('status')).toContainText('Imported reusable assembly');
+  await fresh.getByTestId('assembly-insert-Robotic arm').click();
+  await fresh.getByTestId('assembly-insert-Robotic arm').click();
+  const all = await nodes(fresh);
+  const arms = Object.values(all).filter((n) => n.kind === 'assembly' && n.name === 'Robotic arm');
+  expect(arms).toHaveLength(2);
+  const mateIds = arms.flatMap((a) => a.mechanical!.mates.map((m) => m.id));
+  expect(new Set(mateIds).size).toBe(mateIds.length); // no id conflicts
+  for (const a of arms) expect(a.mechanical!.mates.filter((m) => m.type === 'revolute')).toHaveLength(4);
+  await fresh.getByTestId('library-toggle').click();
+  await fresh.getByTestId(`tree-row-${arms[0]!.id}`).click();
+  await expect(fresh.getByTestId('assembly-dof')).toHaveText('4');
+  await ctx.close();
 });

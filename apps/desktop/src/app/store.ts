@@ -13,9 +13,13 @@ import {
   type HistoryInfo,
   type PayloadInput,
   type Project,
+  ModelRefSchema,
+  type ModelRef,
   type SceneGraph,
   type SnapSettings,
 } from '@forge/engineering-core';
+import { createMemoryAssetStore, type AssetStore } from '@/assets/assetStore';
+import { readBundle, writeBundle } from '@/assets/bundle';
 import {
   checkInterference,
   createMechanicsService,
@@ -25,6 +29,7 @@ import {
 import {
   assemblyCommands,
   AssemblyTemplateSchema,
+  templateAssetHashes,
   auditProjectComponents,
   createCatalogResolver,
   templateFromGroup,
@@ -100,6 +105,33 @@ export interface ConjureState {
 }
 
 const PREFS_KEY = 'forge:library-prefs';
+const CUSTOM_MODELS_KEY = 'forge:custom-models';
+function loadCustomModels(): ModelRef[] {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(CUSTOM_MODELS_KEY) ?? '[]');
+    return Array.isArray(raw)
+      ? raw.flatMap((t) => {
+          const r = ModelRefSchema.safeParse(t);
+          return r.success ? [r.data] : [];
+        })
+      : [];
+  } catch {
+    return [];
+  }
+}
+function saveCustomModels(list: ModelRef[]) {
+  try {
+    globalThis.localStorage?.setItem(CUSTOM_MODELS_KEY, JSON.stringify(list));
+  } catch {
+    /* user library data; the asset bytes live in the asset store */
+  }
+}
+/** Model assets referenced anywhere in a scene. */
+const referencedAssets = (p: Project) => [
+  ...new Set(
+    Object.values(p.scene.nodes).flatMap((n) => (n.kind === 'model-instance' ? [n.model.assetHash] : [])),
+  ),
+];
 const ASSEMBLIES_KEY = 'forge:assemblies';
 function loadAssemblies(): AssemblyTemplate[] {
   try {
@@ -192,6 +224,14 @@ export interface EditorState {
   explode: { assemblyId: string; factor: number } | null;
   /** Dry-run result shown in the viewport before a command is confirmed (never committed). */
   previewScene: SceneGraph | null;
+  /** Local content-addressed store for imported model bytes (IndexedDB in the app). */
+  assetStore: AssetStore;
+  /** User-saved custom components made from imported models (local user library). */
+  customModels: ModelRef[];
+  /** Incremented whenever assets are added to the store (renderers retry missing models). */
+  assetsVersion: number;
+  /** Model assets the open project references that are not in the asset store. */
+  missingAssets: readonly string[];
   /** Last interference check (view-only highlights). */
   interference: { assemblyId: string; revision: number; results: InterferenceResult[] } | null;
 
@@ -233,6 +273,17 @@ export interface EditorState {
   deleteAssembly(templateId: string): void;
   setConnectionFocus(f: { nodeId: string; interfaceId: string } | null): void;
   setExplode(assemblyId: string | null, factor?: number): void;
+  /** Store the model bytes (verified) and add a custom component to the local library. */
+  saveCustomModel(bytes: Uint8Array, ref: ModelRef): Promise<boolean>;
+  insertCustomModel(assetHash: string): string | null;
+  removeCustomModel(assetHash: string): void;
+  /** Re-check which referenced model assets are missing from the asset store. */
+  auditAssets(): Promise<readonly string[]>;
+  /** Project + every referenced model asset in one portable file (refused if any is missing). */
+  exportBundle(): Promise<{ fileName: string; text: string } | null>;
+  importBundleText(text: string): Promise<boolean>;
+  exportAssemblyFile(templateId: string): Promise<{ fileName: string; text: string } | null>;
+  importAssemblyText(text: string): Promise<boolean>;
   /** Validate + run a command without committing; shows its result in the viewport. */
   previewCommand<T extends CommandType>(type: T, payload: PayloadInput<T>): CommandResult;
   clearPreview(): void;
@@ -283,6 +334,7 @@ export function createEditorStore(
   workspaceRepo: BrowserStorageWorkspaceRepository = new BrowserStorageWorkspaceRepository(
     new MemoryStorage(),
   ),
+  assetStore: AssetStore = createMemoryAssetStore(),
 ): StoreApi<EditorState> {
   let initialStatus: Status = { tone: 'info', text: 'New project (not yet saved).' };
   let initial: Project = createProject();
@@ -329,6 +381,7 @@ export function createEditorStore(
           : status,
         collapsed: {},
       });
+      void get().auditAssets();
       return true;
     };
     const dirty = () => engine.getProject().revision !== get().baselineRevision;
@@ -369,6 +422,10 @@ export function createEditorStore(
       navMode: 'orbit',
       cameraPreset: null,
       explode: null,
+      assetStore,
+      customModels: loadCustomModels(),
+      missingAssets: [],
+      assetsVersion: 0,
       previewScene: null,
       interference: null,
 
@@ -646,6 +703,146 @@ export function createEditorStore(
 
       setConnectionFocus(connectionFocus) {
         set({ connectionFocus });
+      },
+
+      async saveCustomModel(bytes, ref) {
+        try {
+          await assetStore.put({ hash: ref.assetHash, mediaType: ref.mediaType, name: ref.name, bytes });
+        } catch (e) {
+          set({
+            status: {
+              tone: 'error',
+              text: `Could not store the model: ${e instanceof Error ? e.message : String(e)}`,
+            },
+          });
+          return false;
+        }
+        const customModels = [...get().customModels.filter((m) => m.assetHash !== ref.assetHash), ref];
+        saveCustomModels(customModels);
+        set({
+          customModels,
+          assetsVersion: get().assetsVersion + 1,
+          status: { tone: 'success', text: `Saved “${ref.name}” as a custom component (stored locally).` },
+        });
+        void get().auditAssets();
+        return true;
+      },
+
+      insertCustomModel(assetHash) {
+        const ref = get().customModels.find((m) => m.assetHash === assetHash);
+        if (!ref) return null;
+        // Base on y = 0 at the project origin.
+        const r = get().run(
+          'model.instance.create',
+          { model: ref, name: ref.name, transform: { position: [0, -ref.minM[1], 0] } },
+          { label: `Insert “${ref.name}”` },
+        );
+        if (!r.ok) return null;
+        get().select(r.affectedIds[0]!);
+        return r.affectedIds[0]!;
+      },
+
+      removeCustomModel(assetHash) {
+        // Library entry only: the bytes stay in the asset store so projects that use the
+        // model keep working (no silently broken references).
+        const customModels = get().customModels.filter((m) => m.assetHash !== assetHash);
+        saveCustomModels(customModels);
+        set({ customModels });
+      },
+
+      async auditAssets() {
+        const p = engine.getProject();
+        const missing: string[] = [];
+        for (const h of referencedAssets(p)) if (!(await assetStore.has(h))) missing.push(h);
+        if (engine.getProject() === p) set({ missingAssets: missing });
+        return missing;
+      },
+
+      async exportBundle() {
+        const p = engine.getProject();
+        const r = await writeBundle(
+          'forge-bundle',
+          JSON.parse(serializeProject(p)),
+          referencedAssets(p),
+          assetStore,
+        );
+        if (!r.ok) {
+          set({ status: { tone: 'error', text: r.message, details: r.missing.slice(0, 6) } });
+          return null;
+        }
+        const fileName = projectFileName(p.name).replace(/\.forge\.json$|\.json$/, '') + '.forge-bundle.json';
+        set({
+          status: {
+            tone: 'success',
+            text: `Exported ${fileName} (project + ${referencedAssets(p).length} model asset(s)).`,
+          },
+        });
+        return { fileName, text: r.text };
+      },
+
+      async importBundleText(text) {
+        const r = await readBundle(text, assetStore, 'forge-bundle');
+        if (!r.ok) {
+          set({
+            status: {
+              tone: 'error',
+              text: `Bundle import failed: ${r.message} The current project was left unchanged.`,
+            },
+          });
+          return false;
+        }
+        set({ assetsVersion: get().assetsVersion + 1 });
+        const ok = get().importProjectText(JSON.stringify(r.bundle.content));
+        if (ok) void get().auditAssets();
+        return ok;
+      },
+
+      async exportAssemblyFile(templateId) {
+        const t = get().assemblies.find((a) => a.id === templateId);
+        if (!t) return null;
+        const r = await writeBundle('forge-assembly', t, templateAssetHashes(t), assetStore);
+        if (!r.ok) {
+          set({ status: { tone: 'error', text: r.message, details: r.missing.slice(0, 6) } });
+          return null;
+        }
+        const fileName = `${t.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'assembly'}.forge-assembly.json`;
+        set({ status: { tone: 'success', text: `Exported ${fileName}.` } });
+        return { fileName, text: r.text };
+      },
+
+      async importAssemblyText(text) {
+        const r = await readBundle(text, assetStore, 'forge-assembly');
+        if (!r.ok) {
+          set({ status: { tone: 'error', text: `Assembly import failed: ${r.message}` } });
+          return false;
+        }
+        set({ assetsVersion: get().assetsVersion + 1 });
+        const t = AssemblyTemplateSchema.safeParse(r.bundle.content);
+        if (!t.success) {
+          set({
+            status: {
+              tone: 'error',
+              text: 'Assembly import failed: the template is invalid; nothing was imported.',
+              details: t.error.issues.slice(0, 6).map((i) => `${i.path.join('.')}: ${i.message}`),
+            },
+          });
+          return false;
+        }
+        // Fresh template id; a clashing name gets a suffix (ids of inserted nodes are always new).
+        const names = new Set(get().assemblies.map((a) => a.name));
+        let name = t.data.name;
+        for (let k = 2; names.has(name); k++) name = `${t.data.name} (${k})`;
+        const template = { ...t.data, id: newId(), name };
+        const assemblies = [...get().assemblies, template];
+        saveAssemblies(assemblies);
+        set({
+          assemblies,
+          status: {
+            tone: 'success',
+            text: `Imported reusable assembly “${name}” (${template.members.length} members).`,
+          },
+        });
+        return true;
       },
 
       setExplode(assemblyId, factor = 0) {
