@@ -184,3 +184,30 @@ test('Phase 6 B: DC operating point and transient analysis from the Analysis tab
   await expect(page.getByTestId('elec-tran-plot')).toBeVisible();
   await expect(page.getByTestId('electronics-panel')).toContainText('steps');
 });
+
+test('Phase 6 C: logic simulation — a clock drives a counter; the analyser shows measured timing', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await ready(page);
+  await page.getByTestId('mode-electronics').click();
+  for (const k of ['clock', 'counter']) {
+    await page.getByTestId('elec-prim-select').selectOption(k);
+    await page.getByTestId('elec-prim-add').click();
+  }
+  await page.getByTestId('elec-schematic-toggle').click();
+  await page.getByTestId('elec-tool-wire').click();
+  await page.getByTestId('sch-pin-CLK1-out').click();
+  await page.getByTestId('sch-pin-CNT1-clk').click();
+  await expect.poll(async () => (await circuit(page))?.wires).toBe(1);
+  await page.getByTestId('schematic-close').click();
+  await page.getByTestId('elec-tab-analysis').click();
+  await page.getByTestId('elec-logic-dur').fill('5.5m');
+  await page.getByTestId('elec-logic-dur').press('Enter');
+  await page.getByTestId('elec-logic-run').click();
+  await expect(page.getByTestId('elec-logic-analyzer')).toBeVisible();
+  // The first lane is the clock net (1 kHz, 50 %): period and duty are measured from transitions.
+  await expect(page.getByTestId('elec-logic-analyzer-stats')).toContainText('period 1 ms');
+  await expect(page.getByTestId('elec-logic-analyzer-stats')).toContainText('duty 54.55 %'); // 3 ms high in 5.5 ms
+});

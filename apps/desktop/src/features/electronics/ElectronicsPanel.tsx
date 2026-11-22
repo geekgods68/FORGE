@@ -9,6 +9,7 @@ import {
 } from '@forge/engineering-core';
 import {
   analogCircuitOf,
+  createDigitalSim,
   DRC_DISCLAIMER,
   exportElectricalBundle,
   exportSpiceNetlist,
@@ -27,6 +28,8 @@ import { CodeTab } from './CodeTab';
 import { formatSi } from './format';
 import { addCatalogPart, addPrimitive, CATALOG_PARTS, linkNode, PRIMITIVES } from './palette';
 import { analyse, circuitOf, elecUiFor, type ElecTab } from './state';
+import type { Lane } from './laneStats';
+import { LogicAnalyzer } from './LogicAnalyzer';
 import { WavePlot } from './WavePlot';
 
 /**
@@ -771,11 +774,25 @@ function AnalysisTab({ def }: { def: ElectricalDefinition }) {
   const tr = ui.transient?.result;
   const stale = (r: { revision: number } | null) => r !== null && r.revision !== revision;
   const nets = circuit.netlist.nets.filter((n) => n.pins.length > 1 || n.isGround);
+  const [logicDur, setLogicDur] = useState(20e-6);
+  const [logic, setLogic] = useState<{ lanes: Lane[]; t1: number; events: string[] } | null>(null);
+  const runLogic = () => {
+    const sim = createDigitalSim(def);
+    const t1 = Math.round(logicDur * 1e9);
+    sim.runTo(t1);
+    const lanes = sim.netlist.nets
+      .filter((n) => sim.net.kind[n.index] !== 'analog' && n.pins.length > 0 && !n.isGround)
+      .slice(0, 10)
+      .map((n) => ({ name: n.name, ...sim.net.log.of(n.index) }));
+    sim.dispose();
+    setLogic({ lanes, t1, events: sim.net.events.slice(-5).map((e) => e.message) });
+  };
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-muted-foreground">
-        Standalone analog analysis of the circuit (MNA). Digital parts and firmware run only in Simulation
-        mode; here their outputs are open. Results are not stored in the project.
+        Standalone analyses. DC and transient solve the analog part (MNA; digital outputs are open there); the
+        logic simulation runs digital parts with mixed nets solved quasi-statically. Firmware runs in
+        Simulation mode. Results are not stored in the project.
       </p>
       <div className="space-y-1">
         <Button
@@ -847,6 +864,31 @@ function AnalysisTab({ def }: { def: ElectricalDefinition }) {
               </p>
             ))}
             <IssueList testId="elec-dc-checks" issues={solvedChecks(def, circuit.netlist, dc)} />
+          </>
+        )}
+      </div>
+      <div className="space-y-1">
+        <h3 className="text-xs font-medium">Logic simulation (no firmware)</h3>
+        <div className="flex items-center gap-1">
+          <SiField
+            label="Duration"
+            unit="s"
+            value={logicDur}
+            onCommit={setLogicDur}
+            testId="elec-logic-dur"
+          />
+          <Button size="sm" variant="outline" data-testid="elec-logic-run" onClick={runLogic}>
+            Run
+          </Button>
+        </div>
+        {logic && (
+          <>
+            <LogicAnalyzer testId="elec-logic-analyzer" lanes={logic.lanes} window={[0, logic.t1]} />
+            {logic.events.map((e, i) => (
+              <p key={i} className="text-[11px] text-amber-300">
+                {e}
+              </p>
+            ))}
           </>
         )}
       </div>
