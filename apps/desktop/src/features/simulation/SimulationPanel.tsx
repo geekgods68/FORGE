@@ -16,6 +16,7 @@ import { useEditor, useEditorStore } from '@/app/store';
 import { downloadText } from '@/lib/download';
 import { simulationFor, type SimUi } from './controller';
 import { TelemetryPlot } from './TelemetryPlot';
+import { RuntimePanel } from '@/features/electronics/RuntimePanel';
 
 /**
  * Simulation mode panel. Every value is labelled by what it is:
@@ -64,6 +65,7 @@ export function SimulationPanel() {
         </p>
       )}
       {phase === 'no-setup' && <NoSetup onCreate={() => c.createSetup()} />}
+      {phase !== 'loading' && <RuntimePanel />}
       {def && ui.phase !== 'no-setup' && ui.phase !== 'loading' && (
         <>
           <RunControls ui={ui} />

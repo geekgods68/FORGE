@@ -95,9 +95,25 @@ function sameCad(a: Map<string, unknown>, b: Map<string, unknown>): boolean {
   return true;
 }
 
+/**
+ * A runtime that co-simulates with the physics session (Phase 6 electronics). When it
+ * `drives()`, it advances the shared clock and takes the physics steps itself.
+ */
+export interface SimRuntimeHook {
+  drives(): boolean;
+  tick(realDtS: number): void;
+  step(n: number): void;
+  /** The physics session was (re)built or reset: restart the runtime at t = 0. */
+  rebuilt(): void;
+  exited(): void;
+  /** Run state changed (start/pause): refresh the runtime's view. */
+  changed(): void;
+}
+
 export class SimulationController {
   readonly ui: StoreApi<SimUi> = createStore<SimUi>(() => ({ ...EMPTY }));
   session: PhysicsSession | null = null;
+  runtime: SimRuntimeHook | null = null;
   private unsub: (() => void) | null = null;
   private cad: Map<string, unknown> | null = null;
   private lastUi = 0;
@@ -126,6 +142,7 @@ export class SimulationController {
   }
 
   exit(): void {
+    this.runtime?.exited();
     this.unsub?.();
     this.unsub = null;
     this.session?.dispose();
@@ -147,6 +164,7 @@ export class SimulationController {
       this.session?.dispose();
       this.session = null;
       this.ui.setState({ phase: 'no-setup', issues: [], joints: [], movingUnits: [] });
+      this.runtime?.rebuilt();
       return;
     }
     try {
@@ -156,6 +174,7 @@ export class SimulationController {
         project: { id: p.id, name: p.name, revision: p.revision },
       });
       this.refresh(true);
+      this.runtime?.rebuilt();
     } catch (e) {
       this.ui.setState({ phase: 'error', error: e instanceof Error ? e.message : String(e) });
     }
@@ -189,6 +208,7 @@ export class SimulationController {
     this.lastDefinition = def;
     this.ui.setState({ cadChanged: false });
     this.refresh(true);
+    this.runtime?.rebuilt();
   }
 
   createSetup(): boolean {
@@ -213,11 +233,13 @@ export class SimulationController {
     s.run();
     this.editor.getState().setContinuous('simulation', true);
     this.refresh(true);
+    this.runtime?.changed();
   }
   pause(): void {
     this.session?.pause();
     this.editor.getState().setContinuous('simulation', false);
     this.refresh(true);
+    this.runtime?.changed();
   }
   reset(): void {
     const s = this.session;
@@ -226,10 +248,16 @@ export class SimulationController {
     s.reset();
     this.editor.getState().setContinuous('simulation', false);
     this.refresh(true);
+    this.runtime?.rebuilt();
   }
   step(n = 1): void {
     if (!this.session) return;
     if (this.session.state === 'running') this.session.pause();
+    if (this.runtime?.drives()) {
+      this.runtime.step(n);
+      this.refresh(true);
+      return;
+    }
     this.session.step(n);
     this.refresh(true);
   }
@@ -283,6 +311,16 @@ export class SimulationController {
   /** Display-loop tick: advance in fixed steps by real elapsed time; refresh the UI at ~10 Hz. */
   tick(realDtS: number): void {
     const s = this.session;
+    if (this.runtime?.drives()) {
+      // The electronics co-simulation owns the clock and takes the physics steps.
+      this.runtime.tick(realDtS);
+      if (s) {
+        if (s.state === 'faulted' && this.ui.getState().phase === 'running')
+          this.editor.getState().setContinuous('simulation', false);
+        this.refresh(false);
+      }
+      return;
+    }
     if (!s) return;
     try {
       if (s.state === 'running') s.advance(realDtS);

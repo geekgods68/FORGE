@@ -155,6 +155,7 @@ function Library() {
   const prefs = useEditor((s) => s.libraryPrefs);
   const assemblies = useEditor((s) => s.assemblies);
   const openSample = useEditor((s) => s.openSample);
+  const openElectronicsSample = useEditor((s) => s.openElectronicsSample);
   const insertAssembly = useEditor((s) => s.insertAssembly);
   const deleteAssembly = useEditor((s) => s.deleteAssembly);
   const exportAssemblyFile = useEditor((s) => s.exportAssemblyFile);
@@ -275,6 +276,23 @@ function Library() {
                   onClick={openSample}
                 >
                   <Bot className="size-3.5 text-primary" /> Open sample project: robotic arm + controller
+                </button>
+                <button
+                  type="button"
+                  data-testid="library-open-ultrasonic"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={() => openElectronicsSample('ultrasonic')}
+                >
+                  <CircuitBoard className="size-3.5 text-primary" /> Open sample: Arduino ultrasonic servo
+                  gauge
+                </button>
+                <button
+                  type="button"
+                  data-testid="library-open-arm-electronics"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={() => openElectronicsSample('arm')}
+                >
+                  <CircuitBoard className="size-3.5 text-primary" /> Open sample: robotic arm with electronics
                 </button>
                 <ModelInspect />
                 {customModels.length > 0 && (

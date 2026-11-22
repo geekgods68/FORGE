@@ -8,6 +8,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { analyse, circuitDiagnostics, circuitOf } from './features/electronics/state';
+import { cosimFor } from './features/electronics/cosim';
 import { createEditorStore } from './app/store';
 import { createDefaultAssetStore } from './assets/assetStore';
 import './styles/index.css';
@@ -91,6 +92,46 @@ w.__forge = {
       issues: issues.map((i) => i.code),
     };
   },
+  /** Electronics co-simulation snapshot (read-only). */
+  cosim: () => {
+    const c = cosimFor(store);
+    const cs = c.cosim;
+    const u = c.ui.getState();
+    if (!cs) return { state: u.state, active: false };
+    return {
+      state: u.state,
+      active: true,
+      time: cs.now / 1e9,
+      physicsSteps: cs.k,
+      mcus: cs.mcus.map((m) => ({
+        label: m.part.label,
+        state: m.state,
+        serial: m.serial.map((x) => x.text).join(''),
+        errors: m.events.filter((e) => e.kind === 'error').map((e) => e.message),
+      })),
+      devices: cs.devices.map((d) => {
+        const x = d as unknown as {
+          measurements?: { geometricM: number | null; reportedM: number | null; echoUs: number }[];
+          targetRad?: number | null;
+          angleDeg?: number | null;
+          lastWidthUs?: number | null;
+          measure?: () => number | null;
+        };
+        return {
+          label: d.part.label,
+          type: d.part.device.type,
+          status: d.status(),
+          lastMeasurement: x.measurements?.[x.measurements.length - 1] ?? null,
+          geometricNow: x.measure ? x.measure() : null,
+          targetRad: x.targetRad ?? null,
+          angleDeg: x.angleDeg ?? null,
+          pulseUs: x.lastWidthUs ?? null,
+        };
+      }),
+      events: cs.events(50),
+    };
+  },
+  cosimSeries: (key: string) => cosimFor(store).cosim?.recorder.series(key) ?? null,
   /** World position of a drawn 3D circuit pin ("<partId>.<pin>"), or null. */
   pin3d: (key: string) => circuitDiagnostics.pins.get(key) ?? null,
   itemFacilityPosition: (itemId: string) => {

@@ -15,6 +15,7 @@ import { SimulationPanel } from '@/features/simulation/SimulationPanel';
 import { ElectronicsPanel } from '@/features/electronics/ElectronicsPanel';
 import { SchematicOverlay } from '@/features/electronics/SchematicView';
 import { simulationFor } from '@/features/simulation/controller';
+import { cosimFor } from '@/features/electronics/cosim';
 import { useEffect } from 'react';
 import { EditorStoreContext, useEditor, type EditorState } from './store';
 
@@ -83,6 +84,7 @@ function InspectorSwitch() {
 /** Simulation mode owns a physics session only while it is active. */
 function useSimulationLifecycle(store: StoreApi<EditorState>) {
   useEffect(() => {
+    cosimFor(store); // registers the electronics runtime with the simulation controller
     const c = simulationFor(store);
     let last = store.getState().workMode;
     const unsub = store.subscribe((s) => {

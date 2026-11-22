@@ -24,6 +24,7 @@ import { readBundle, writeBundle } from '@/assets/bundle';
 import { snapCommand, type SnapTarget } from '@/features/snap/snapLogic';
 import { checkInterference, createMechanicsService, type InterferenceResult } from '@forge/mechanics';
 import { createRoboticArmSimulationSample } from '@forge/physics';
+import { createArmElectronicsSample, createUltrasonicServoSample } from '@forge/electronics';
 import {
   assemblyCommands,
   AssemblyTemplateSchema,
@@ -296,6 +297,8 @@ export interface EditorState {
   setPrefetchZone(zoneId: string | null): void;
   setLibraryOpen(open: boolean): void;
   openSample(): void;
+  /** Phase 6 electronics samples. */
+  openElectronicsSample(kind: 'ultrasonic' | 'arm'): void;
   saveAssembly(groupId: string): boolean;
   insertAssembly(templateId: string): string | null;
   deleteAssembly(templateId: string): void;
@@ -784,6 +787,17 @@ export function createEditorStore(
         replace(createRoboticArmSimulationSample(), {
           tone: 'success',
           text: 'Opened the robotic-arm sample: a constrained assembly with a simulation setup (generic servo model; see Simulation mode for its assumptions).',
+        });
+      },
+
+      openElectronicsSample(kind) {
+        if (!confirmDiscard()) return;
+        replace(kind === 'ultrasonic' ? createUltrasonicServoSample() : createArmElectronicsSample(), {
+          tone: 'success',
+          text:
+            kind === 'ultrasonic'
+              ? 'Opened the Arduino ultrasonic servo gauge sample: circuit, firmware and physics setup (see Electronics and Simulation modes).'
+              : 'Opened the robotic arm with electronics: UNO firmware drives four servos on a separate 6 V supply with a shared ground.',
         });
       },
 

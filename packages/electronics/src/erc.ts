@@ -146,8 +146,12 @@ export function structuralChecks(def: ElectricalDefinition, nl: Netlist, scene?:
             nets: [],
           });
       }
-    // Floating digital inputs (nothing on the net can drive or pull it).
-    for (const p of pins.filter((x) => x.direction === 'input' && x.domain === 'digital')) {
+    // Floating digital inputs (nothing on the net can drive or pull it). The UNO's own pins are
+    // excluded: their modes are set by firmware (floating READS are flagged at runtime) and RESET
+    // has an on-board pull-up.
+    for (const p of pins.filter(
+      (x) => x.direction === 'input' && x.domain === 'digital' && d.type !== 'mcu',
+    )) {
       const n = nl.pinNet(part.id, p.id)!;
       const net = nl.nets[n]!;
       const driven = net.pins.some((np) => {

@@ -1214,6 +1214,55 @@ export class PhysicsSession {
     }
   }
 
+  // -- sensing (Phase 6) -------------------------------------------------------------
+  /**
+   * Cast a ray against the simulated world (current body poses, all colliders including the
+   * work surface). Returns the distance to the first hit along the unit direction, or null.
+   * Read-only: used by sensor models (e.g. the ultrasonic ranger); never changes the world.
+   */
+  castRay(
+    origin: V3,
+    direction: V3,
+    maxDistance: number,
+    excludeBodies: readonly string[] = [],
+  ): { distance: number; bodyId: string } | null {
+    if (!this.world || !(maxDistance > 0)) return null;
+    const len = lenV(direction);
+    if (!(len > 0)) return null;
+    const d = scaleV(direction, 1 / len);
+    const ray = new this.R.Ray(xyz(origin), xyz(d));
+    const excluded = new Set(excludeBodies);
+    // Exact per-collider test at the colliders' CURRENT poses (Rapier's query BVH is only
+    // refreshed by a step, so a just-moved obstacle would otherwise be missed). O(colliders)
+    // per ray — fine for sensor ray counts.
+    let best: { distance: number; bodyId: string } | null = null;
+    this.world.colliders.forEach((c) => {
+      const b = this.colliderBody.get(c.handle);
+      if (b !== undefined && excluded.has(b)) return;
+      const toi = c.castRay(ray, best ? best.distance : maxDistance, true);
+      if (toi >= 0 && (!best || toi < best.distance)) best = { distance: toi, bodyId: b ?? 'unknown' };
+    });
+    return best;
+  }
+
+  /**
+   * Move a FIXED or KINEMATIC body to a new position at runtime (an experiment input such as
+   * repositioning a test obstacle). Not persisted; reset restores the CAD pose. Dynamic bodies
+   * are refused (they move only under forces).
+   */
+  setBodyTranslation(bodyId: string, p: V3): { ok: true } | { ok: false; error: string } {
+    const rb = this.bodies.get(bodyId);
+    if (!rb) return { ok: false, error: `Body "${bodyId}" is not part of this run.` };
+    if (rb.isDynamic())
+      return { ok: false, error: 'Dynamic bodies cannot be moved directly; apply a force instead.' };
+    if (!p.every(Number.isFinite) || lenV(p) > GUARDS.maxDistance)
+      return { ok: false, error: 'Position out of range.' };
+    if (rb.isKinematic()) rb.setNextKinematicTranslation(xyz(p));
+    else rb.setTranslation(xyz(p), true);
+    this.world.propagateModifiedBodyPositionsToColliders();
+    return { ok: true };
+  }
+
   // -- queries ------------------------------------------------------------------------
   /** Current world pose of a physics body. */
   bodyPose(bodyId: string): { p: V3; q: Quat } | null {

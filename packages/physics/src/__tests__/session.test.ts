@@ -296,3 +296,29 @@ describe('solver error handling', () => {
     expect(s.step(2)).toBe(2);
   });
 });
+
+describe('sensing queries (Phase 6)', () => {
+  it('castRay returns the geometric distance to the first collider; moving a fixed body changes it', () => {
+    // A fixed 10 cm block centred at (0, 0.05, 0.5): its near face is at z = 0.45.
+    const { s } = blockSession(
+      {
+        ground: { enabled: false, heightM: 0, friction: 0.5, restitution: 0 },
+        bodies: [body('blk', { mode: 'fixed' })],
+      },
+      0.1,
+      0.05,
+    );
+    const id = s.model.bodyOfNode['blk']!;
+    expect(s.setBodyTranslation(id, [0, 0.05, 0.5]).ok).toBe(true);
+    const hit = s.castRay([0, 0.05, 0], [0, 0, 1], 4);
+    expect(hit?.bodyId).toBe(id);
+    expect(hit!.distance).toBeCloseTo(0.45, 6);
+    expect(s.castRay([0, 0.05, 0], [0, 0, 1], 4, [id])).toBeNull(); // excluded body
+    expect(s.castRay([0, 0.05, 0], [0, 0, -1], 4)).toBeNull(); // nothing behind
+    s.setBodyTranslation(id, [0, 0.05, 0.8]);
+    expect(s.castRay([0, 0.05, 0], [0, 0, 1], 4)!.distance).toBeCloseTo(0.75, 6);
+    s.step(1);
+    expect(s.castRay([0, 0.05, 0], [0, 0, 1], 4)!.distance).toBeCloseTo(0.75, 6);
+    s.reset();
+  });
+});
