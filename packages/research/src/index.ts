@@ -15,3 +15,5 @@ export * from './validate';
 export * from './exchange';
 export * from './stats';
 export * from './analysis';
+export * from './templates';
+export * from './verification';

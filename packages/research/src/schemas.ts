@@ -165,7 +165,7 @@ export const ProtocolSchema = z.object({
   }),
   durationS: finite.positive().max(3600),
   warmupS: finite.min(0).max(3600),
-  sampleRateHz: finite.positive().max(10_000),
+  sampleRateHz: finite.positive().max(1_000_000),
   /** Stop early when a recorded signal crosses a value (still a completed run). */
   stopConditions: z
     .array(z.object({ signal: z.string().min(1), op: z.enum(['>', '<']), value: finite }))

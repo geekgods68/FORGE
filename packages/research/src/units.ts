@@ -40,6 +40,16 @@ const BASE: Record<string, Unit> = {
   mV: { dims: D(2, 1, -3, -1), scale: 1e-3 },
   Ω: { dims: D(2, 1, -3, -2), scale: 1 },
   F: { dims: D(-2, -1, 4, 2), scale: 1 },
+  mF: { dims: D(-2, -1, 4, 2), scale: 1e-3 },
+  µF: { dims: D(-2, -1, 4, 2), scale: 1e-6 },
+  uF: { dims: D(-2, -1, 4, 2), scale: 1e-6 },
+  nF: { dims: D(-2, -1, 4, 2), scale: 1e-9 },
+  pF: { dims: D(-2, -1, 4, 2), scale: 1e-12 },
+  kΩ: { dims: D(2, 1, -3, -2), scale: 1e3 },
+  MΩ: { dims: D(2, 1, -3, -2), scale: 1e6 },
+  mH: { dims: D(2, 1, -2, -2), scale: 1e-3 },
+  µH: { dims: D(2, 1, -2, -2), scale: 1e-6 },
+  kHz: { dims: D(0, 0, -1), scale: 1e3 },
   H: { dims: D(2, 1, -2, -2), scale: 1 },
 };
 const SUP: Record<string, string> = { '²': '2', '³': '3', '⁻': '-', '¹': '1' };
