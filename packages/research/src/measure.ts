@@ -17,6 +17,8 @@ export interface Signal {
   t: Float64Array;
   v: Float64Array;
   source: string;
+  /** Piecewise-constant (event) signal: values hold until the next timestamp. */
+  hold?: boolean;
 }
 
 export interface Series {
@@ -25,6 +27,7 @@ export interface Series {
   unit: string;
   method: string;
   interpolated: number;
+  hold?: boolean;
 }
 
 /** Linear interpolation of s at time x; NaN outside the recorded range or across a missing sample. */
@@ -46,6 +49,22 @@ export function interpolate(s: { t: ArrayLike<number>; v: ArrayLike<number> }, x
   return a + ((b - a) * (x - t[lo]!)) / (t[hi]! - t[lo]!);
 }
 
+/** Value at time x: the recorded sample if one exists at x, else held (event signals) or interpolated. */
+export function sampleAt(s: Signal, x: number): { v: number; exact: boolean } {
+  const t = s.t;
+  let lo = 0;
+  let hi = t.length - 1;
+  if (hi < 0 || x < t[0]! || x > t[hi]!) return { v: NaN, exact: false };
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (t[m]! <= x) lo = m;
+    else hi = m;
+  }
+  if (t[lo] === x) return { v: s.v[lo]!, exact: true };
+  if (t[hi] === x) return { v: s.v[hi]!, exact: true };
+  return { v: s.hold ? s.v[lo]! : interpolate(s, x), exact: false };
+}
+
 export function resolveSeries(m: Measurement, signals: Map<string, Signal>): Series | { error: string } {
   if (m.source.kind === 'signal') {
     const s = signals.get(m.source.signal);
@@ -56,6 +75,7 @@ export function resolveSeries(m: Measurement, signals: Map<string, Signal>): Ser
       unit: s.unit,
       method: `recorded signal ${s.key} (${s.source})`,
       interpolated: 0,
+      hold: !!s.hold,
     };
   }
   const aliases = m.source.aliases;
@@ -81,9 +101,9 @@ export function resolveSeries(m: Measurement, signals: Map<string, Signal>): Ser
     v[i] = evalExpr(parsed.ast, (name) => {
       const s = signals.get(aliases[name]!)!;
       if (s === base) return base.v[i]!;
-      if (s.t[i] === x) return s.v[i]!;
-      interpolated++;
-      return interpolate(s, x);
+      const r = sampleAt(s, x);
+      if (!r.exact) interpolated++;
+      return r.v;
     });
   }
   // Prefer a named unit when the dimensions equal the first signal's unit.
@@ -93,7 +113,7 @@ export function resolveSeries(m: Measurement, signals: Map<string, Signal>): Ser
     t: base.t,
     v,
     unit,
-    method: `derived: ${m.source.expression}${interpolated ? `; ${interpolated} value(s) linearly interpolated onto ${base.key}'s timestamps` : ''}`,
+    method: `derived: ${m.source.expression}${interpolated ? `; ${interpolated} value(s) interpolated (linear; held for event signals) onto ${base.key}'s timestamps` : ''}`,
     interpolated,
   };
 }
@@ -152,10 +172,22 @@ export function computeOutcome(m: Measurement, signals: Map<string, Signal>): Ou
     return out(null, r.unit);
   }
   const n = v.length;
+  // Event (hold) signals integrate as steps; sampled signals by the trapezoidal rule.
+  const hold = 'hold' in r && r.hold;
   const trap = (f: (x: number) => number) => {
     let s = 0;
-    for (let i = 1; i < n; i++) s += ((f(v[i - 1]!) + f(v[i]!)) / 2) * (t[i]! - t[i - 1]!);
+    for (let i = 1; i < n; i++)
+      s += (hold ? f(v[i - 1]!) : (f(v[i - 1]!) + f(v[i]!)) / 2) * (t[i]! - t[i - 1]!);
     return s;
+  };
+  const edges = () => {
+    const rises: number[] = [];
+    const falls: number[] = [];
+    for (let i = 1; i < n; i++) {
+      if (v[i - 1]! < 0.5 && v[i]! >= 0.5) rises.push(t[i]!);
+      if (v[i - 1]! >= 0.5 && v[i]! < 0.5) falls.push(t[i]!);
+    }
+    return { rises, falls };
   };
   const span = t[n - 1]! - t[0]!;
   const thr = m.params.threshold;
@@ -241,6 +273,34 @@ export function computeOutcome(m: Measurement, signals: Map<string, Signal>): Ou
       let c = 0;
       for (let i = 1; i < n; i++) if (v[i - 1]! > thr! !== v[i]! > thr!) c++;
       return out(c, 'count', ` (threshold ${thr} ${r.unit})`);
+    }
+    case 'frequency': {
+      const { rises } = edges();
+      if (rises.length < 2) {
+        warnings.push('Fewer than two rising edges in the window.');
+        return out(null, 'Hz');
+      }
+      return out(
+        (rises.length - 1) / (rises[rises.length - 1]! - rises[0]!),
+        'Hz',
+        ' (rising edges of a 0/1 signal)',
+      );
+    }
+    case 'duty-cycle':
+      if (span <= 0) return out(null, '');
+      return out(trap((x) => (x >= 0.5 ? 1 : 0)) / span, '', ' (time fraction HIGH)');
+    case 'pulse-width': {
+      const { rises, falls } = edges();
+      const w: number[] = [];
+      for (const r0 of rises) {
+        const f = falls.find((x) => x > r0);
+        if (f !== undefined) w.push(f - r0);
+      }
+      if (!w.length) {
+        warnings.push('No complete HIGH pulse in the window.');
+        return out(null, 's');
+      }
+      return out(w.reduce((a, b) => a + b, 0) / w.length, 's', ` (mean of ${w.length} complete HIGH pulses)`);
     }
     case 'change-count': {
       let c = 0;

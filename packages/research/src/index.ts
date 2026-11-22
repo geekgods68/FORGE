@@ -10,3 +10,6 @@ export * from './measure';
 export * from './runner';
 export * from './store';
 export * from './scheduler';
+export * from './catalog';
+export * from './validate';
+export * from './exchange';

@@ -88,6 +88,9 @@ export const REDUCTIONS = [
   'count-above',
   'crossings',
   'change-count',
+  'frequency',
+  'duty-cycle',
+  'pulse-width',
 ] as const;
 export type Reduction = (typeof REDUCTIONS)[number];
 

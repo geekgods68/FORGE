@@ -359,6 +359,29 @@ export async function executeRun(
       if (session?.telemetry && session.telemetry.dropped)
         warnings.push(`${session.telemetry.dropped} physics telemetry samples dropped (buffer).`);
       for (const key of keep) {
+        if (key.startsWith('logic:') && cs) {
+          const net = cs.netlist.netByName(key.slice(6));
+          if (!net) continue;
+          // Exact event signal from the transition log: 1 = HIGH, 0 = LOW, NaN = Z/X (undefined).
+          const tr = cs.net.log.of(net.index);
+          const t = Float64Array.from([...tr.t.map((x) => x / 1e9), cs.now / 1e9]);
+          const v = Float64Array.from(
+            [...tr.level, tr.level[tr.level.length - 1] ?? 'Z'].map((l) =>
+              l === '1' ? 1 : l === '0' ? 0 : NaN,
+            ),
+          );
+          if (cs.net.log.dropped)
+            warnings.push(`Transition log wrapped (${cs.net.log.dropped} oldest transitions dropped).`);
+          signals.push({
+            key,
+            unit: '',
+            t,
+            v,
+            source: 'co-simulation transition log (exact event times)',
+            hold: true,
+          });
+          continue;
+        }
         const ch = cs?.recorder.channels.find((c) => c.key === key);
         if (ch && cs) {
           const s = cs.recorder.series(key)!;
