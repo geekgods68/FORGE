@@ -274,6 +274,21 @@ export function computeOutcome(m: Measurement, signals: Map<string, Signal>): Ou
       for (let i = 1; i < n; i++) if (v[i - 1]! > thr! !== v[i]! > thr!) c++;
       return out(c, 'count', ` (threshold ${thr} ${r.unit})`);
     }
+    case 'first-crossing': {
+      if (needThr()) return out(null, 's');
+      for (let i = 1; i < n; i++)
+        if ((v[i - 1]! - thr!) * (v[i]! - thr!) <= 0 && v[i] !== v[i - 1]) {
+          // Linear interpolation between the bracketing samples (reported as such).
+          const tc = t[i - 1]! + ((thr! - v[i - 1]!) * (t[i]! - t[i - 1]!)) / (v[i]! - v[i - 1]!);
+          return out(
+            tc - t[0]!,
+            's',
+            ` (first crossing of ${thr} ${r.unit}, linearly interpolated between samples)`,
+          );
+        }
+      warnings.push('The signal never crosses the threshold in the window.');
+      return out(null, 's');
+    }
     case 'frequency': {
       const { rises } = edges();
       if (rises.length < 2) {

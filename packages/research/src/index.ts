@@ -13,3 +13,5 @@ export * from './scheduler';
 export * from './catalog';
 export * from './validate';
 export * from './exchange';
+export * from './stats';
+export * from './analysis';

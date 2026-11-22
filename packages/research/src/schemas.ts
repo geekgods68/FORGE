@@ -91,6 +91,7 @@ export const REDUCTIONS = [
   'frequency',
   'duty-cycle',
   'pulse-width',
+  'first-crossing',
 ] as const;
 export type Reduction = (typeof REDUCTIONS)[number];
 
