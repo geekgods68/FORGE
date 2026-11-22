@@ -25,7 +25,7 @@ import {
   wilson,
 } from '../stats';
 import { MemoryRunDataStore } from '../store';
-import { armExperiment, measurement, variable } from './execution.test';
+import { armExperiment, measurement, variable } from './fixtures';
 
 let R: Rapier;
 beforeAll(async () => {

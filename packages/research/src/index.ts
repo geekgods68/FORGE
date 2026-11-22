@@ -17,3 +17,5 @@ export * from './stats';
 export * from './analysis';
 export * from './templates';
 export * from './verification';
+export * from './report';
+export * from './api';

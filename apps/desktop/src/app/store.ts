@@ -59,6 +59,7 @@ import {
   type ProjectRepository,
   type ProjectSummary,
 } from '@forge/persistence';
+import { createRcStudyProject, createUltrasonicStudyProject } from '@forge/research';
 import { createContext, useContext } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -238,7 +239,7 @@ export interface EditorState {
    * CAD editing; Electronics (circuit editing — the mechanical design is read-only); or
    * Simulation (physics + electronics runtime; the CAD model is read-only there).
    */
-  workMode: 'cad' | 'electronics' | 'simulation';
+  workMode: 'cad' | 'electronics' | 'simulation' | 'research';
   cameraPreset: CameraPreset | null;
   /** View-only exploded view of one assembly (never written to the model; 0 restores exactly). */
   explode: { assemblyId: string; factor: number } | null;
@@ -299,6 +300,8 @@ export interface EditorState {
   openSample(): void;
   /** Phase 6 electronics samples. */
   openElectronicsSample(kind: 'ultrasonic' | 'arm'): void;
+  /** Phase 7 research study samples (ultrasonic threshold controllers, RC charging circuit). */
+  openResearchSample(kind: 'ultrasonic-study' | 'rc-study'): void;
   saveAssembly(groupId: string): boolean;
   insertAssembly(templateId: string): string | null;
   deleteAssembly(templateId: string): void;
@@ -332,7 +335,7 @@ export interface EditorState {
   /** Zone change while walking: lifecycle follows, camera stays with the walker. */
   setCurrentZone(zoneId: string): void;
   setNavMode(mode: 'orbit' | 'walk'): void;
-  setWorkMode(mode: 'cad' | 'electronics' | 'simulation'): void;
+  setWorkMode(mode: 'cad' | 'electronics' | 'simulation' | 'research'): void;
   focusItem(itemId: string): void;
   runWorkspace<T extends WorkspaceCommandType>(
     type: T,
@@ -575,7 +578,9 @@ export function createEditorStore(
                 ? 'Simulation mode: the CAD design is read-only here; runs never change it. Setup changes are undoable.'
                 : workMode === 'electronics'
                   ? 'Electronics mode: edit the circuit (parts, wiring, firmware). The mechanical design is read-only here; every circuit change is undoable.'
-                  : 'CAD mode: the design shows its engineering pose again.',
+                  : workMode === 'research'
+                    ? 'Research mode: experiments run on copies of this project; the design itself is never changed by a run. Protocol edits are undoable in the Research panel.'
+                    : 'CAD mode: the design shows its engineering pose again.',
           },
         });
       },
@@ -798,6 +803,17 @@ export function createEditorStore(
             kind === 'ultrasonic'
               ? 'Opened the Arduino ultrasonic servo gauge sample: circuit, firmware and physics setup (see Electronics and Simulation modes).'
               : 'Opened the robotic arm with electronics: UNO firmware drives four servos on a separate 6 V supply with a shared ground.',
+        });
+      },
+
+      openResearchSample(kind) {
+        if (!confirmDiscard()) return;
+        replace(kind === 'ultrasonic-study' ? createUltrasonicStudyProject() : createRcStudyProject(), {
+          tone: 'success',
+          text:
+            kind === 'ultrasonic-study'
+              ? 'Opened the ultrasonic threshold study sample: the Phase 6 gauge with two alternative threshold firmwares for controlled comparison in Research mode.'
+              : 'Opened the RC charging study sample: a 5 V source charging a capacitor through a resistor, for circuit sweeps in Research mode.',
         });
       },
 

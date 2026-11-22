@@ -9,11 +9,13 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { analyse, circuitDiagnostics, circuitOf } from './features/electronics/state';
 import { cosimFor } from './features/electronics/cosim';
+import { configureResearch, researchFor } from './features/research/controller';
 import { createEditorStore } from './app/store';
 import { createDefaultAssetStore } from './assets/assetStore';
 import './styles/index.css';
 
 const namespace = import.meta.env.VITE_FORGE_STORAGE_NAMESPACE || 'forge';
+configureResearch({ storage: window.localStorage, namespace });
 const store = createEditorStore(
   new BrowserStorageProjectRepository(window.localStorage, namespace),
   window.localStorage,
@@ -129,6 +131,39 @@ w.__forge = {
         };
       }),
       events: cs.events(50),
+    };
+  },
+  /** Research document summary (read-only). */
+  research: () => {
+    const c = researchFor(store);
+    const d = c.engine.document;
+    const u = c.ui.getState();
+    return {
+      projectId: d.projectId,
+      experiments: d.experiments.map((e) => ({
+        id: e.id,
+        title: e.title,
+        revision: e.revision,
+        variables: e.variables.length,
+        measurements: e.measurements.length,
+        notes: e.notebook.length,
+        runs: c.engine.runsOf(e.id).map((r) => ({
+          id: r.id,
+          state: r.state,
+          condition: r.conditionLabel,
+          outcomes: Object.fromEntries(Object.entries(r.outcomes).map(([k, o]) => [k, o.value])),
+        })),
+      })),
+      selected: u.experimentId,
+      progress: u.progress && {
+        phase: u.progress.phase,
+        total: u.progress.total,
+        done: u.progress.done,
+        completed: u.progress.completed,
+        failed: u.progress.failed,
+      },
+      persistent: u.persistent,
+      integrity: c.engine.integrityReport(),
     };
   },
   cosimSeries: (key: string) => cosimFor(store).cosim?.recorder.series(key) ?? null,

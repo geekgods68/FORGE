@@ -16,6 +16,8 @@ import { ElectronicsPanel } from '@/features/electronics/ElectronicsPanel';
 import { SchematicOverlay } from '@/features/electronics/SchematicView';
 import { simulationFor } from '@/features/simulation/controller';
 import { cosimFor } from '@/features/electronics/cosim';
+import { ResearchPanel } from '@/features/research/ResearchPanel';
+import { ResearchOverlay } from '@/features/research/Workspace';
 import { useEffect } from 'react';
 import { EditorStoreContext, useEditor, type EditorState } from './store';
 
@@ -49,6 +51,7 @@ export function App({ store }: { store: StoreApi<EditorState> }) {
             </ErrorBoundary>
             <SnapPanel />
             <SchematicOverlay />
+            <ResearchOverlay />
             <WalkHud />
             <LibraryPanel />
           </main>
@@ -76,6 +79,8 @@ function InspectorSwitch() {
   const layout = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
   const simulating = useEditor((s) => s.workMode === 'simulation');
   const electronics = useEditor((s) => s.workMode === 'electronics');
+  const research = useEditor((s) => s.workMode === 'research');
+  if (research) return <ResearchPanel />;
   if (simulating) return <SimulationPanel />;
   if (electronics) return <ElectronicsPanel />;
   return layout ? <ItemInspector /> : <Inspector />;

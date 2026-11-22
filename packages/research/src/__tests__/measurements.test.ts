@@ -10,7 +10,7 @@ import { Campaign } from '../scheduler';
 import type { Experiment, Measurement } from '../schemas';
 import { loadVerified, MemoryRunDataStore } from '../store';
 import { validateExperiment } from '../validate';
-import { armExperiment, measurement, variable } from './execution.test';
+import { armExperiment, measurement, variable } from './fixtures';
 
 let R: Rapier;
 beforeAll(async () => {

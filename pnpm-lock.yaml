@@ -253,6 +253,9 @@ importers:
       '@forge/physics':
         specifier: workspace:*
         version: link:../../packages/physics
+      '@forge/research':
+        specifier: workspace:*
+        version: link:../../packages/research
       '@forge/vey-api':
         specifier: workspace:*
         version: link:../../packages/vey-api

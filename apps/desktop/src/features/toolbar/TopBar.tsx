@@ -5,6 +5,7 @@ import {
   Sparkles,
   Download,
   Footprints,
+  FlaskConical,
   FilePlus2,
   FolderOpen,
   Redo2,
@@ -95,6 +96,13 @@ export function TopBar() {
           testId="mode-simulation"
         >
           <Activity /> Simulation
+        </Toggle>
+        <Toggle
+          pressed={workMode === 'research'}
+          onClick={() => setWorkMode('research')}
+          testId="mode-research"
+        >
+          <FlaskConical /> Research
         </Toggle>
       </div>
       {view === 'facility' && (

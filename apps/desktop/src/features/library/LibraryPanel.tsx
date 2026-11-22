@@ -156,6 +156,7 @@ function Library() {
   const assemblies = useEditor((s) => s.assemblies);
   const openSample = useEditor((s) => s.openSample);
   const openElectronicsSample = useEditor((s) => s.openElectronicsSample);
+  const openResearchSample = useEditor((s) => s.openResearchSample);
   const insertAssembly = useEditor((s) => s.insertAssembly);
   const deleteAssembly = useEditor((s) => s.deleteAssembly);
   const exportAssemblyFile = useEditor((s) => s.exportAssemblyFile);
@@ -293,6 +294,23 @@ function Library() {
                   onClick={() => openElectronicsSample('arm')}
                 >
                   <CircuitBoard className="size-3.5 text-primary" /> Open sample: robotic arm with electronics
+                </button>
+                <button
+                  type="button"
+                  data-testid="library-open-ultrasonic-study"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={() => openResearchSample('ultrasonic-study')}
+                >
+                  <CircuitBoard className="size-3.5 text-primary" /> Open research sample: ultrasonic
+                  threshold study
+                </button>
+                <button
+                  type="button"
+                  data-testid="library-open-rc-study"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={() => openResearchSample('rc-study')}
+                >
+                  <CircuitBoard className="size-3.5 text-primary" /> Open research sample: RC charging circuit
                 </button>
                 <ModelInspect />
                 {customModels.length > 0 && (
