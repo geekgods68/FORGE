@@ -544,6 +544,89 @@ export function diagnosticsCases(): ElectricalValidationResult {
   });
 }
 
+export function largeNetworks(): ElectricalValidationResult {
+  // (1) 200-stage R-2R ladder driven by 1 V: node k sits at 2^-k V (exact, since every
+  // node looks into 2R to ground in parallel with the rest of the ladder = R).
+  const N = 200;
+  const b = new CircuitBuilder('R-2R ladder');
+  const v = b.dcSource(1);
+  const g = b.ground();
+  b.wire(`${v}.neg`, `${g}.gnd`);
+  let prev = `${v}.pos`;
+  const taps: string[] = [];
+  for (let k = 1; k <= N; k++) {
+    const rs = b.resistor(k === 1 ? 1e-6 : 1000);
+    const rsh = b.resistor(k === N ? 1000 : 2000);
+    b.wire(prev, `${rs}.p1`).wire(`${rs}.p2`, `${rsh}.p1`).wire(`${rsh}.p2`, `${g}.gnd`);
+    b.label(`T${k}`, `${rs}.p2`);
+    taps.push(`T${k}`);
+    prev = `${rs}.p2`;
+  }
+  const c1 = analogCircuitOf(b.build());
+  const r1 = op(c1.dc());
+  // The first tap is fed through 1 µΩ (a near-ideal link) into an R-to-ground ladder.
+  const vT1 = 1000 / (1000 + 1e-6);
+  let worst = 0;
+  for (let k = 2; k <= 40; k++) {
+    const vk = r1.v[c1.netlist.netByName(`T${k}`)!.index]!;
+    const ref = vT1 * 2 ** -(k - 1);
+    worst = Math.max(worst, Math.abs(vk - ref) / ref);
+  }
+  // (2) 30 × 30 resistor mesh (1,740 resistors) between a 5 V corner and a grounded corner:
+  // no closed form, so check Kirchhoff's current law at every node from the solved voltages.
+  const m = new CircuitBuilder('Mesh');
+  const n = 30;
+  const src = m.dcSource(5);
+  const gm = m.ground();
+  m.wire(`${src}.neg`, `${gm}.gnd`);
+  const node = (i: number, j: number) => `N${i}_${j}`;
+  const res: { id: string; a: string; b: string; r: number }[] = [];
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      for (const [di, dj] of [
+        [1, 0],
+        [0, 1],
+      ] as const) {
+        if (i + di >= n || j + dj >= n) continue;
+        const r = 100 + ((i * 31 + j * 17 + di) % 7) * 50;
+        const id = m.resistor(r);
+        m.label(node(i, j), `${id}.p1`).label(node(i + di, j + dj), `${id}.p2`);
+        res.push({ id, a: node(i, j), b: node(i + di, j + dj), r });
+      }
+  m.label(node(0, 0), `${src}.pos`);
+  m.label(node(n - 1, n - 1), `${gm}.gnd`);
+  const c2 = analogCircuitOf(m.build());
+  const t0 = performance.now();
+  const r2 = op(c2.dc());
+  const solveMs = performance.now() - t0;
+  const vOf = (name: string) => {
+    const net = c2.netlist.netByName(name);
+    return net ? (r2.v[net.index] ?? 0) : 0;
+  };
+  const kcl = new Map<string, number>();
+  for (const e of res) {
+    const i = (vOf(e.a) - vOf(e.b)) / e.r;
+    kcl.set(e.a, (kcl.get(e.a) ?? 0) + i);
+    kcl.set(e.b, (kcl.get(e.b) ?? 0) - i);
+  }
+  let resid = 0;
+  for (const [name, sum] of kcl)
+    if (name !== node(0, 0) && name !== node(n - 1, n - 1)) resid = Math.max(resid, Math.abs(sum));
+  return result({
+    id: 'large-networks',
+    title: 'Large networks: R-2R ladder (closed form) and a 1,740-resistor mesh (KCL)',
+    category: 'resistive',
+    conditions: `200-stage R-2R ladder (R = 1 kΩ) from 1 V; 30 × 30 mesh of 100–400 Ω resistors from 5 V (solve ${solveMs.toFixed(1)} ms).`,
+    solver: DC_SOLVER,
+    reference:
+      'Ladder: V(T_k) = V(T_1)·2^−(k−1), V(T_1) = R/(R + 1 µΩ) (every tap looks into R to ground). Mesh: Kirchhoff’s current law at every internal node, computed independently from the solved voltages.',
+    metrics: [
+      metric('ladder worst relative error (taps 2…40)', 0, worst, 1e-9, ''),
+      metric('mesh worst KCL residual', 0, resid, 1e-12, 'A'),
+    ],
+  });
+}
+
 export const ANALOG_VALIDATION_CASES = [
   seriesParallelDivider,
   currentSourceAndControlled,
@@ -556,4 +639,5 @@ export const ANALOG_VALIDATION_CASES = [
   mosfetSaturation,
   bjtActive,
   diagnosticsCases,
+  largeNetworks,
 ];

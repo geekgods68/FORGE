@@ -136,3 +136,51 @@ test('Phase 6 A: build a circuit in the schematic and in 3D — one explicit net
   expect((await circuit(page))!.issues).not.toContain('missing-current-limit');
   await expect(page.getByTestId('electronics-panel')).toContainText('does not show that a circuit is safe');
 });
+
+test('Phase 6 B: DC operating point and transient analysis from the Analysis tab', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await ready(page);
+  await page.getByTestId('mode-electronics').click();
+  for (const k of ['vsource', 'resistor', 'resistor', 'ground', 'capacitor']) {
+    await page.getByTestId('elec-prim-select').selectOption(k);
+    await page.getByTestId('elec-prim-add').click();
+  }
+  await expect
+    .poll(async () => (await circuit(page))?.parts.map((p) => p.label))
+    .toEqual(['V1', 'R1', 'R2', 'GND1', 'C1']);
+  await page.getByTestId('elec-schematic-toggle').click();
+  await page.getByTestId('elec-tool-wire').click();
+  const wire = async (a: string, b: string) => {
+    await page.getByTestId(`sch-pin-${a}`).click();
+    await page.getByTestId(`sch-pin-${b}`).click();
+  };
+  await wire('V1-pos', 'R1-p1');
+  await wire('R1-p2', 'R2-p1');
+  await wire('R2-p2', 'GND1-gnd');
+  await wire('V1-neg', 'GND1-gnd');
+  await wire('C1-p1', 'R2-p1');
+  await wire('C1-p2', 'GND1-gnd');
+  await expect.poll(async () => (await circuit(page))?.wires).toBe(6);
+  await page.getByTestId('schematic-close').click();
+
+  // R2 = 3 kΩ (typed in SI notation).
+  await page.getByTestId('elec-tool-select').click();
+  await page.getByTestId('elec-part-R2').click();
+  await page.getByTestId('elec-field-resistanceOhm').fill('3k');
+  await page.getByTestId('elec-field-resistanceOhm').press('Enter');
+
+  await page.getByTestId('elec-tab-analysis').click();
+  await page.getByTestId('elec-dc-run').click();
+  const mid = (await netWith(page, 'R2.p1'))!.name;
+  // 5 V · 3 kΩ / (1 kΩ + 3 kΩ) = 3.75 V (the capacitor is open at DC).
+  await expect(page.locator(`[data-testid="elec-dc-voltages"] tr[data-net="${mid}"]`)).toContainText(
+    '3.75 V',
+  );
+
+  await page.getByTestId('elec-tran-stop').fill('5m');
+  await page.getByTestId('elec-tran-stop').press('Enter');
+  await page.getByTestId('elec-tran-run').click();
+  await expect(page.getByTestId('elec-tran-plot')).toBeVisible();
+  await expect(page.getByTestId('electronics-panel')).toContainText('steps');
+});
