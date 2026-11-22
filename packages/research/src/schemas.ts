@@ -166,6 +166,8 @@ export const ProtocolSchema = z.object({
   stopConditions: z
     .array(z.object({ signal: z.string().min(1), op: z.enum(['>', '<']), value: finite }))
     .max(8),
+  /** Extra recorded signals kept with every run (measurement signals are always kept). */
+  recordSignals: z.array(z.string().min(1).max(200)).max(64).default([]),
   analysisPlan: Text(4000),
   randomizationPlan: Text(2000),
   notes: Text(4000),

@@ -28,6 +28,7 @@ export function baseExperiment(
       warmupS: 0,
       sampleRateHz: 60,
       stopConditions: [],
+      recordSignals: [],
       analysisPlan: '',
       randomizationPlan: '',
       notes: '',

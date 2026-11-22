@@ -5,3 +5,8 @@ export * from './expr';
 export * from './schemas';
 export * from './params';
 export * from './engine';
+export * from './design';
+export * from './measure';
+export * from './runner';
+export * from './store';
+export * from './scheduler';
