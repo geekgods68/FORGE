@@ -225,8 +225,8 @@ describe('persistence', () => {
     doc.schemaVersion = 2;
     const r = parseProjectFile(JSON.stringify(doc));
     expect(r).toMatchObject({ ok: true, migratedFrom: 2 });
-    if (r.ok) expect(r.project.schemaVersion).toBe(4);
-    expect(parseProjectFile(JSON.stringify({ ...doc, schemaVersion: 5 }))).toMatchObject({
+    if (r.ok) expect(r.project.schemaVersion).toBe(5);
+    expect(parseProjectFile(JSON.stringify({ ...doc, schemaVersion: 6 }))).toMatchObject({
       ok: false,
       error: { code: 'unsupported-version' },
     });

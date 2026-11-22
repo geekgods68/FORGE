@@ -33,7 +33,7 @@ describe('robotic-arm sample project', () => {
 
   it('is a valid current-schema project built from library components, with logical groups', () => {
     expect(p.name).toBe(ROBOT_ARM_SAMPLE_NAME);
-    expect(p.schemaVersion).toBe(4);
+    expect(p.schemaVersion).toBe(5);
     const root = p.scene.nodes[p.scene.rootId]!;
     expect(root.childIds.map((id) => p.scene.nodes[id]!.name)).toEqual([
       'Robotic arm',

@@ -1,0 +1,48 @@
+{
+  "environment": "Headless Chromium, SOFTWARE WebGL, MacBook Air M3 8 GB — frame timings indicative only",
+  "boxes-100": {
+    "realSeconds": 3,
+    "simulatedSeconds": 3.058,
+    "physicsStepMeanMs": 0.782,
+    "physicsStepMaxMs": 4.6,
+    "lagFrames": 0,
+    "frames": 183,
+    "frameIntervalMedianMs": 16.7,
+    "frameIntervalP95Ms": 16.7,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 31.6,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "phase": "paused"
+  },
+  "boxes-1000": {
+    "realSeconds": 3,
+    "simulatedSeconds": 1.55,
+    "physicsStepMeanMs": 7.845,
+    "physicsStepMaxMs": 12.3,
+    "lagFrames": 87,
+    "frames": 92,
+    "frameIntervalMedianMs": 33.4,
+    "frameIntervalP95Ms": 50,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 54.2,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "phase": "paused"
+  },
+  "arm": {
+    "realSeconds": 3,
+    "simulatedSeconds": 3.042,
+    "physicsStepMeanMs": 0.186,
+    "physicsStepMaxMs": 4.7,
+    "lagFrames": 0,
+    "frames": 181,
+    "frameIntervalMedianMs": 16.7,
+    "frameIntervalP95Ms": 16.7,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 42.6,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "phase": "paused"
+  }
+}

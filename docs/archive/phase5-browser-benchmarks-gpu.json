@@ -1,0 +1,48 @@
+{
+  "environment": "Chromium new headless, hardware WebGL (ANGLE/Metal), MacBook Air M3 8 GB",
+  "boxes-100": {
+    "realSeconds": 3,
+    "simulatedSeconds": 3.042,
+    "physicsStepMeanMs": 1.072,
+    "physicsStepMaxMs": 4.5,
+    "lagFrames": 0,
+    "frames": 182,
+    "frameIntervalMedianMs": 16.7,
+    "frameIntervalP95Ms": 16.7,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 30.8,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "phase": "paused"
+  },
+  "boxes-1000": {
+    "realSeconds": 3,
+    "simulatedSeconds": 2.225,
+    "physicsStepMeanMs": 9.438,
+    "physicsStepMaxMs": 14.7,
+    "lagFrames": 91,
+    "frames": 176,
+    "frameIntervalMedianMs": 16.7,
+    "frameIntervalP95Ms": 33.3,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 54.6,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "phase": "paused"
+  },
+  "arm": {
+    "realSeconds": 3,
+    "simulatedSeconds": 3.042,
+    "physicsStepMeanMs": 0.251,
+    "physicsStepMaxMs": 5,
+    "lagFrames": 0,
+    "frames": 182,
+    "frameIntervalMedianMs": 16.7,
+    "frameIntervalP95Ms": 16.7,
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "jsHeapMB": 40.2,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "phase": "paused"
+  }
+}

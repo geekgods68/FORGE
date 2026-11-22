@@ -9,14 +9,16 @@ import { validateGraph } from '../scene/graph';
 import { SceneGraphSchema } from '../scene/schemas';
 
 /**
- * FORGE project document, schema version 4 (Phase 4: mechanical assemblies, sketches,
- * parametric parts, imported models).
- * v1 (Phase 0), v2 (Phases 1–2) and v3 (Phase 3) documents are migrated on load.
- * v3 added the optional `component` reference; v4 adds `mechanical` on assembly nodes
- * (defaulted when absent) and the `sketch`, `part` and `model-instance` node kinds.
+ * FORGE project document, schema version 5 (Phase 5: simulation definition).
+ * v1 (Phase 0), v2 (Phases 1–2), v3 (Phase 3) and v4 (Phase 4) documents are migrated on load.
+ * v3 added the optional `component` reference; v4 added `mechanical` on assembly nodes
+ * (defaulted when absent) and the `sketch`, `part` and `model-instance` node kinds; v5 adds
+ * the optional `simulation` definition on the root node (absent in older files = none).
+ * The version is bumped so that a v4 build refuses a v5 file instead of silently dropping
+ * its simulation setup.
  */
-export const PROJECT_SCHEMA_VERSION = 4 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
+export const PROJECT_SCHEMA_VERSION = 5 as const;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4, 5] as const;
 
 export const ProjectSchema = z
   .object({

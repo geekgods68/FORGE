@@ -192,7 +192,7 @@ test('library → configure → ghost placement on the workbench → manipulate,
   ]);
   const text = readFileSync((await dl.path())!, 'utf8');
   const doc = JSON.parse(text);
-  expect(doc.schemaVersion).toBe(4);
+  expect(doc.schemaVersion).toBe(5);
   expect(
     Object.values(doc.scene.nodes as Record<string, ComponentNode>)
       .filter((n) => n.component)

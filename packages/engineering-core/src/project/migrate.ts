@@ -131,9 +131,10 @@ export function loadProjectDocument(doc: unknown): DocumentResult {
       ? { ok: true, project: v.project, migratedFrom: 1 }
       : invalid('Migrated project failed validation.', v.errors);
   }
-  if (version === 2 || version === 3) {
-    // v2 → v4 / v3 → v4: no structural change (v3 added the optional component reference;
-    // v4 adds assemblies' mechanical data — defaulted — and new node kinds).
+  if (version === 2 || version === 3 || version === 4) {
+    // v2/v3/v4 → v5: no structural change (v3 added the optional component reference;
+    // v4 added assemblies' mechanical data — defaulted — and new node kinds; v5 adds the
+    // optional simulation definition on the root, absent here).
     const v = validateProject({ ...(doc as object), schemaVersion: PROJECT_SCHEMA_VERSION });
     return v.ok
       ? { ok: true, project: v.project, migratedFrom: version }

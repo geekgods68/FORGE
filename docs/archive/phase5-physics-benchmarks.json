@@ -1,0 +1,153 @@
+{
+  "when": "2026-11-22T03:34:06.763Z",
+  "machine": {
+    "platform": "darwin",
+    "release": "25.5.0",
+    "cpu": "Apple M3",
+    "cores": 8,
+    "memoryGB": 8,
+    "node": "v24.2.0"
+  },
+  "engine": "rapier3d-compat 0.19.2",
+  "solver": {
+    "timestepS": 0.008333333333333333,
+    "substeps": 4,
+    "solverIterations": 8,
+    "maxCatchUpSteps": 16,
+    "lengthUnitM": 0.01
+  },
+  "note": "Node.js (no rendering). Fixed step = 4 sub-steps × 8 iterations. Boxes 50 mm, falling in layers onto the work surface and settling (contact-heavy). Single run per case.",
+  "rigidBodies": [
+    {
+      "bodies": 10,
+      "buildMs": 5.3,
+      "step": {
+        "meanMs": 0.149,
+        "p95Ms": 0.19,
+        "maxMs": 4.371
+      },
+      "realTimeFactor": 55.85,
+      "contactPairs": 10,
+      "telemetryKiB": 6188,
+      "telemetryChannels": 131,
+      "memory": {
+        "before": {
+          "heapMB": 40.7,
+          "arrayBuffersMB": 4.5,
+          "rssMB": 131.4
+        },
+        "after": {
+          "heapMB": 36.2,
+          "arrayBuffersMB": 6.8,
+          "rssMB": 177.9
+        }
+      },
+      "faulted": false
+    },
+    {
+      "bodies": 100,
+      "buildMs": 3.1,
+      "step": {
+        "meanMs": 0.786,
+        "p95Ms": 0.975,
+        "maxMs": 1.458
+      },
+      "realTimeFactor": 10.61,
+      "contactPairs": 100,
+      "telemetryKiB": 94,
+      "telemetryChannels": 1,
+      "memory": {
+        "before": {
+          "heapMB": 41.5,
+          "arrayBuffersMB": 6.8,
+          "rssMB": 179.7
+        },
+        "after": {
+          "heapMB": 63.1,
+          "arrayBuffersMB": 0.2,
+          "rssMB": 219.9
+        }
+      },
+      "faulted": false
+    },
+    {
+      "bodies": 500,
+      "buildMs": 14.7,
+      "step": {
+        "meanMs": 3.793,
+        "p95Ms": 4.051,
+        "maxMs": 4.769
+      },
+      "realTimeFactor": 2.2,
+      "contactPairs": 900,
+      "telemetryKiB": 94,
+      "telemetryChannels": 1,
+      "memory": {
+        "before": {
+          "heapMB": 55.7,
+          "arrayBuffersMB": 0.2,
+          "rssMB": 225.3
+        },
+        "after": {
+          "heapMB": 77.5,
+          "arrayBuffersMB": 0.3,
+          "rssMB": 247.6
+        }
+      },
+      "faulted": false
+    },
+    {
+      "bodies": 1000,
+      "buildMs": 26.6,
+      "step": {
+        "meanMs": 9.017,
+        "p95Ms": 13.431,
+        "maxMs": 15.06
+      },
+      "realTimeFactor": 0.92,
+      "contactPairs": 4781,
+      "telemetryKiB": 94,
+      "telemetryChannels": 1,
+      "memory": {
+        "before": {
+          "heapMB": 97.3,
+          "arrayBuffersMB": 0.3,
+          "rssMB": 248.5
+        },
+        "after": {
+          "heapMB": 157.8,
+          "arrayBuffersMB": 0.3,
+          "rssMB": 242.5
+        }
+      },
+      "faulted": false
+    }
+  ],
+  "arm": {
+    "bodies": 13,
+    "joints": 4,
+    "step": {
+      "meanMs": 0.154,
+      "p95Ms": 0.194,
+      "maxMs": 1.449
+    },
+    "telemetryKiB": 4078,
+    "telemetryChannels": 86,
+    "maxSamples": 6000
+  },
+  "resetCycles": {
+    "cycles": 200,
+    "gcForced": true,
+    "before": {
+      "heapMB": 37.3,
+      "arrayBuffersMB": 4.1,
+      "rssMB": 265.3
+    },
+    "after": {
+      "heapMB": 37.6,
+      "arrayBuffersMB": 4.1,
+      "rssMB": 286.1
+    },
+    "arrayBuffersGrowthMB": 0
+  }
+}

@@ -131,4 +131,10 @@ Acceptance (browser test `tests/end-to-end/mechanical.spec.ts`):
 6. Explode, then restore exactly. The model revision is unchanged.
 7. Save and reload. Joints, limits and pose are intact, and the DOF is still 4.
 
-**No actuation, servo dynamics, torque, payload or wiring behaviour is simulated or claimed.**
+**Phase 4 itself simulates no actuation.** Phase 5 adds dynamics on top of these mates without changing them: fixed mates weld bodies, revolute/prismatic mates become physics joints with the same limits and sign convention, and the arm sample carries a simulation setup (ROBOTICS_DYNAMICS.md, CAD_PHYSICS_BRIDGE.md). Wiring and electrical behaviour remain unsimulated (Phase 6).
+
+## Phase 5: assemblies in simulation
+
+- Simulation mode never edits the assembly: runs, forces and motor commands act on an isolated physics session; leaving the mode restores the CAD pose.
+- Mapping (CAD_PHYSICS_BRIDGE.md): fixed → welded rigid body; revolute/prismatic → joints with limits; ball/cylindrical/planar → joints whose limits are refused unless the user approves dropping them; suppressed mates ignored; driving constraints refused unless approved as ignored.
+- The project schema is v5 (simulation setup on the root node); v4 assemblies load unchanged.

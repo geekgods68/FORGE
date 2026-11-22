@@ -1,0 +1,44 @@
+# Physics validation (Phase 5)
+
+Reference cases with analytical or independently established results (`packages/physics/src/validation.ts`, run by `validation.test.ts` in every `pnpm test`). Tolerances state what the solver is expected to achieve; they are not machine precision. Full records (conditions, references, measured values, errors): `docs/archive/phase5-validation.json`.
+
+**Engine:** `@dimforge/rapier3d-compat` 0.19.2 (single-precision). **Solver (all cases):** fixed step 1/120 s, 4 sub-steps, 8 solver iterations, length unit 0.01 m, sleeping off. g = 9.80665 m/s².
+
+| Case                               | Conditions                                                        | Reference                           | Measured                                                     | Error        | Tolerance        | Result |
+| ---------------------------------- | ----------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------ | ------------ | ---------------- | ------ |
+| Free fall: height at 1 s           | sphere 1 kg from 10 m, no contact                                 | ½gt² → 5.096675 m                   | 5.095376 m                                                   | 1.3 mm       | 5 mm             | pass   |
+| Free fall: velocity at 1 s         | same                                                              | −gt = −9.80665 m/s                  | −9.806849                                                    | 2.0e-5 rel   | 1e-4 rel         | pass   |
+| Torque: bridge inertia I_yy        | box 0.2×0.1×0.05 m, 2 kg                                          | m(a²+c²)/12                         | identical                                                    | 0            | 1e-12 rel        | pass   |
+| Torque: ω after 1 s                | 0.01 N·m about a principal axis                                   | τt/I = 1.411765 rad/s               | 1.411746                                                     | 1.4e-5 rel   | 5e-3 rel         | pass   |
+| Torque: angle after 1 s            | same                                                              | ½(τ/I)t² = 0.705882 rad             | 0.706061                                                     | 2.5e-4 rel   | 5e-3 rel         | pass   |
+| Pendulum period                    | sphere r 0.02 m, 1 kg, massless link 1 m, θ₀ = 3°, revolute joint | 2π√(I_p/mgL)(1+θ₀²/16) = 2.006914 s | 2.006919 s                                                   | 2.6e-6 rel   | 5e-3 rel         | pass   |
+| Pendulum joint drift               | same, 12 s                                                        | 0                                   | 0.22 µm                                                      | —            | 0.1 mm           | pass   |
+| Revolute under gravity: drift      | L = 0.5 m, θ₀ = 60°, no damping, 5 s                              | 0                                   | 0.50 µm                                                      | —            | 0.1 mm           | pass   |
+| Revolute under gravity: energy     | same                                                              | conserved                           | −0.13 % after 5 s                                            | 1.3e-3 rel   | 2e-2 rel         | pass   |
+| Revolute: amplitude growth         | same                                                              | ≤ θ₀                                | 0                                                            | —            | 0.01 rad         | pass   |
+| Collision: momentum (e = 1, e = 0) | spheres 1 kg at 1 m/s → 2 kg at rest                              | 1 kg·m/s                            | 1.0000000, 0.9999989                                         | ≤ 1.1e-6 rel | 5e-3 rel         | pass   |
+| Collision: elastic v_B, KE         | same, e = 1                                                       | 2/3 m/s, 0.5 J                      | 0.6666667, 0.5000000                                         | ≤ 6e-8 rel   | 5e-2 rel         | pass   |
+| Collision: plastic KE              | same, e = 0                                                       | 1/6 J                               | 0.1666663                                                    | 2.1e-6 rel   | 5e-2 rel         | pass   |
+| Resting block: settling            | steel cube 0.1 m (7.87 kg) on the surface, 2 s                    | 0                                   | 0.28 mm penetration                                          | —            | 1 mm             | pass   |
+| Resting block: normal force        | same                                                              | m·g = 77.178 N                      | 77.178 N (corrected)                                         | 1.7e-8 rel   | 2e-2 rel         | pass   |
+| Sliding friction: distance         | box 1 kg, μ = 0.3, v₀ = 2 m/s                                     | v₀²/(2μg) = 0.67981 m               | 0.67969 m                                                    | 1.7e-4 rel   | 3e-2 rel         | pass   |
+| Sliding friction: stop time        | same (240 Hz telemetry)                                           | v₀/(μg) = 0.67981 s                 | 0.68333 s                                                    | 5.2e-3 rel   | 3e-2 rel         | pass   |
+| Arm t = 0 vs CAD                   | all body units, gravity off                                       | Phase 4 world matrices              | ≤ 1.2e-8 m, 0 rotation                                       | —            | 1e-6             | pass   |
+| Arm driven vs solver               | shoulder 30°, elbow −60°, 3 s                                     | Phase 4 solver pose                 | angles within 8e-7 rad; gripper 1.0e-7 m, rotation 1.3e-6    | —            | 2e-3 rad, 0.5 mm | pass   |
+| Arm speed limit                    | yaw 0 → 90° (vertical axis)                                       | ≤ 6.16 rad/s no-load                | peak within limit                                            | 0            | +2 %             | pass   |
+| Arm joint limit                    | wrist effort mode 1 N·m into +90°                                 | stays ≤ 90° + 0.01 rad              | 0 beyond                                                     | 0            | 0.01 rad         | pass   |
+| Arm effort saturation              | 1 kg payload, shoulder → 60°                                      | applied ≤ 0.922 N·m; stall; warning | max applied = limit; stalls ≥ 0.05 rad short; warning raised | —            | exact            | pass   |
+
+## Findings that shaped the defaults (measured, not assumed)
+
+1. **Solver iterations.** With 4 iterations (Rapier's default) the arm's light intermediate link (bracket + servo between heavier links) does not converge: its reported angular velocity disagreed with its motion by up to 11.9 rad/s, and a commanded yaw move overshot the speed limit (10.5 rad/s). With 8 or more iterations (or more sub-steps) the disagreement falls to the start-up lag (< 1 rad/s) and the speed stays below 6.16 rad/s. Default: 8. A runtime **solver-convergence** check now raises a warning when this happens (unit-tested with the 4 × 4 configuration).
+2. **Sub-steps.** One sub-step (120 Hz explicit servo control) made the yaw unstable (43 rad/s); 2 or more are stable. Default: 4.
+3. **Sleeping.** Rapier put the pendulum to sleep at its first turning point (zero velocity, not equilibrium). Sleeping is off by default and opt-in.
+4. **Penetration.** With Rapier's default length unit (1 m) the allowed contact error is 1 mm — large for 1–10 cm parts; a 7.87 kg cube rested 1.07 mm deep. Length unit 1 cm: 0.08–0.28 mm.
+5. **Reported contact force bias.** Rapier's contact impulse (and contact-force events) read **(N + 1)/N × m·g** in static equilibrium for N solver iterations (measured 1.25, 1.125, 1.0625 for N = 4, 8, 16). FORGE scales contact forces by N/(N + 1) — an **empirical, documented correction** used for contact-overload thresholds and the body inspector. It is validated for static contact only; dynamic impacts are not independently verified, so contact-force warnings remain approximate.
+
+## What this does and does not establish
+
+- The rigid-body integrator, joint constraints, Coulomb friction, restitution, the bridge's inertia and the joint-sign mapping agree with analytical references within the stated tolerances **for these conditions**.
+- Single-precision storage limits positions to roughly 1e-7 relative.
+- Not established: deformation, stress, fracture, fatigue, buckling, detailed contact mechanics (contact is per-collider, primitive/convex), friction between real material pairs, servo product dynamics, or any payload capacity of the physical robot. The simulation's overall status stays **approximate** (SIMULATION_VALIDITY.md).

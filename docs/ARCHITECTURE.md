@@ -1,4 +1,4 @@
-# FORGE architecture (Phases 1–4)
+# FORGE architecture (Phases 1–5)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -7,7 +7,7 @@
 | Language           | TypeScript 6.0.3 (strict)                                                                                                      |
 | Application        | React 19.3.1, Vite 8.3.8 (`@vitejs/plugin-react` 6.3.0)                                                                        |
 | 3D                 | three 0.187.0, @react-three/fiber 9.8.2, @react-three/drei 10.7.9 (OrbitControls, TransformControls, Grid, Edges, GizmoHelper) |
-| Physics foundation | @react-three/rapier 2.2.0 (bundles @dimforge/rapier3d-compat 0.19.2). Paused world, no simulation                              |
+| Physics            | @dimforge/rapier3d-compat 0.19.2 (used directly by `@forge/physics`; already in the lockfile via @react-three/rapier 2.2.0)    |
 | UI                 | Tailwind CSS 4.3.5, shadcn/ui-style copy-in components, lucide-react 1.76.0                                                    |
 | State / validation | zustand 5.1.0 (UI mirror only), zod 4.6.7                                                                                      |
 | Tooling            | pnpm 12.21.0 workspaces, ESLint 10.15 + typescript-eslint 8.73, Prettier 3.10                                                  |
@@ -301,9 +301,16 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 
   Each node keeps its transform-only `NodeView`, so the registry, gizmo and highlights are unchanged. Selected and hidden nodes are excluded, and undo works because the plan is a pure function of state. The facility view still renders per node.
 
+## Phase 5: physics simulation and robotics dynamics
+
+- **`@forge/physics`** (new, pure: no React or three; depends on core, components, mechanics and `@dimforge/rapier3d-compat` 0.19.2 — no new download): the CAD-to-physics bridge, mass properties, the generic actuator, `PhysicsSession` (Rapier world, fixed step, monitors), bounded telemetry and the numerical validation cases. Details: PHYSICS_ARCHITECTURE.md.
+- **Separation:** engineering state (engine) / simulation definition (root `simulation`, Zod, undoable `physics.*` commands) / runtime (session, never persisted, never in history) / results (telemetry exports).
+- **Project schema v5:** adds the optional root `simulation` field; v1–v4 migrate unchanged.
+- **Desktop:** a CAD/Simulation mode switch (`workMode`). In Simulation mode the gizmo, drag-to-snap and previews are off, the right panel is the Simulation panel, and `SimulationLayer` advances the session each frame and writes simulated poses onto the rendered objects (display only; restored on exit). Moving bodies are excluded from instanced batches while simulating. Rapier loads lazily on first entry.
+
 ## Security posture (local)
 
 - The CSP is same-origin, plus `'wasm-unsafe-eval'` for Rapier only. The e2e test verifies there are 0 requests to other origins.
 - The servers bind to 127.0.0.1.
-- `window.__forge` exposes **query methods only**: no execute, undo or replace.
+- `window.__forge` exposes **query methods only**: no execute, undo or replace (Phase 5 adds read-only `sim`, `simSeries`, `simUnitPosition`).
 - Imported model bytes stay in this browser profile's IndexedDB; bundles are verified by SHA-256 before anything is stored.

@@ -136,3 +136,39 @@ Phase 4 drew repeated components instanced in the project view only. Phase 4.1 r
 - every distinct material texture counted (RGBA8, ×4/3 with mipmaps), not only signs.
 
 It remains an estimate (no driver measurement exists in WebGL): no shader programs, driver padding, compressed formats or render targets.
+
+## Phase 5: physics simulation
+
+Machine: MacBook Air M3, 8 GB, macOS 26 (Darwin 25.5). Rapier 0.19.2, fixed step 1/120 s × 4 sub-steps × 8 iterations. Single short runs (the disk was below the 8 GB threshold for long benchmark suites, see PHASE_5_REPORT.md). Raw data: `docs/archive/phase5-physics-benchmarks.json`, `phase5-browser-benchmarks-software.json`, `phase5-browser-benchmarks-gpu.json`.
+
+### Physics step (Node.js, no rendering; `FORGE_BENCH=1 pnpm vitest run packages/physics/src/__tests__/benchmark.test.ts`)
+
+50 mm boxes falling in layers onto the work surface and settling (contact-heavy), 240 fixed steps:
+
+| Scene                                      | Step mean | p95     | max                 | Real-time factor @120 Hz | Contact pairs |
+| ------------------------------------------ | --------- | ------- | ------------------- | ------------------------ | ------------- |
+| 10 boxes                                   | 0.15 ms   | 0.19 ms | 4.4 ms (first step) | 56×                      | 10            |
+| 100 boxes                                  | 0.79 ms   | 0.98 ms | 1.5 ms              | 10.6×                    | 100           |
+| 500 boxes                                  | 3.79 ms   | 4.05 ms | 4.8 ms              | 2.2×                     | 900           |
+| 1,000 boxes                                | 9.0 ms    | 13.4 ms | 15.1 ms             | 0.92×                    | 4,781         |
+| Robotic arm (13 bodies, 4 actuated joints) | 0.15 ms   | 0.19 ms | 1.4 ms              | ≈ 54×                    | —             |
+
+Collision processing dominates the large cases (step time tracks contact pairs). Model build (bridge + world): 3–27 ms.
+
+### Memory and telemetry
+
+- Telemetry is a preallocated ring buffer: the arm's 86 channels × 6,000 samples = 4.1 MB; scenes with more than 32 moving bodies record only joint/world channels (94 KiB).
+- **200 run → pause → reset cycles** (arm, forced GC): JS heap +0.3 MB, ArrayBuffers +0 MB — no leak. Process RSS +21 MB. WASM linear memory is never returned to the OS, so RSS reflects Rapier's high-water mark; only the start and end of the 200 cycles were measured, so whether RSS plateaus was not established. (Before reusing the telemetry buffer on reset, 50 cycles without forced GC showed +20 MB of ArrayBuffers awaiting collection.)
+
+### In the browser (`tests/end-to-end/physics-performance.spec.ts`, 3 s of real time each)
+
+| Scene       | Renderer              | Frame interval median / p95 | Simulated / real time  | Physics step mean | Long tasks | JS heap |
+| ----------- | --------------------- | --------------------------- | ---------------------- | ----------------- | ---------- | ------- |
+| 100 boxes   | software WebGL        | 16.7 / 16.7 ms              | 3.06 s / 3 s           | 0.78 ms           | 0          | 31.6 MB |
+| 1,000 boxes | software WebGL        | 33.4 / 50 ms                | 1.55 s / 3 s (lagging) | 7.8 ms            | 0          | 54.2 MB |
+| Robotic arm | software WebGL        | 16.7 / 16.7 ms              | 3.04 s / 3 s           | 0.19 ms           | 0          | 42.6 MB |
+| 100 boxes   | GPU (ANGLE Metal, M3) | 16.7 / 16.7 ms              | 3.04 s / 3 s           | 1.07 ms           | 0          | —       |
+| 1,000 boxes | GPU (ANGLE Metal, M3) | 16.7 / 33.3 ms              | 2.23 s / 3 s (lagging) | 9.4 ms            | 0          | —       |
+| Robotic arm | GPU (ANGLE Metal, M3) | 16.7 / 16.7 ms              | 3.04 s / 3 s           | 0.25 ms           | 0          | —       |
+
+**Main-thread responsiveness:** the first 1,000-box run froze the page (frames grew to 250 ms because each frame ran up to 16 catch-up steps of ~10 ms). The display loop now also has a **12 ms physics budget per frame** (at least one step): the simulation runs slower than real time (reported as lag) and the UI stays interactive with no long tasks. Results are unaffected (every step is the same fixed step). Physics runs on the main thread; a worker is a possible later optimisation.

@@ -16,6 +16,7 @@
     "@forge/facility": "workspace:*",
     "@forge/mechanics": "workspace:*",
     "@forge/persistence": "workspace:*",
+    "@forge/physics": "workspace:*",
     "@forge/vey-api": "workspace:*",
     "@react-three/drei": "10.7.9",
     "@react-three/fiber": "9.8.2",

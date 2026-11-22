@@ -41,7 +41,7 @@ describe('BrowserStorageProjectRepository', () => {
   it('stores canonical, schema-versioned JSON', () => {
     const p = createProject();
     repo.save(p);
-    expect(JSON.parse(storage.getItem(`test:project:${p.id}`)!).schemaVersion).toBe(4); // current schema (v4)
+    expect(JSON.parse(storage.getItem(`test:project:${p.id}`)!).schemaVersion).toBe(5); // current schema (v5)
   });
 
   it('lists saved projects newest first and skips unreadable entries', () => {
@@ -79,7 +79,7 @@ describe('BrowserStorageProjectRepository', () => {
     storage.setItem(`test:project:${id}`, v1Text);
     const r = repo.load(id);
     expect(r).toMatchObject({ ok: true, migratedFrom: 1 });
-    if (r.ok) expect(r.value.schemaVersion).toBe(4); // current schema (v4)
+    if (r.ok) expect(r.value.schemaVersion).toBe(5); // current schema (v5)
   });
 
   it('refuses to save an invalid project and surfaces storage failures', () => {

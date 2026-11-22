@@ -1,0 +1,489 @@
+{
+  "engine": "rapier3d-compat 0.19.2",
+  "when": "2026-11-22T04:01:21.559Z",
+  "results": [
+    {
+      "id": "gravity-free-fall",
+      "title": "Free fall under constant gravity",
+      "category": "gravity",
+      "conditions": "Sphere r = 0.05 m, m = 1 kg, released from rest at y = 10 m; g = 9.80665 m/s²; no contact, no damping; t = 1 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "y(t) = y₀ − ½gt², v(t) = −gt (analytic). Expected integration error of the sub-stepped semi-implicit Euler scheme ≈ g·t·h_eff/2 = 1.28e-3 m with h_eff = Δt/(substeps·iterations).",
+      "metrics": [
+        {
+          "name": "height at t = 1 s",
+          "reference": 5.096675,
+          "measured": 5.095376014709473,
+          "error": 0.0012989852905276322,
+          "tolerance": 0.005,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "vertical velocity at t = 1 s",
+          "reference": -9.80665,
+          "measured": -9.806848526000977,
+          "error": 0.000020244018189406115,
+          "tolerance": 0.0001,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "rotation-torque",
+      "title": "Known torque on a body of known inertia",
+      "category": "rotation",
+      "conditions": "Box 0.2×0.1×0.05 m, m = 2 kg (uniform), no gravity; torque 0.01 N·m about +Y (a principal axis) for 1 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "I_yy = m(a² + c²)/12 = 7.08333e-3 kg·m² (closed form); α = τ/I; ω(t) = αt; θ(t) = ½αt².",
+      "metrics": [
+        {
+          "name": "bridge inertia I_yy",
+          "reference": 0.007083333333333335,
+          "measured": 0.007083333333333335,
+          "error": 0,
+          "tolerance": 1e-12,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "angular velocity at t = 1 s",
+          "reference": 1.4117647058823526,
+          "measured": 1.411745548248291,
+          "error": 0.000013569990793614135,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "rotation angle at t = 1 s",
+          "reference": 0.7058823529411763,
+          "measured": 0.7060608727393348,
+          "error": 0.00025290304739124714,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "pendulum-period",
+      "title": "Small-angle pendulum period",
+      "category": "pendulum",
+      "conditions": "Bob: sphere r = 0.02 m, m = 1 kg on a massless link L = 1 m (revolute joint to a fixed pivot); θ₀ = 3°, released from rest; 5 periods measured from upward zero crossings (1 kHz telemetry, interpolated).",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Physical pendulum T = 2π√(I_p/(m g L)) with I_p = m(L² + 2r²/5), finite-amplitude correction × (1 + θ₀²/16): 2.006914 s.",
+      "metrics": [
+        {
+          "name": "period",
+          "reference": 2.006913619227008,
+          "measured": 2.006918867857906,
+          "error": 0.0000026152749416132843,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "max joint drift",
+          "reference": 0,
+          "measured": 2.2450960599148334e-7,
+          "error": 2.2450960599148334e-7,
+          "tolerance": 0.0001,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "revolute-gravity",
+      "title": "Revolute joint under gravity (large swing)",
+      "category": "joint",
+      "conditions": "Pendulum L = 0.5 m, bob sphere r = 0.03 m, m = 1 kg, θ₀ = 60°, no damping, 5 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Ideal revolute joint: anchors coincide (drift 0) and, without damping, mechanical energy is conserved; the amplitude cannot exceed θ₀.",
+      "metrics": [
+        {
+          "name": "max anchor drift",
+          "reference": 0,
+          "measured": 4.956939910360069e-7,
+          "error": 4.956939910360069e-7,
+          "tolerance": 0.0001,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "mechanical energy after 5 s (per kg)",
+          "reference": 17.161637499999998,
+          "measured": 17.13968324116534,
+          "error": 0.0012792636387208237,
+          "tolerance": 0.02,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "amplitude above θ₀",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0.01,
+          "unit": "rad",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "collision-momentum",
+      "title": "Head-on collision: momentum and energy",
+      "category": "conservation",
+      "conditions": "Spheres r = 0.05 m; A: 1 kg at +1 m/s, B: 2 kg at rest; no gravity, no friction; restitution 1 (elastic) and 0 (plastic) runs; 1 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Momentum conserved in both runs (1 kg·m/s). Elastic: v_A = −1/3, v_B = 2/3 m/s, KE conserved. Plastic: common velocity 1/3 m/s, KE ratio 1/3.",
+      "metrics": [
+        {
+          "name": "momentum (elastic)",
+          "reference": 1,
+          "measured": 1.0000000298023224,
+          "error": 2.9802322387695312e-8,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "momentum (plastic)",
+          "reference": 1,
+          "measured": 0.999998927116394,
+          "error": 0.0000010728836059570312,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "v_B (elastic)",
+          "reference": 0.6666666666666666,
+          "measured": 0.6666666865348816,
+          "error": 2.9802322443206464e-8,
+          "tolerance": 0.05,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "kinetic energy (elastic)",
+          "reference": 0.5,
+          "measured": 0.5000000298023228,
+          "error": 5.960464566356904e-8,
+          "tolerance": 0.05,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "kinetic energy (plastic)",
+          "reference": 0.16666666666666666,
+          "measured": 0.16666630903899016,
+          "error": 0.0000021457660590029626,
+          "tolerance": 0.05,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "contact-resting",
+      "title": "Block resting on the work surface",
+      "category": "contact",
+      "conditions": "Steel cube 0.1 m (volume × handbook density = 7.870 kg) placed on the static surface y = 0; gravity on; 2 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Static equilibrium: no motion; total contact normal force = m·g.",
+      "metrics": [
+        {
+          "name": "settling displacement",
+          "reference": 0,
+          "measured": -0.0002848684787750272,
+          "error": 0.0002848684787750272,
+          "tolerance": 0.001,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "residual speed",
+          "reference": 0,
+          "measured": 5.367496925415276e-7,
+          "error": 5.367496925415276e-7,
+          "tolerance": 0.001,
+          "unit": "m/s",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "contact normal force (corrected N/(N+1))",
+          "reference": 77.1783355,
+          "measured": 77.17833677927652,
+          "error": 1.6575590926125715e-8,
+          "tolerance": 0.02,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "raw solver-reported contact force (bias, informational; expected (N+1)/N = 1.1250)",
+          "reference": 77.1783355,
+          "measured": 86.8256288766861,
+          "error": 0.12500001864753993,
+          "tolerance": 1,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "contact-sliding-friction",
+      "title": "Sliding block decelerated by Coulomb friction",
+      "category": "contact",
+      "conditions": "Box 0.2 × 0.04 × 0.2 m, 1 kg, on the surface with μ = 0.3 (both surfaces; Rapier averages), initial speed 2 m/s, 1.5 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Constant deceleration μg: stopping distance v₀²/(2μg) = 0.6798 m, stopping time v₀/(μg) = 0.6798 s.",
+      "metrics": [
+        {
+          "name": "stopping distance",
+          "reference": 0.6798108086519522,
+          "measured": 0.6796930432319641,
+          "error": 0.000173232638388933,
+          "tolerance": 0.03,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "stopping time",
+          "reference": 0.6798108086519522,
+          "measured": 0.6833333333333333,
+          "error": 0.005181624999999961,
+          "tolerance": 0.03,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "arm-kinematic-reference",
+      "title": "Robotic arm: simulated poses vs the Phase 4 kinematic solver",
+      "category": "arm",
+      "conditions": "VEYRIS arm sample with its simulation setup, gravity off. (1) At t = 0, every body unit; (2) after driving shoulder → 30°, elbow → −60° for 3 s, the gripper pose.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Assembly solver (Phase 4, residual ≤ 1e-7) world matrices at the same joint coordinates; measured joint coordinates equal the commanded targets.",
+      "metrics": [
+        {
+          "name": "t = 0 position error (all units)",
+          "reference": 0,
+          "measured": 1.1996128905220004e-8,
+          "error": 1.1996128905220004e-8,
+          "tolerance": 0.000001,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "t = 0 rotation-matrix error",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "shoulder angle after drive",
+          "reference": 0.5235987755982988,
+          "measured": 0.523599044904,
+          "error": 2.6930570118377517e-7,
+          "tolerance": 0.002,
+          "unit": "rad",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "elbow angle after drive",
+          "reference": -1.0471975511965976,
+          "measured": -1.0471967324824694,
+          "error": 8.187141282700594e-7,
+          "tolerance": 0.002,
+          "unit": "rad",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "gripper position vs solver",
+          "reference": 0,
+          "measured": 9.958374533602447e-8,
+          "error": 9.958374533602447e-8,
+          "tolerance": 0.0005,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "gripper rotation vs solver",
+          "reference": 0,
+          "measured": 0.000001273062523029615,
+          "error": 0.000001273062523029615,
+          "tolerance": 0.005,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "arm-actuator-limits",
+      "title": "Robotic arm: speed limit, joint limit and effort saturation",
+      "category": "arm",
+      "conditions": "(a) yaw commanded 0 → 90° (vertical axis); (b) wrist driven in effort mode at +1 N·m (above its 0.177 N·m cited limit) into its +90° limit for 1.5 s; (c) 1 kg payload on the gripper, shoulder commanded to 60° for 3 s.",
+      "solver": {
+        "timestepS": 0.008333333333333333,
+        "substeps": 4,
+        "solverIterations": 8,
+        "maxCatchUpSteps": 16,
+        "lengthUnitM": 0.01
+      },
+      "reference": "Generic servo model: speed ≤ no-load speed (torque–speed envelope); applied effort ≤ effort limit always; joint stays within limit ± tolerance; a load above stall torque saturates the actuator and the target is not reached.",
+      "metrics": [
+        {
+          "name": "yaw speed above the no-load limit",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "rad/s",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "wrist beyond +90° limit",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0.01,
+          "unit": "rad",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "wrist applied effort above its limit",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 1e-12,
+          "unit": "N·m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "shoulder applied effort above its limit",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 1e-12,
+          "unit": "N·m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "effort-limit warning raised (0 = yes)",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "shoulder stalls ≥ 0.05 rad short of 60°",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "rad",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@forge/physics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE physics runtime: CAD-to-physics bridge, Rapier rigid-body dynamics, actuator models, telemetry, overload monitors and numerical validation. Pure domain logic — no UI, no renderer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.19.2",
+    "@forge/components": "workspace:*",
+    "@forge/engineering-core": "workspace:*",
+    "@forge/mechanics": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

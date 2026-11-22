@@ -163,6 +163,14 @@ const SUMMARIES: Record<CommandType, string> = {
   'model.instance.create': 'Place an imported model (GLB/glTF) by its stored asset hash',
   'model.instance.interfaces.set':
     'Set the user-declared connection interfaces of an imported model instance',
+  'physics.simulation.create': 'Create the project simulation setup (definition only; no runtime state)',
+  'physics.simulation.delete': 'Remove the project simulation setup',
+  'physics.configure': 'Change simulation world and solver settings (gravity, timestep, ground, thresholds)',
+  'physics.body.set':
+    'Set the physical settings of one body (mode, mass source, collider, friction, velocity)',
+  'physics.joint.set': 'Set joint damping/friction and its actuator (limits, gains, mode, target)',
+  'physics.payload.set': 'Add or replace a payload point mass attached to a body',
+  'physics.payload.delete': 'Remove a payload',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 

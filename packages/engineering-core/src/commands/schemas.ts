@@ -17,6 +17,7 @@ import {
   SketchConstraintSchema,
   SketchEntitySchema,
 } from '../scene/schemas';
+import { PHYSICS_PAYLOAD_SCHEMAS } from './physics-schemas';
 
 /**
  * Command contract v1 for the engineering scene graph.
@@ -272,6 +273,7 @@ export const NODE_PAYLOAD_SCHEMAS = {
    */
   'scene.component.configure': configurePayload,
   ...MECHANICAL_PAYLOAD_SCHEMAS,
+  ...PHYSICS_PAYLOAD_SCHEMAS,
 } as const;
 
 export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
@@ -323,6 +325,13 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('geometry.feature.delete'),
   sub('model.instance.create'),
   sub('model.instance.interfaces.set'),
+  sub('physics.simulation.create'),
+  sub('physics.simulation.delete'),
+  sub('physics.configure'),
+  sub('physics.body.set'),
+  sub('physics.joint.set'),
+  sub('physics.payload.set'),
+  sub('physics.payload.delete'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -387,6 +396,13 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('geometry.feature.delete'),
   envelope('model.instance.create'),
   envelope('model.instance.interfaces.set'),
+  envelope('physics.simulation.create'),
+  envelope('physics.simulation.delete'),
+  envelope('physics.configure'),
+  envelope('physics.body.set'),
+  envelope('physics.joint.set'),
+  envelope('physics.payload.set'),
+  envelope('physics.payload.delete'),
   envelope('scene.batch'),
 ]);
 

@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** Phases 0–3 are complete and merged. Phase 4 (mechanical CAD, mates/constraints) and Phase 4.1 (assembly interaction completion: mate/constraint editors, drag-to-snap, imported-model interfaces) are implemented on `phase-4/mechanical-cad` and pending owner acceptance (docs/PHASE_4_REPORT.md). Phase 5 (simulation/robotics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done.
+- **Phase discipline:** Phases 0–4.1 are complete and merged into `main`. Phase 5 (physics simulation, robotics dynamics, actuators, telemetry, overload warnings; package `@forge/physics`) is implemented on `phase-5/physics-robotics` and pending owner acceptance (docs/PHASE_5_REPORT.md). Phase 6 (electronics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done. Simulation runs never mutate engineering state: setup changes are undoable `physics.*` commands; runtime lives in a `PhysicsSession`.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).

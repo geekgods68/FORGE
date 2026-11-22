@@ -22,12 +22,8 @@ import {
 import { createMemoryAssetStore, type AssetStore } from '@/assets/assetStore';
 import { readBundle, writeBundle } from '@/assets/bundle';
 import { snapCommand, type SnapTarget } from '@/features/snap/snapLogic';
-import {
-  checkInterference,
-  createMechanicsService,
-  createRoboticArmSample,
-  type InterferenceResult,
-} from '@forge/mechanics';
+import { checkInterference, createMechanicsService, type InterferenceResult } from '@forge/mechanics';
+import { createRoboticArmSimulationSample } from '@forge/physics';
 import {
   assemblyCommands,
   AssemblyTemplateSchema,
@@ -237,6 +233,8 @@ export interface EditorState {
   prefetchZoneId: string | null;
   /** Facility camera: orbit/overview (editing) or first-person walking (camera only). */
   navMode: 'orbit' | 'walk';
+  /** CAD editing, or Simulation mode (physics runtime; the CAD model is read-only there). */
+  workMode: 'cad' | 'simulation';
   cameraPreset: CameraPreset | null;
   /** View-only exploded view of one assembly (never written to the model; 0 restores exactly). */
   explode: { assemblyId: string; factor: number } | null;
@@ -328,6 +326,7 @@ export interface EditorState {
   /** Zone change while walking: lifecycle follows, camera stays with the walker. */
   setCurrentZone(zoneId: string): void;
   setNavMode(mode: 'orbit' | 'walk'): void;
+  setWorkMode(mode: 'cad' | 'simulation'): void;
   focusItem(itemId: string): void;
   runWorkspace<T extends WorkspaceCommandType>(
     type: T,
@@ -452,6 +451,7 @@ export function createEditorStore(
       assemblies: loadAssemblies(),
       connectionFocus: null,
       navMode: 'orbit',
+      workMode: 'cad',
       cameraPreset: null,
       explode: null,
       assetStore,
@@ -553,7 +553,27 @@ export function createEditorStore(
       requestCameraReset: () => set({ cameraResetRequest: get().cameraResetRequest + 1 }),
       requestFrameSelection: () => set({ frameRequest: get().frameRequest + 1 }),
 
+      setWorkMode(workMode) {
+        if (workMode === get().workMode) return;
+        if (workMode === 'simulation') {
+          // CAD-only interactions end: snap drags, gizmo drags, previews, exploded views, placement.
+          if (get().mateSnap) get().cancelMateSnap();
+          set({ mateSnapMode: false, previewScene: null, explode: null, conjure: null });
+        }
+        set({
+          workMode,
+          status: {
+            tone: 'info',
+            text:
+              workMode === 'simulation'
+                ? 'Simulation mode: the CAD design is read-only here; runs never change it. Setup changes are undoable.'
+                : 'CAD mode: the design shows its engineering pose again.',
+          },
+        });
+      },
+
       setMateSnapMode(on) {
+        if (on && get().workMode === 'simulation') return;
         if (!on && get().mateSnap) get().cancelMateSnap();
         set({
           mateSnapMode: on,
@@ -756,9 +776,9 @@ export function createEditorStore(
 
       openSample() {
         if (!confirmDiscard()) return;
-        replace(createRoboticArmSample(), {
+        replace(createRoboticArmSimulationSample(), {
           tone: 'success',
-          text: 'Opened the robotic-arm sample (manually positioned parts; no actuation, wiring or joint constraints are simulated).',
+          text: 'Opened the robotic-arm sample: a constrained assembly with a simulation setup (generic servo model; see Simulation mode for its assumptions).',
         });
       },
 

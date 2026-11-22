@@ -37,6 +37,9 @@ import { FrameMarkers, type MarkerItem } from '@/components3d/FrameMarkers';
 import { frameMarkerStats } from '@/components3d/markers';
 import { snapDiagnostics } from '@/features/snap/snapDiagnostics';
 import { SnapController } from './SnapDrag';
+import { SimulationLayer } from './SimulationLayer';
+import { simulationFor } from '@/features/simulation/controller';
+import { useStore } from 'zustand';
 import { bodyInterfaces } from '@forge/mechanics';
 
 const PhysicsLayer = lazy(() => import('./PhysicsLayer'));
@@ -67,6 +70,7 @@ export function EngineeringViewport() {
   // unless a subsystem (e.g. a future running simulation) requests continuous rendering.
   const continuous = useEditor((s) => s.continuousReasons.length > 0);
   const view = useEditor((s) => s.view);
+  const workMode = useEditor((s) => s.workMode);
   const lastDragEnd = useRef(0);
   const walking = useEditor((s) => s.navMode === 'walk' && s.view === 'facility');
   const pointerDownAt = useRef<{ x: number; y: number } | null>(null);
@@ -127,6 +131,7 @@ export function EngineeringViewport() {
             onDragEnd={() => (lastDragEnd.current = performance.now())}
           />
           <SelectedInterfaceMarkers registry={registry} />
+          {workMode === 'simulation' && <SimulationLayer registry={registry} />}
           <InterferenceHighlights />
           <DebugProbe />
         </Canvas>
@@ -167,7 +172,14 @@ function ProjectContent({ rootId }: { rootId: string }) {
   const graph = useEditor((s) => s.previewScene ?? s.project.scene);
   const selection = useEditor((s) => s.selection);
   const offsets = useContext(ExplodeContext);
-  const batches = useMemo(() => planComponentBatches(graph, selection), [graph, selection]);
+  const simulating = useEditor((s) => s.workMode === 'simulation');
+  const moving = useStore(simulationFor(useEditorStore()).ui, (s) => s.movingUnits);
+  // Bodies moved by the simulation are drawn individually (their poses change every frame).
+  const excluded = useMemo(
+    () => (simulating ? [...selection, ...moving] : selection),
+    [simulating, selection, moving],
+  );
+  const batches = useMemo(() => planComponentBatches(graph, excluded), [graph, excluded]);
   const instanced = useMemo(() => new Set(batches.flatMap((b) => b.ids)), [batches]);
   useEffect(() => {
     instancingStats.batches = batches.length;
@@ -441,6 +453,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
 
   const exploded = useEditor((s) => s.explode !== null);
   const snapMode = useEditor((s) => s.mateSnapMode);
+  const simulating = useEditor((s) => s.workMode === 'simulation');
   // Mate-driven bodies are placed by the solver (edit joints instead); the exploded view
   // is a display offset, so direct manipulation is paused while it is shown.
   const editable =
@@ -449,6 +462,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
     node.visible &&
     !exploded &&
     !snapMode && // drag-to-snap replaces the gizmo while its mode is on
+    !simulating && // Simulation mode: the CAD model is read-only (poses shown are simulated)
     !isMateDriven(scene, node.id) &&
     !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.
@@ -706,6 +720,22 @@ function DebugProbe() {
         return o ? o.getWorldPosition(new Vector3()).toArray() : null;
       },
       /** Drag-to-snap state (renderer diagnostics; read-only). */
+      /** Simulation-mode snapshot (read-only): phase, time, joints, events, telemetry summary. */
+      sim: () => {
+        const c = simulationFor(store);
+        const u = c.ui.getState();
+        return { ...u, sessionTime: c.session?.time ?? null, rapier: c.session?.rapierVersion ?? null };
+      },
+      /** One telemetry channel of the current run (oldest first). */
+      simSeries: (key: string) => {
+        const t = simulationFor(store).session?.telemetry.series(key);
+        return t ? { t: Array.from(t.t), v: Array.from(t.v) } : null;
+      },
+      /** Simulated world position of a body unit (display pose; never engineering state). */
+      simUnitPosition: (id: string) => {
+        const m = simulationFor(store).session?.unitWorldMatrix(id);
+        return m ? [m[12], m[13], m[14]] : null;
+      },
       snapState: () => {
         const st = store.getState();
         return {

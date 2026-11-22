@@ -11,10 +11,14 @@ import { StatusBar } from '@/features/toolbar/StatusBar';
 import { TopBar } from '@/features/toolbar/TopBar';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { EngineeringViewport } from '@/scenes/EngineeringViewport';
+import { SimulationPanel } from '@/features/simulation/SimulationPanel';
+import { simulationFor } from '@/features/simulation/controller';
+import { useEffect } from 'react';
 import { EditorStoreContext, useEditor, type EditorState } from './store';
 
 export function App({ store }: { store: StoreApi<EditorState> }) {
   useShortcuts(store);
+  useSimulationLifecycle(store);
   return (
     <EditorStoreContext.Provider value={store}>
       <div className="flex h-full flex-col">
@@ -66,5 +70,25 @@ function FacilitySidebar() {
 /** The inspector follows the active edit layer: workspace items in layout mode, engineering nodes otherwise. */
 function InspectorSwitch() {
   const layout = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
+  const simulating = useEditor((s) => s.workMode === 'simulation');
+  if (simulating) return <SimulationPanel />;
   return layout ? <ItemInspector /> : <Inspector />;
+}
+
+/** Simulation mode owns a physics session only while it is active. */
+function useSimulationLifecycle(store: StoreApi<EditorState>) {
+  useEffect(() => {
+    const c = simulationFor(store);
+    let last = store.getState().workMode;
+    const unsub = store.subscribe((s) => {
+      if (s.workMode === last) return;
+      last = s.workMode;
+      if (s.workMode === 'simulation') void c.enter();
+      else c.exit();
+    });
+    return () => {
+      unsub();
+      c.exit();
+    };
+  }, [store]);
 }

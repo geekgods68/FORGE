@@ -18,6 +18,7 @@ export function NumberField({
   unit,
   testId,
   min,
+  wideLabel,
 }: {
   label: string;
   value: number;
@@ -27,6 +28,8 @@ export function NumberField({
   unit?: string;
   testId?: string;
   min?: number;
+  /** Show a full-width text label and the unit beside the input (default: one-letter axis label). */
+  wideLabel?: boolean;
 }) {
   const shown = formatNumber(value, decimals);
   /** Text being edited; null when the field simply displays `shown`. */
@@ -50,7 +53,9 @@ export function NumberField({
 
   return (
     <label className="flex min-w-0 items-center gap-1 text-xs">
-      <span className="w-3 shrink-0 text-muted-foreground">{label}</span>
+      <span className={wideLabel ? 'shrink-0 text-muted-foreground' : 'w-3 shrink-0 text-muted-foreground'}>
+        {label}
+      </span>
       <input
         aria-label={`${label}${unit ? ` (${unit})` : ''}`}
         data-testid={testId}
@@ -71,6 +76,7 @@ export function NumberField({
           }
         }}
       />
+      {wideLabel && unit && <span className="shrink-0 text-muted-foreground">{unit}</span>}
     </label>
   );
 }

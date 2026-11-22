@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SimulationDefinitionSchema } from '../simulation/schemas';
 import { COMPONENT_CATEGORY_IDS } from '../categories';
 import { IdSchema, MAX_COORDINATE_M, QuatSchema } from '../schemas';
 
@@ -372,7 +373,8 @@ export const ModelRefSchema = z.object({
 });
 
 export const SceneNodeSchema = z.discriminatedUnion('kind', [
-  z.object({ ...nodeBase, kind: z.literal('root') }),
+  /** The project root. Phase 5: optionally carries the simulation definition (setup only, never runtime state). */
+  z.object({ ...nodeBase, kind: z.literal('root'), simulation: SimulationDefinitionSchema.optional() }),
   z.object({ ...nodeBase, kind: z.literal('group') }),
   z.object({ ...nodeBase, kind: z.literal('primitive'), geometry: PrimitiveGeometrySchema, color: hexColor }),
   z.object({

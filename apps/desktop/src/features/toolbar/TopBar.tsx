@@ -1,4 +1,5 @@
 import {
+  Activity,
   Building2,
   Sparkles,
   Download,
@@ -28,6 +29,8 @@ export function TopBar() {
   const workspaceHistory = useEditor((s) => s.workspaceHistory);
   const { setView, setEditLayer, setNavMode } = useEditor((s) => s);
   const navMode = useEditor((s) => s.navMode);
+  const workMode = useEditor((s) => s.workMode);
+  const setWorkMode = useEditor((s) => s.setWorkMode);
   const libraryOpen = useEditor((s) => s.libraryOpen);
   const setLibraryOpen = useEditor((s) => s.setLibraryOpen);
   const layoutLayer = view === 'facility' && editLayer === 'layout';
@@ -52,7 +55,7 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
       <div className="flex items-baseline gap-2">
         <span className="text-lg font-semibold tracking-[0.3em]">FORGE</span>
-        <span className="text-xs text-muted-foreground">Phase 4</span>
+        <span className="text-xs text-muted-foreground">Phase 5</span>
       </div>
       <span className="min-w-0 truncate text-sm" data-testid="project-name" title={name}>
         {name}
@@ -68,6 +71,22 @@ export function TopBar() {
         </Toggle>
         <Toggle pressed={view === 'facility'} onClick={() => setView('facility')} testId="view-facility">
           <Building2 /> Facility
+        </Toggle>
+      </div>
+      <div
+        className="flex items-center gap-1 rounded-md border border-border p-0.5"
+        role="group"
+        aria-label="Mode"
+      >
+        <Toggle pressed={workMode === 'cad'} onClick={() => setWorkMode('cad')} testId="mode-cad">
+          <Wrench /> CAD
+        </Toggle>
+        <Toggle
+          pressed={workMode === 'simulation'}
+          onClick={() => setWorkMode('simulation')}
+          testId="mode-simulation"
+        >
+          <Activity /> Simulation
         </Toggle>
       </div>
       {view === 'facility' && (
