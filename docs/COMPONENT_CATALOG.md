@@ -539,3 +539,21 @@ Unknown values are `null` and are shown as "unknown", never 0. No Phase 3 family
 - **Experimental fixtures:** Experiment base plate (A)
 - **Environmental test structures:** Test ramp (C)
 - **Modular research scene assets:** Scene pillar (A)
+
+## Electrical models and pin metadata (Phase 6)
+
+Phase 6 extends this catalogue (no second library): `electricalModelFor(definitionId)` in `@forge/components/src/electrical-pins.ts` gives 21 families an electrical device model and first-class pin metadata — role, direction, domain, voltage and current limits **with source and data status**, the connector interface and its mating descriptors, and the pin's local 3D position from the generated geometry. Unknown ratings remain `null`.
+
+| Family                                                     | Device model                       | Cited values used                                                                    | Unknown / assumed                                                  |
+| ---------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `arduino-uno-r3`                                           | UNO (Level 2 runtime)              | 5 V operating, 7–12 V VIN, 20 mA per I/O pin, 50 mA on 3.3 V (Arduino documentation) | Board current draw not modelled                                    |
+| `hc-sr04`                                                  | HC-SR04                            | 5 V, 15 mA, 10 µs trigger, 40 kHz, 2–400 cm, 15° (generic datasheet)                 | 38 ms no-echo pulse (commonly published, unverified); thresholds   |
+| `towerpro-sg90`, `towerpro-mg996r`                         | Servo                              | Supply ranges, SG90 10 µs deadband; stall torque/speed via Phase 5                   | Stall/running current; pulse–angle mapping (Servo library default) |
+| `micro/standard/high-torque-servo-generic`                 | Servo                              | —                                                                                    | Everything generic                                                 |
+| `resistor-axial`, `potentiometer`                          | Resistor / pot                     | Value from the selected parameter                                                    | Power rating; pot pin order                                        |
+| `ceramic-`/`electrolytic-capacitor`, `radial-inductor`     | C / L (ideal)                      | Value from the parameter                                                             | ESR, leakage, voltage/current ratings                              |
+| `diode-axial`, `led-5mm`, `bjt-to92`, `mosfet-to220`       | Shockley / Ebers–Moll / square law | —                                                                                    | Generic parameters; TO-92/TO-220 pin orders assumed                |
+| `microswitch`, `rotary-encoder-module`, `temp-sensor-to92` | Switch / encoder / linear sensor   | —                                                                                    | Contact resistance, PPR, transfer function generic                 |
+| `battery-pack`, `breadboard-power-module`                  | Voltage source                     | Nominal pack voltage (cells × 1.5 V or 3.7 V); 5 V rail                              | Internal resistance, capacity, current rating                      |
+
+Families without an entry have no electrical model yet and cannot be added to a circuit.

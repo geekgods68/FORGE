@@ -1,0 +1,1120 @@
+{
+  "engine": "forge-cosim 1; rapier3d-compat 0.19.2",
+  "when": "2026-11-22T08:53:47.233Z",
+  "results": [
+    {
+      "id": "dc-resistive",
+      "title": "Series/parallel resistors and a voltage divider (DC)",
+      "category": "resistive",
+      "conditions": "10 V ideal source; R1 = 1 kΩ in series with R2 = 2 kΩ ∥ R3 = 6 kΩ; divider R4 = 3 kΩ / R5 = 7 kΩ.",
+      "solver": "MNA, sparse LU (Markowitz + threshold pivoting); linear: one factorisation",
+      "reference": "Ohm’s law: R2∥R3 = 1.5 kΩ, V(MID) = 10·1.5/2.5 = 6 V, V(DIV) = 10·7/10 = 7 V; Kirchhoff’s current and voltage laws.",
+      "metrics": [
+        {
+          "name": "V(MID)",
+          "reference": 6,
+          "measured": 6,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "V(DIV)",
+          "reference": 7,
+          "measured": 6.999999999999999,
+          "error": 8.881784197001252e-16,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "source current",
+          "reference": 0.005,
+          "measured": 0.004999999999999999,
+          "error": 8.673617379884035e-19,
+          "tolerance": 1e-12,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "KCL residual at MID",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 1e-12,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "KVL residual (V1–R1–R2)",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "dc-sources",
+      "title": "Current source and controlled sources (DC)",
+      "category": "resistive",
+      "conditions": "I = 2 mA into 1 kΩ; VCVS gain 3 into 10 kΩ; VCCS 1 mS (out+ → out−) into 2 kΩ.",
+      "solver": "MNA, sparse LU (Markowitz + threshold pivoting); linear: one factorisation",
+      "reference": "V(IN) = 2 mA·1 kΩ = 2 V; V(OUT) = 3·2 V = 6 V; VCCS current 1 mS·2 V = 2 mA flows GND→GOUT through the source, so V(GOUT) = 2 mA·2 kΩ = 4 V.",
+      "metrics": [
+        {
+          "name": "V(IN)",
+          "reference": 2,
+          "measured": 2,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "V(OUT)",
+          "reference": 6,
+          "measured": 6,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "V(GOUT)",
+          "reference": 4,
+          "measured": 4,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "rc-charging",
+      "title": "RC charging (time constant)",
+      "category": "capacitive",
+      "conditions": "5 V step into R = 1 kΩ, C = 1 µF (τ = 1 ms), v_C(0) = 0; 0 … 5τ.",
+      "solver": "Trapezoidal, fixed step h = 10 µs (and 5 µs), first step backward Euler; BE comparison at 10 µs.",
+      "reference": "v_C(t) = 5·(1 − e^(−t/τ)); v_C(τ) = 5·(1 − 1/e) = 3.1606 V.",
+      "metrics": [
+        {
+          "name": "v_C(τ)",
+          "reference": 3.1606027941427883,
+          "measured": 3.1605266065296713,
+          "error": 0.00007618761311700695,
+          "tolerance": 0.001,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "max |error|, h = 10 µs",
+          "reference": 0,
+          "measured": 0.0002458807591099593,
+          "error": 0.0002458807591099593,
+          "tolerance": 0.002,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "max |error|, h = 5 µs",
+          "reference": 0,
+          "measured": 0.00006198214604113614,
+          "error": 0.00006198214604113614,
+          "tolerance": 0.001,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "error ratio (second-order ⇒ ≈ 4; first BE step limits it)",
+          "reference": 4,
+          "measured": 3.9669610495056733,
+          "error": 0.0330389504943267,
+          "tolerance": 2.5,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "backward Euler max |error|, h = 10 µs",
+          "reference": 0,
+          "measured": 0.009158855788387932,
+          "error": 0.009158855788387932,
+          "tolerance": 0.02,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "rc-discharging",
+      "title": "RC discharging (time-constant measurement)",
+      "category": "capacitive",
+      "conditions": "C = 1 µF charged to 5 V (initial condition), discharging through R = 1 kΩ to a 0 V source; 0 … 5τ.",
+      "solver": "Trapezoidal, h = 10 µs, first step backward Euler.",
+      "reference": "v_C(t) = 5·e^(−t/τ), τ = RC = 1 ms.",
+      "metrics": [
+        {
+          "name": "max |error|",
+          "reference": 0,
+          "measured": 0.00024588075910969565,
+          "error": 0.00024588075910969565,
+          "tolerance": 0.002,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "measured τ",
+          "reference": 0.001,
+          "measured": 0.0010000416252561501,
+          "error": 0.000041625256150127146,
+          "tolerance": 0.002,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "rl-step",
+      "title": "RL step response",
+      "category": "inductive",
+      "conditions": "10 V step into R = 100 Ω, L = 10 mH (τ = 100 µs), i_L(0) = 0; 0 … 5τ.",
+      "solver": "Trapezoidal, h = 1 µs, first step backward Euler.",
+      "reference": "i_L(t) = (V/R)·(1 − e^(−t/τ)).",
+      "metrics": [
+        {
+          "name": "max |error| of i_L",
+          "reference": 0,
+          "measured": 0.0000049176151821991344,
+          "error": 0.0000049176151821991344,
+          "tolerance": 0.00002,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "i_L(5τ)",
+          "reference": 0.09932620530009145,
+          "measured": 0.09932619985231132,
+          "error": 5.447780129785862e-9,
+          "tolerance": 0.00002,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "rlc-underdamped",
+      "title": "Series RLC step response (underdamped)",
+      "category": "rlc",
+      "conditions": "1 V step, R = 20 Ω, L = 1 mH, C = 1 µF; zero initial state; 0 … 1 ms.",
+      "solver": "Trapezoidal, h = 0.5 µs (≈ 400 steps per period), first step backward Euler.",
+      "reference": "v_C = 1 − e^(−αt)(cos ω_d t + (α/ω_d) sin ω_d t), α = R/2L, ω_d = √(1/LC − α²); first peak at π/ω_d with overshoot e^(−απ/ω_d).",
+      "metrics": [
+        {
+          "name": "max |error| of v_C",
+          "reference": 0,
+          "measured": 0.00012288171996813332,
+          "error": 0.00012288171996813332,
+          "tolerance": 0.002,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "first peak time",
+          "reference": 0.00010471975511965978,
+          "measured": 0.00010449999999999976,
+          "error": 0.002098506813818558,
+          "tolerance": 0.01,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "overshoot",
+          "reference": 0.3509198071784109,
+          "measured": 0.3508826614099938,
+          "error": 0.00010585258414392852,
+          "tolerance": 0.01,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "switched-rc",
+      "title": "Switched RC (pulse source with breakpoints)",
+      "category": "capacitive",
+      "conditions": "Ideal pulse 0 → 5 V at 1 ms, back to 0 V at 3 ms (zero rise/fall), R = 1 kΩ, C = 1 µF.",
+      "solver": "Trapezoidal, h = 10 µs; steps land exactly on the source breakpoints, backward Euler right after each.",
+      "reference": "Piecewise exponentials with τ = 1 ms; v_C(3 ms) = 5(1 − e^(−2)).",
+      "metrics": [
+        {
+          "name": "max |error| of v_C",
+          "reference": 0,
+          "measured": 0.00024588075911051444,
+          "error": 0.00024588075911051444,
+          "tolerance": 0.003,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "diode-resistor",
+      "title": "Diode–resistor operating point (nonlinear DC)",
+      "category": "nonlinear",
+      "conditions": "5 V source, 1 kΩ, Shockley diode Is = 1e-14 A, n = 1, T = 27 °C (V_T = 25.865 mV), gmin = 0.",
+      "solver": "Newton–Raphson with SPICE junction limiting (pnjlim); relTol 1e-6.",
+      "reference": "Closed form: I = (nV_T/R)·W((Is·R/nV_T)·e^((V + Is·R)/nV_T)) − Is (Lambert W).",
+      "metrics": [
+        {
+          "name": "diode current",
+          "reference": 0.004307112167617808,
+          "measured": 0.0043071121676182015,
+          "error": 9.142604457977922e-14,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "diode voltage",
+          "reference": 0.6928878323821923,
+          "measured": 0.6928878323821943,
+          "error": 1.9984014443252818e-15,
+          "tolerance": 0.000001,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "Newton iterations (≤ 50)",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "nmos-switch",
+      "title": "NMOS square-law operating points (saturation and triode)",
+      "category": "nonlinear",
+      "conditions": "VDD = 10 V, RD = 1 kΩ, Vth = 2 V, K = 2 mA/V², λ = 0; gate at 3 V (saturation) and 10 V (triode).",
+      "solver": "Newton–Raphson, level-1 square-law model.",
+      "reference": "Saturation: Id = K/2·(Vgs − Vth)² = 1 mA ⇒ Vd = 9 V. Triode: quadratic in Vds solved in closed form.",
+      "metrics": [
+        {
+          "name": "Id (saturation)",
+          "reference": 0.001,
+          "measured": 0.001,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "Vd (triode)",
+          "reference": 0.6101330809702503,
+          "measured": 0.6101330809702501,
+          "error": 2.220446049250313e-16,
+          "tolerance": 0.000001,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "npn-active",
+      "title": "NPN forward-active operating point (Ebers–Moll)",
+      "category": "nonlinear",
+      "conditions": "Is = 1e-14 A, βF = 100, βR = 1; RB = 100 kΩ from 5 V, RC = 1 kΩ from 10 V.",
+      "solver": "Newton–Raphson with junction limiting.",
+      "reference": "KCL with the transport model: Ib from the base resistor equals Is/βF·(e^(Vbe/VT) − 1); Ic ≈ βF·Ib in forward active.",
+      "metrics": [
+        {
+          "name": "Ib (resistor) vs Ib (model)",
+          "reference": 0.00004307112168612215,
+          "measured": 0.00004307112167611837,
+          "error": 2.3226198845312007e-10,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "Ic / Ib",
+          "reference": 100,
+          "measured": 100.00000002368138,
+          "error": 2.368138041219936e-10,
+          "tolerance": 0.001,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "forward active (Vce > 0.3 V)",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "solver-diagnostics",
+      "title": "Numerical failures are reported, not fabricated",
+      "category": "diagnostics",
+      "conditions": "Contradictory parallel sources; a shorted source; a current source into a capacitor; no reference; a floating MOSFET gate.",
+      "solver": "Topology checks before factorisation; singular-pivot detection in the LU.",
+      "reference": "Each circuit has no unique DC solution: the solver must refuse with a diagnostic naming the cause.",
+      "metrics": [
+        {
+          "name": "case 1 → voltage-source-loop",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "case 2 → shorted-source",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "case 3 → current-source-no-path",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "case 4 → missing-reference",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "case 5 → floating-control",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "large-networks",
+      "title": "Large networks: R-2R ladder (closed form) and a 1,740-resistor mesh (KCL)",
+      "category": "resistive",
+      "conditions": "200-stage R-2R ladder (R = 1 kΩ) from 1 V; 30 × 30 mesh of 100–400 Ω resistors from 5 V (solve 106.9 ms).",
+      "solver": "MNA, sparse LU (Markowitz + threshold pivoting); linear: one factorisation",
+      "reference": "Ladder: V(T_k) = V(T_1)·2^−(k−1), V(T_1) = R/(R + 1 µΩ) (every tap looks into R to ground). Mesh: Kirchhoff’s current law at every internal node, computed independently from the solved voltages.",
+      "metrics": [
+        {
+          "name": "ladder worst relative error (taps 2…40)",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "mesh worst KCL residual",
+          "reference": 0,
+          "measured": 4.515702048402126e-17,
+          "error": 4.515702048402126e-17,
+          "tolerance": 1e-12,
+          "unit": "A",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "truth-tables",
+      "title": "Gate truth tables and unknown-value propagation",
+      "category": "digital",
+      "conditions": "Two-input gates driven through all four input combinations; 100 ns per combination; 10 ns gate delay.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays.",
+      "reference": "Boolean definitions of AND/OR/NAND/NOR/XOR/XNOR; IEEE 1164-style dominance for unknown inputs.",
+      "metrics": [
+        {
+          "name": "AND truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "OR truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "NAND truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "NOR truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "XOR truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "XNOR truth table",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "Z/X dominance rules (6 cases)",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "propagation",
+      "title": "Propagation delay and inertial filtering",
+      "category": "digital",
+      "conditions": "Inverter chain with 10 + 20 + 30 ns delays; input falls at t = 1 µs. A 5 ns pulse into a 10 ns buffer.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays.",
+      "reference": "Output of the third inverter changes exactly 60 ns after the input; a pulse shorter than an inertial delay produces no output transition.",
+      "metrics": [
+        {
+          "name": "chain output edge time",
+          "reference": 1060,
+          "measured": 1060,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "ns",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "5 ns glitch filtered by the 10 ns buffer",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "sequential",
+      "title": "Counter and D flip-flop (toggle) on a 1 MHz clock",
+      "category": "digital",
+      "conditions": "1 MHz, 50 % clock; 4-bit counter (5 ns delay, reset low); D flip-flop with Q̅ fed back to D.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays.",
+      "reference": "The counter increments on each rising edge after start-up (19 edges by 19.5 µs → 19 mod 16 = 3); the toggle flip-flop divides the clock by two (2 µs period).",
+      "metrics": [
+        {
+          "name": "counter value",
+          "reference": 3,
+          "measured": 3,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "toggle output period",
+          "reference": 2000,
+          "measured": 2000,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "ns",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "pwm-duty",
+      "title": "PWM duty cycle",
+      "category": "digital",
+      "conditions": "Ideal PWM sources at 490.2 Hz/30 %, 1 kHz/75 % and 50 Hz/7.45 % (≈ 1.49 ms servo pulse); 10 periods.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays.",
+      "reference": "High time / total time equals the configured duty (edge times rounded to 1 ns).",
+      "metrics": [
+        {
+          "name": "duty at 490.2 Hz",
+          "reference": 0.3,
+          "measured": 0.30000004704,
+          "error": 4.7040000006326466e-8,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "duty at 1000 Hz",
+          "reference": 0.75,
+          "measured": 0.75,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "duty at 50 Hz",
+          "reference": 0.0745,
+          "measured": 0.0745,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "contention",
+      "title": "Output contention and floating inputs are explicit",
+      "category": "digital",
+      "conditions": "Two push-pull clocks (50 % and 25 % duty) tied together for 5 µs; an inverter with an unconnected input.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays.",
+      "reference": "Conflicting strong drivers resolve to X and raise contention events; an undriven input is Z (not assumed LOW or HIGH), so the inverter output is X.",
+      "metrics": [
+        {
+          "name": "net resolves to X while drivers disagree",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "contention events raised",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "floating input reads Z",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "inverter of a floating input outputs X",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "ad-boundary",
+      "title": "Digital output → analog divider → digital input thresholds",
+      "category": "digital",
+      "conditions": "Logic output V_OH = 5 V behind 10 Ω; divider R1 = 10 kΩ, R2 = 1 k / 10 k / 30 kΩ; reader thresholds 0.3·5 V and 0.7·5 V.",
+      "solver": "Discrete-event scheduler, integer-ns time, (time, sequence) ordering; inertial gate delays. Mixed nets solved by MNA (quasi-static).",
+      "reference": "Tap voltage 5·R2/(10 Ω + R1 + R2); level 0 below 1.5 V, 1 above 3.5 V, X between — a wire never implies a level.",
+      "metrics": [
+        {
+          "name": "tap voltage (R2 = 10 kΩ)",
+          "reference": 2.498750624687656,
+          "measured": 2.498750624687656,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "V",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "2.50 V reads X (between thresholds)",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "3.75 V reads 1",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "0.45 V reads 0",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "embedded-io",
+      "title": "Known input/output program: arithmetic, pin mapping, delays",
+      "category": "embedded",
+      "conditions": "UNO (USB), sketch computes Σi² (i = 1…10), a 16-bit overflow and integer division; 5 pulses on D12; D13 toggled every 250 ms.",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler.",
+      "reference": "C/AVR semantics: Σ = 385, 30000 + 10000 = −25536 in int16, 7/2 + 7%2 = 4. delay(250) twice per cycle → 500 ms period plus the modelled call costs (≈ 4 µs per digitalWrite).",
+      "metrics": [
+        {
+          "name": "printed 385, −25536, 4",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "D12 pulses (pin mapping D12 → its net)",
+          "reference": 5,
+          "measured": 5,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "D13 period",
+          "reference": 500000000,
+          "measured": 500011750,
+          "error": 11750,
+          "tolerance": 50000,
+          "unit": "ns",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "embedded-timing",
+      "title": "Timer resolution and UART timing",
+      "category": "embedded",
+      "conditions": "micros() around delay(10); millis() after it; 20 bytes printed at 9600 baud.",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler.",
+      "reference": "micros() has 4 µs resolution on a 16 MHz UNO (Arduino reference), so the delta is a multiple of 4 near 10 000 µs; UART: 10 bits per byte.",
+      "metrics": [
+        {
+          "name": "micros() delta is a multiple of 4 µs",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "micros() delta over delay(10)",
+          "reference": 10000,
+          "measured": 10000,
+          "error": 0,
+          "tolerance": 40,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "millis() after setup",
+          "reference": 10,
+          "measured": 10,
+          "error": 0,
+          "tolerance": 1,
+          "unit": "ms",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "UART completion time, 20 bytes @ 9600",
+          "reference": 0.020833333333333332,
+          "measured": 0.020834833,
+          "error": 0.0000014996666666683423,
+          "tolerance": 0.0001,
+          "unit": "s",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "sensor-echo",
+      "title": "HC-SR04: known distance → echo duration; range limits; no-echo timeout",
+      "category": "sensor",
+      "conditions": "Stub world: a plane at a set distance in front of the sensor (exact geometry). 20 °C, noise off. Firmware triggers with 10 µs and reads pulseIn(…, 60 ms).",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler. HC-SR04 model: centre + 6 cone rays (nearest hit).",
+      "reference": "Echo width = 2d / c with c = 331.3 + 0.606·T = 343.42 m/s; outside 2–400 cm the module returns its no-echo pulse (38 ms, configured).",
+      "metrics": [
+        {
+          "name": "echo width at 0.500 m",
+          "reference": 2911.8863199580687,
+          "measured": 2911.8863199580687,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "echo width at 1.234 m",
+          "reference": 7186.535437656514,
+          "measured": 7186.535437656514,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "pulseIn() reading at 0.500 m (integer µs)",
+          "reference": 2912,
+          "measured": 2912,
+          "error": 0,
+          "tolerance": 1,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "beyond 4 m → no-echo pulse",
+          "reference": 38000,
+          "measured": 38000,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "inside 2 cm → no-echo pulse",
+          "reference": 38000,
+          "measured": 38000,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "no reflector → no-echo pulse",
+          "reference": 38000,
+          "measured": 38000,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "the firmware reads 38 000 µs for the no-echo pulse",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "noise off: identical repeated readings",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "sensor-noise",
+      "title": "HC-SR04 noise model: unbiased, configured σ, reproducible",
+      "category": "sensor",
+      "conditions": "Plane at 1.000 m, σ = 5 mm, 308 measurements (seed 1).",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler.",
+      "reference": "Gaussian noise (Box–Muller on the seeded generator): sample mean ≈ 1 m, sample σ ≈ 5 mm; the same seed gives the same sequence.",
+      "metrics": [
+        {
+          "name": "sample mean",
+          "reference": 1,
+          "measured": 1.0002064952345906,
+          "error": 0.00020649523459059793,
+          "tolerance": 0.0009547043234472846,
+          "unit": "m",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "sample σ",
+          "reference": 0.005,
+          "measured": 0.0049603777451965505,
+          "error": 0.007924450960689923,
+          "tolerance": 0.2,
+          "unit": "",
+          "relative": true,
+          "pass": true
+        },
+        {
+          "name": "same seed → same readings",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "servo-pwm",
+      "title": "PWM command → servo target (Servo library mapping, pulse decoding)",
+      "category": "actuator",
+      "conditions": "write(0), write(90), write(180) at 100 ms intervals; 50 Hz frames; servo model 544–2400 µs over 180°.",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler.",
+      "reference": "Servo library: µs = map(angle, 0, 180, 544, 2400) (integer) → 544, 1472, 2400 µs; decoded angle = (µs − 544)/(2400 − 544)·180.",
+      "metrics": [
+        {
+          "name": "pulse for write(0)",
+          "reference": 544,
+          "measured": 544,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "pulse for write(90)",
+          "reference": 1472,
+          "measured": 1472,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "pulse for write(180)",
+          "reference": 2400,
+          "measured": 2400,
+          "error": 0,
+          "tolerance": 0.000001,
+          "unit": "µs",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "decoded angle for 1472 µs",
+          "reference": 90,
+          "measured": 90,
+          "error": 0,
+          "tolerance": 1e-9,
+          "unit": "°",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "servo-physics",
+      "title": "Servo command → Phase 5 joint motion within the actuator limits; repeated cycles",
+      "category": "actuator",
+      "conditions": "Ultrasonic servo gauge sample (SG90-cited limits, generic dynamics); target moved from 0.25 m to 0.40 m at t = 2 s.",
+      "solver": "UNO Level 2 runtime, op cost 250 ns, integer-ns event scheduler. Rapier 0.19.2 at 120 Hz × 4 sub-steps.",
+      "reference": "The servo only sets the joint target; the Phase 5 actuator (speed-limited setpoint + PID, effort-saturated) produces the motion: the joint settles near the target and never exceeds the cited no-load speed.",
+      "metrics": [
+        {
+          "name": "settled joint error before the move",
+          "reference": 0,
+          "measured": 0.000003888911233526408,
+          "error": 0.000003888911233526408,
+          "tolerance": 1.5,
+          "unit": "°",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "settled joint error after the move",
+          "reference": 0,
+          "measured": 0.000008698391635530745,
+          "error": 0.000008698391635530745,
+          "tolerance": 1.5,
+          "unit": "°",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "peak joint speed ≤ speed limit",
+          "reference": 0,
+          "measured": 0,
+          "error": 0,
+          "tolerance": 0.5235987755982988,
+          "unit": "rad/s",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "joint moved after the target moved (peak speed > 0.3 rad/s)",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        },
+        {
+          "name": "sensor → controller → actuator cycles continued (≥ 25 more measurements)",
+          "reference": 1,
+          "measured": 1,
+          "error": 0,
+          "tolerance": 0,
+          "unit": "",
+          "relative": false,
+          "pass": true
+        }
+      ],
+      "pass": true
+    }
+  ]
+}

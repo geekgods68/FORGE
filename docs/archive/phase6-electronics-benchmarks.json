@@ -1,0 +1,126 @@
+{
+  "when": "2026-11-22T08:55:04.025Z",
+  "machine": {
+    "platform": "darwin 25.5.0",
+    "cpu": "Apple M3",
+    "cores": 8,
+    "memGB": 8
+  },
+  "note": "Single short runs; wall-clock medians where repeated. Indicative, not a performance guarantee.",
+  "dc": [
+    {
+      "components": 10,
+      "nets": 9,
+      "buildMs": 10.52,
+      "dcSolveMedianMs": 0.053
+    },
+    {
+      "components": 100,
+      "nets": 62,
+      "buildMs": 1.69,
+      "dcSolveMedianMs": 0.62
+    },
+    {
+      "components": 500,
+      "nets": 276,
+      "buildMs": 5.96,
+      "dcSolveMedianMs": 12.298
+    },
+    {
+      "components": 1000,
+      "nets": 529,
+      "buildMs": 8.48,
+      "dcSolveMedianMs": 20
+    }
+  ],
+  "transient": [
+    {
+      "components": 100,
+      "steps": 1000,
+      "wallMs": 19.6,
+      "stepsPerSecond": 51146
+    },
+    {
+      "components": 1000,
+      "steps": 1000,
+      "wallMs": 327.7,
+      "stepsPerSecond": 3051
+    }
+  ],
+  "nonlinearDc": {
+    "leds": 50,
+    "dcSolveMedianMs": 0.65,
+    "iterations": 2
+  },
+  "digital": {
+    "gates": 200,
+    "simulatedMs": 2,
+    "events": 804399,
+    "wallMs": 440.1,
+    "eventsPerSecond": 1827743,
+    "transitionLogBytes": 1050000
+  },
+  "cosim": [
+    {
+      "label": "Arduino–HC-SR04–servo demo",
+      "simulatedS": 5,
+      "wallMs": 81,
+      "realTimeFactor": 62,
+      "physicsSteps": 600,
+      "physicsShareOfWall": 0.57,
+      "perPhysicsStepMs": 0.134,
+      "events": 1987,
+      "analogSolves": 1,
+      "firmwareOps": 6088,
+      "telemetryBytes": 1914000
+    },
+    {
+      "label": "Four-joint arm control",
+      "simulatedS": 5,
+      "wallMs": 141,
+      "realTimeFactor": 35.5,
+      "physicsSteps": 600,
+      "physicsShareOfWall": 0.72,
+      "perPhysicsStepMs": 0.235,
+      "events": 3055,
+      "analogSolves": 1,
+      "firmwareOps": 5975,
+      "telemetryBytes": 3066000
+    }
+  ],
+  "cleanup": {
+    "gcForced": true,
+    "samples": {
+      "0": {
+        "heapMB": 38.8,
+        "arrayBuffersMB": 1.1,
+        "rssMB": 297
+      },
+      "10": {
+        "heapMB": 39.2,
+        "arrayBuffersMB": 3.9,
+        "rssMB": 299.8
+      },
+      "30": {
+        "heapMB": 39.5,
+        "arrayBuffersMB": 3.9,
+        "rssMB": 303.7
+      },
+      "60": {
+        "heapMB": 40.2,
+        "arrayBuffersMB": 3.9,
+        "rssMB": 308.7
+      }
+    },
+    "note": "Each cycle builds a new Rapier world (WebAssembly). WebAssembly memory grows to a high-water mark and is never returned to the OS, so ArrayBuffer size can step up early and then stays flat; a leak would keep growing."
+  },
+  "telemetryGrowth": {
+    "simulatedS": 120,
+    "wallMs": 4,
+    "bufferBytesStart": 1242000,
+    "bufferBytesEnd": 1242000,
+    "samples": 12000,
+    "samplesDropped": 2401,
+    "transitions": 262
+  }
+}

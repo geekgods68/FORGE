@@ -25,3 +25,4 @@ export * from './cosim/devices';
 export * from './cosim/telemetry';
 export * from './cosim/coordinator';
 export * from './samples/projects';
+export * from './validation/cosim';

@@ -1,4 +1,4 @@
-# FORGE architecture (Phases 1–5)
+# FORGE architecture (Phases 1–6)
 
 ## Stack and versions (exact, pinned in pnpm-lock.yaml)
 
@@ -307,6 +307,14 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 - **Separation:** engineering state (engine) / simulation definition (root `simulation`, Zod, undoable `physics.*` commands) / runtime (session, never persisted, never in history) / results (telemetry exports).
 - **Project schema v5:** adds the optional root `simulation` field; v1–v4 migrate unchanged.
 - **Desktop:** a CAD/Simulation mode switch (`workMode`). In Simulation mode the gizmo, drag-to-snap and previews are off, the right panel is the Simulation panel, and `SimulationLayer` advances the session each frame and writes simulated poses onto the rendered objects (display only; restored on exit). Moving bodies are excluded from instanced batches while simulating. Rapier loads lazily on first entry.
+
+## Phase 6: electronics, circuit simulation and embedded systems
+
+- **Project data:** the optional `electrical` definition on the root node (project schema **v6**; v1–v5 migrate unchanged): parts with device models (optionally linked to a placed component), explicit wires, net labels, groups, buses, firmware sources and analysis settings, changed only by undoable, batchable `electrical.*` commands that validate the whole circuit. Device pin tables live in core (`electrical/devices.ts`); catalogue pin metadata (cited limits, connectors, 3D positions) in `@forge/components` (`electrical-pins.ts`).
+- **`@forge/electronics`** (new, pure; depends on core, components, mechanics, physics): netlist compiler (connectivity only from explicit relations), design-rule checks, sparse MNA solver (DC, transient, Newton), discrete-event digital engine and signal network (the analog↔digital boundary), the FORGE Arduino-subset interpreter and UNO runtime (Level 2), sensor/actuator models, the co-simulation coordinator and telemetry, interchange and samples. Details: ELECTRICAL_ARCHITECTURE.md, CIRCUIT_SOLVER.md, DIGITAL_SIMULATION.md, EMBEDDED_RUNTIME.md, SENSOR_MODELS.md, ELECTROMECHANICAL_COSIMULATION.md.
+- **`@forge/physics` additions** (runtime only): `PhysicsSession.castRay` (exact per-collider ray test at current poses) and `setBodyTranslation` (fixed/kinematic bodies; experiment input).
+- **Desktop:** a third work mode, **Electronics** (circuit editing; CAD read-only, CAD shortcuts off) with the schematic overlay and the 3D pin/wire layer on the same definition; in **Simulation** mode the electronics controller registers as a runtime hook of the physics controller and takes the physics steps on the shared clock.
+- **Separation:** circuit definition (persisted) / runtime (CoSimulation: signal levels, firmware state, device state; never persisted, never in history) / results (electrical telemetry exports).
 
 ## Security posture (local)
 

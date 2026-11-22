@@ -1,6 +1,6 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** Phases 0–4.1 are complete and merged into `main`. Phase 5 (physics simulation, robotics dynamics, actuators, telemetry, overload warnings; package `@forge/physics`) is implemented on `phase-5/physics-robotics` and pending owner acceptance (docs/PHASE_5_REPORT.md). Phase 6 (electronics) must NOT start without the owner's explicit go-ahead; never claim a later phase is done. Simulation runs never mutate engineering state: setup changes are undoable `physics.*` commands; runtime lives in a `PhysicsSession`.
+- **Phase discipline:** Phases 0–5 are complete and merged into `main`. Phase 6 (electronics, circuit simulation, Level 2 Arduino UNO runtime, sensors, servo electronics and electromechanical co-simulation; package `@forge/electronics`) is implemented on `phase-6/electronics-embedded` and pending owner acceptance (docs/PHASE_6_REPORT.md). Phase 7 must NOT start without the owner's explicit go-ahead; never claim a later phase is done. Runs never mutate engineering state: setup changes are undoable `physics.*` / `electrical.*` commands; runtime lives in a `PhysicsSession` / `CoSimulation`.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
   - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).

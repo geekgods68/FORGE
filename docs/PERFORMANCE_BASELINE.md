@@ -172,3 +172,53 @@ Collision processing dominates the large cases (step time tracks contact pairs).
 | Robotic arm | GPU (ANGLE Metal, M3) | 16.7 / 16.7 ms              | 3.04 s / 3 s           | 0.25 ms           | 0          | —       |
 
 **Main-thread responsiveness:** the first 1,000-box run froze the page (frames grew to 250 ms because each frame ran up to 16 catch-up steps of ~10 ms). The display loop now also has a **12 ms physics budget per frame** (at least one step): the simulation runs slower than real time (reported as lag) and the UI stays interactive with no long tasks. Results are unaffected (every step is the same fixed step). Physics runs on the main thread; a worker is a possible later optimisation.
+
+## Phase 6: electronics and co-simulation
+
+Single short runs on Apple M3, 8 GB (darwin 25.5.0); Node benchmark `FORGE_BENCH=1` (`packages/electronics/src/__tests__/benchmark.test.ts`, record `docs/archive/phase6-electronics-benchmarks.json`) and browser benchmark `tests/end-to-end/electronics-performance.spec.ts` (headless Chromium, **software** WebGL; record `docs/archive/phase6-browser-benchmarks-software.json`). Indicative, not guarantees.
+
+### Circuit solver
+
+| Passive components (resistor mesh, every 4th a capacitor) | Nets | Build (netlist + elements) | DC solve (median) |
+| --------------------------------------------------------: | ---: | -------------------------: | ----------------: |
+|                                                        10 |    9 |                   10.52 ms |          0.053 ms |
+|                                                       100 |   62 |                    1.69 ms |           0.62 ms |
+|                                                       500 |  276 |                    5.96 ms |         12.298 ms |
+|                                                      1000 |  529 |                    8.48 ms |             20 ms |
+
+| Transient (1,000 steps of 1 µs, linear: LU reused) | Wall time |     Throughput |
+| -------------------------------------------------: | --------: | -------------: |
+|                                     100 components |   19.6 ms | 51,146 steps/s |
+|                                    1000 components |  327.7 ms |  3,051 steps/s |
+
+Nonlinear DC: 50 LED + resistor branches solve in 0.65 ms (2 Newton iterations from the previous solution).
+
+The 10-component build time includes JIT warm-up of the first call. The 1,000-component DC solve (20 ms) is dominated by the Markowitz pivot search, which scans all active columns per pivot (O(n·nnz)); a column-count priority queue would reduce it if larger circuits become common.
+
+### Digital events
+
+A 1 MHz clock through a 200-gate chain for 2 ms of simulated time: 804,399 events in 440.1 ms → **1,827,743 events/s**. The transition log is a fixed 1.05 MB ring buffer.
+
+### Co-simulation (Node, 5 simulated seconds)
+
+| Configuration              | Wall time | Real-time factor | Physics steps | Wall per physics step | Physics share | Events | Analog solves | Firmware ops | Telemetry buffers |
+| -------------------------- | --------: | ---------------: | ------------: | --------------------: | ------------: | -----: | ------------: | -----------: | ----------------: |
+| Arduino–HC-SR04–servo demo |     81 ms |              62× |           600 |              0.134 ms |          56 % |  1,987 |             1 |        6,088 |            1.9 MB |
+| Four-joint arm control     |    141 ms |            35.5× |           600 |              0.235 ms |          72 % |  3,055 |             1 |        5,975 |            3.1 MB |
+
+Both configurations have only digital signal nets, so the analog network is solved once (power rails); a circuit with mixed nets re-solves at each driver change.
+
+### Browser (Simulation mode, 3 s real time, software WebGL)
+
+| Configuration              | Simulated / real | Frame interval median / p95 | Long tasks (longest) | JS heap (growth) | Co-simulation per frame       |
+| -------------------------- | ---------------: | --------------------------: | -------------------: | ---------------: | ----------------------------- |
+| Arduino–HC-SR04–servo demo |    3.044 s / 3 s |              16.7 / 16.8 ms |           1 (160 ms) |     28 MB (0 MB) | last advance 0.3 ms (max 7.5) |
+| Four-joint arm control     |    3.061 s / 3 s |              16.7 / 16.8 ms |            1 (58 ms) |   37.8 MB (0 MB) | last advance 0.4 ms (max 7.7) |
+
+The single long task per run occurs when the run starts (building the circuit, compiling firmware, first frames); steady-state frames stay at the 60 Hz display interval and the simulation keeps real time.
+
+### Memory and resource cleanup
+
+60 build → 0.5 s run → dispose cycles of the demo (forced GC): heap 38.8 → 39.2 → 39.5 → 40.2 MB at 0/10/30/60 cycles; ArrayBuffers 1.1 → 3.9 → 3.9 → 3.9 MB (one step to the WebAssembly high-water mark, then flat — no leak).
+
+Telemetry buffers are fixed-capacity: a 120 s blink run used 1.24 MB at the start and 1.24 MB at the end (12,000 samples kept, 2,401 oldest dropped). Nothing is written to disk unless the user exports.
