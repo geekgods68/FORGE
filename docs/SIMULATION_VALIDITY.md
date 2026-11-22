@@ -92,3 +92,17 @@ Electronics, embedded runtime and electromechanical co-simulation (ELECTRICAL_AR
 | IMU, camera, LiDAR, force sensors; ESP32/Pico/STM32; SPI/I²C/UART peripherals beyond Serial; PCB, SPICE/KiCad import | **unsupported**  | Not implemented; nothing is faked                                                                                                                                                  |
 
 A co-simulation result is only as valid as its weakest input: electrical telemetry exports carry their assumptions, and any run that moves a joint inherits the Phase 5 **approximate** status.
+
+## Phase 7 state
+
+Experiments add no new physical model: every result inherits the validity of the Phase 5/6 model it ran (above). Phase 7 adds evidence **about** models, kept in separate categories (VALIDATION_FRAMEWORK.md):
+
+| Capability                                                                            | Status                    | Basis / limits                                                                                                                |
+| ------------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Reproducible runs (seeds, configuration hashes, model fingerprints, integrity hashes) | **verified**              | Same build and environment: identical outcomes and data hashes on replay (tests). Cross-platform bitwise identity not claimed |
+| Measurement reductions and derived quantities                                         | **verified**              | Against hand-computed signals in tests; dimension checking of expressions; missing ≠ zero                                     |
+| Descriptive and inferential statistics                                                | **verified**              | Against R reference outputs (Welch, paired t, OLS, quantiles)                                                                 |
+| Sensitivity (OAT, regression), Monte Carlo uncertainty                                | **approximate**           | Describe the model under assumed input ranges/distributions; local, linear or sampling limits stated with each result         |
+| Numerical convergence studies                                                         | **verified (method)**     | Arm timestep refinement converging (4.2e-3 → 5.1e-5 rad RMS); RC τ within 1.3e-5 of RC                                        |
+| Calibration                                                                           | **approximate**           | Local bounded least squares; identifiability warnings; never written back to the model                                        |
+| Empirical validation of any shipped model                                             | **unsupported (no data)** | No measured laboratory datasets ship with FORGE; every demonstration experiment reports "Not empirically validated"           |

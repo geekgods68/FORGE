@@ -316,6 +316,14 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 - **Desktop:** a third work mode, **Electronics** (circuit editing; CAD read-only, CAD shortcuts off) with the schematic overlay and the 3D pin/wire layer on the same definition; in **Simulation** mode the electronics controller registers as a runtime hook of the physics controller and takes the physics steps on the shared clock.
 - **Separation:** circuit definition (persisted) / runtime (CoSimulation: signal levels, firmware state, device state; never persisted, never in history) / results (electrical telemetry exports).
 
+## Phase 7: scientific experimentation and validation
+
+- **`@forge/research`** (new, pure; depends on core, physics, electronics): experiment schemas, `ResearchEngine` (validated protocol commands with undo/redo; append-only, integrity-hashed run/dataset/calibration/validation records), parameter targets discovered from the project and applied to a **copy** through validated engineering commands, plan generation with budgets, the `Campaign` scheduler over the existing `PhysicsSession` / `CoSimulation` / analog transient (no new clock), measurements, statistics, sensitivity, uncertainty, convergence, calibration, validation, reports and export, and `ResearchApi` (prepared for Vey; no LLM). Details: EXPERIMENT_ARCHITECTURE.md and the other Phase 7 documents.
+- **`@forge/persistence`:** `BrowserStorageResearchRepository` — one research document per project (`<ns>:research:<projectId>`, schema v1), separate from the project file.
+- **Desktop:** a fourth work mode, **Research** (side panel: experiments, templates, protocol undo/redo; main area: Protocol, Runs, Results, Analysis, Validation, Notebook and Report tabs). Raw run data lives in IndexedDB (`IdbRunDataStore`), referenced by key and SHA-256 from each run record; if IndexedDB is unavailable, raw data is kept in memory and the UI says so.
+- **Separation:** engineering project (never written by research) / research document (protocols undoable, results append-only) / raw run data (write-once, hash-verified on load).
+- **Read-only test hooks:** `window.__forge.research()` (experiments, runs, progress, integrity report).
+
 ## Security posture (local)
 
 - The CSP is same-origin, plus `'wasm-unsafe-eval'` for Rapier only. The e2e test verifies there are 0 requests to other origins.

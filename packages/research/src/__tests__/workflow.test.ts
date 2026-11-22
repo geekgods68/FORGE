@@ -4,7 +4,13 @@ import { ResearchApi } from '../api';
 import { ResearchEngine } from '../engine';
 import { parseExperimentExport } from '../exchange';
 import { generateReport, hypothesisAssessment, outcomesCsv } from '../report';
+import { Campaign } from '../scheduler';
 import { MemoryRunDataStore } from '../store';
+import {
+  armPayloadExperiment,
+  controllerComparisonExperiment,
+  createUltrasonicStudyProject,
+} from '../templates';
 import { armExperiment } from './fixtures';
 
 /** Programmatic research API and report generation over a real (small) arm campaign. */
@@ -127,4 +133,24 @@ describe('ResearchApi + report', () => {
     expect(await a.validate('missing')).toBeNull();
     expect(a.createRunPlan('missing')).toBeNull();
   });
+
+  it('assesses hypotheses only on the conditions that vary the hypothesis variable', async () => {
+    // A: OAT over payload, shoulder target and effort limit. The other variables' sweeps sit at the
+    // baseline payload and must not be mixed into the payload trend.
+    const arm = createRoboticArmSimulationSample(at);
+    const a = ResearchEngine.empty(arm.id, () => at);
+    a.execute({ type: 'experiment.create', payload: { experiment: armPayloadExperiment(arm) } });
+    await new Campaign(a, new MemoryRunDataStore(), arm, 'exp-a-payload', R).run();
+    const ea = a.experiment('exp-a-payload')!;
+    expect(hypothesisAssessment(ea, a.runsOf(ea.id))).toContain('consistent with the predicted increase');
+    // C: categorical controller choice; direction is taken along the declared level order.
+    const us = createUltrasonicStudyProject(at);
+    const c = ResearchEngine.empty(us.id, () => at);
+    c.execute({ type: 'experiment.create', payload: { experiment: controllerComparisonExperiment(us) } });
+    await new Campaign(c, new MemoryRunDataStore(), us, 'exp-c-controllers', R).run();
+    const ec = c.experiment('exp-c-controllers')!;
+    const hc = hypothesisAssessment(ec, c.runsOf(ec.id));
+    expect(hc).toContain('consistent with the predicted decrease');
+    expect(hc).toContain('fw-responsive → fw-conservative');
+  }, 120_000);
 });

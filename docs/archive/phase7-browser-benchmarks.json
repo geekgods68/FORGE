@@ -1,0 +1,46 @@
+{
+  "when": "2026-11-22T10:25:47.858Z",
+  "note": "Headless Chromium, software WebGL; single runs; indicative, not guarantees.",
+  "campaigns": [
+    {
+      "sample": "library-open-sample",
+      "experiment": "exp-a-payload",
+      "runs": 9,
+      "campaignWallMs": 646,
+      "runsPerS": 13.93,
+      "frames": 36,
+      "frameIntervalMs": {
+        "median": 16.7,
+        "p95": 33.3,
+        "max": 33.4
+      },
+      "longTasks": {
+        "count": 0,
+        "longestMs": 0
+      },
+      "jsHeapMB": 33.5,
+      "jsHeapGrowthMB": 0,
+      "storageGrowthKB": 72
+    },
+    {
+      "sample": "library-open-rc-study",
+      "experiment": "exp-d-rc",
+      "runs": 9,
+      "campaignWallMs": 304,
+      "runsPerS": 29.61,
+      "frames": 18,
+      "frameIntervalMs": {
+        "median": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "longTasks": {
+        "count": 0,
+        "longestMs": 0
+      },
+      "jsHeapMB": 33.5,
+      "jsHeapGrowthMB": 0,
+      "storageGrowthKB": 772
+    }
+  ]
+}

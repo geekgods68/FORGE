@@ -21,13 +21,28 @@ export function hypothesisAssessment(e: Experiment, runs: RunRecord[]): string {
   const h = e.hypothesis;
   if (!h || !h.outcome || !h.independentVariable || h.relationship === 'exploratory')
     return 'No directional hypothesis was evaluated (exploratory study).';
-  const s = summarize(runs, h.outcome).filter((c) => c.runs > 0);
   const xv = e.variables.find((v) => v.id === h.independentVariable);
+  // Only conditions in which every OTHER independent variable is at its default: in a one-at-a-time
+  // design the other variables' sweeps share this variable's baseline value and must not be mixed in.
+  const others = e.variables.filter((v) => v.role === 'independent' && v.id !== h.independentVariable);
+  const s = summarize(runs, h.outcome).filter(
+    (c) => c.runs > 0 && others.every((v) => c.values[v.id] === undefined || c.values[v.id] === v.default),
+  );
+  // Numeric variables are ordered by value; categorical ones along their declared level order.
+  const numeric = typeof xv?.default === 'number';
+  const levels = xv?.levels ?? [];
   const pts = s
-    .map((c) => ({ x: c.values[h.independentVariable!], y: c.stats.mean }))
-    .filter((p) => typeof p.x === 'number' && Number.isFinite(p.y)) as { x: number; y: number }[];
+    .map((c) => {
+      const raw = c.values[h.independentVariable!];
+      const x = numeric ? raw : levels.indexOf(raw as never);
+      return { x: typeof x === 'number' && (numeric || x >= 0) ? x : NaN, y: c.stats.mean };
+    })
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
   if (pts.length < 2) return 'Not enough completed conditions to assess the stated relationship.';
   pts.sort((a, b) => a.x - b.x);
+  const along = numeric
+    ? ''
+    : ` (direction taken along the declared level order: ${levels.map(String).join(' → ')})`;
   const rising = pts.every((p, i) => i === 0 || p.y >= pts[i - 1]!.y);
   const falling = pts.every((p, i) => i === 0 || p.y <= pts[i - 1]!.y);
   const name = xv?.name ?? h.independentVariable;
@@ -40,8 +55,8 @@ export function hypothesisAssessment(e: Experiment, runs: RunRecord[]): string {
   if (want === null)
     return `Observed condition means are reported below; the "${h.relationship}" relationship is assessed from the comparisons, not declared.`;
   return want
-    ? `Within this model and the tested range of ${name}, the recorded condition means are consistent with the predicted ${h.relationship}. This supports the hypothesis for the model only; it does not prove it, and it is not evidence about the physical system unless validated.`
-    : `Within this model and the tested range of ${name}, the recorded condition means are NOT consistently in the predicted direction (${h.relationship}). See the results for where the relationship changes.`;
+    ? `Within this model and the tested range of ${name}, the recorded condition means are consistent with the predicted ${h.relationship}${along}. This supports the hypothesis for the model only; it does not prove it, and it is not evidence about the physical system unless validated.`
+    : `Within this model and the tested range of ${name}, the recorded condition means are NOT consistently in the predicted direction (${h.relationship})${along}. See the results for where the relationship changes.`;
 }
 
 export function generateReport(

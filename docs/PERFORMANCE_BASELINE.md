@@ -222,3 +222,39 @@ The single long task per run occurs when the run starts (building the circuit, c
 60 build → 0.5 s run → dispose cycles of the demo (forced GC): heap 38.8 → 39.2 → 39.5 → 40.2 MB at 0/10/30/60 cycles; ArrayBuffers 1.1 → 3.9 → 3.9 → 3.9 MB (one step to the WebAssembly high-water mark, then flat — no leak).
 
 Telemetry buffers are fixed-capacity: a 120 s blink run used 1.24 MB at the start and 1.24 MB at the end (12,000 samples kept, 2,401 oldest dropped). Nothing is written to disk unless the user exports.
+
+## Phase 7: research campaigns
+
+Single short runs on Apple M3, 8 GB (darwin 25.5.0, Node v24.2.0, GC exposed); Node benchmark `FORGE_BENCH=1` (`packages/research/src/__tests__/benchmark.test.ts`, record `docs/archive/phase7-research-benchmarks.json`) and browser benchmark `tests/end-to-end/research-performance.spec.ts` (headless Chromium, **software** WebGL; record `docs/archive/phase7-browser-benchmarks.json`). Indicative, not guarantees. Campaigns run sequentially (one concurrent run).
+
+### Campaign throughput and overheads (Node, in-memory run-data store)
+
+| Campaign                                                       | Runs | Wall time | Runs/s | Simulation share | Scheduling overhead / run | Raw data (encoded) | Research document | Analysis | Integrity check (all runs) | Resume (all reused) |
+| -------------------------------------------------------------- | ---: | --------: | -----: | ---------------: | ------------------------: | -----------------: | ----------------: | -------: | -------------------------: | ------------------: |
+| RC transient, random R (10,000 steps of 2 µs, 20 kHz sampling) |   10 |    115 ms |   86.9 |             89 % |                   1.31 ms |              87 kB |             33 kB |   0.8 ms |                     1.0 ms |              4.5 ms |
+| same                                                           |   50 |    451 ms |  110.8 |             94 % |                   0.59 ms |             434 kB |            156 kB |   0.3 ms |                     5.2 ms |             17.7 ms |
+| same                                                           |  100 |    876 ms |  114.2 |             94 % |                   0.52 ms |             869 kB |            310 kB |   0.4 ms |                    10.3 ms |             33.8 ms |
+| RC 2-variable grid 5 × 5 (100 kHz sampling, 60 ms)             |   25 |    695 ms |   36.0 |             97 % |                   0.74 ms |             3.2 MB |             79 kB |   0.2 ms |                     2.7 ms |              8.9 ms |
+| Ultrasonic controllers, paired seeds (co-sim, 4 s)             |   10 |    887 ms |   11.3 |             98 % |                   2.02 ms |             141 kB |             51 kB |   3.6 ms |                     2.0 ms |             14.6 ms |
+| Ultrasonic sensor-noise study, replicated (co-sim, 4 s)        |    9 |    779 ms |   11.6 |             98 % |                   2.16 ms |             127 kB |             46 kB |   3.3 ms |                     1.8 ms |             14.2 ms |
+| Arm payload study (physics, 2 s, 120 Hz)                       |    9 |    607 ms |   14.8 |             97 % |                   2.38 ms |             235 kB |             48 kB |   0.2 ms |                     1.4 ms |             22.8 ms |
+| Arm payload study, 64 signals recorded (protocol maximum)      |    9 |  2,350 ms |    3.8 |             99 % |                   2.34 ms |             3.7 MB |             67 kB |   0.4 ms |                     2.3 ms |             21.8 ms |
+
+- **Planning overhead:** plan generation took 0.1–0.6 ms for every campaign (budget checks happen before enumeration).
+- **Scaling:** 10 → 100 runs is linear (≈ 8.7 ms per RC run); per-run scheduling overhead (configuration hashing, parameter application on a project copy, outcome computation, record hashing) is 0.5–2.4 ms, 1–11 % of wall time.
+- **Telemetry cost:** recording 64 signals instead of the measured few multiplies wall time by ≈ 3.9 and raw data by ≈ 16 (resampling and hashing dominate). Physics telemetry is recorded once per physics step, so a higher requested rate cannot add physics samples (a 1 kHz request on the 120 Hz arm stored the same bytes as 120 Hz).
+- **Memory:** JS heap change across each campaign (forced GC before and after) was between −3.4 and +3.5 MB, i.e. no growth attributable to campaigns at these sizes. Raw data lives in the run-data store, not in the research document.
+- **Recovery:** relaunching a finished campaign reuses every run after re-verifying its configuration and data hashes: 4.5–34 ms for 10–100 runs, with no re-simulation.
+
+### Browser (Research mode, headless Chromium, software WebGL)
+
+| Campaign                     | Runs | Wall time | Frame interval median / p95 / max | Long tasks | JS heap (growth) | IndexedDB growth (estimate) |
+| ---------------------------- | ---: | --------: | --------------------------------: | ---------: | ---------------: | --------------------------: |
+| Arm payload template (A)     |    9 |    646 ms |             16.7 / 33.3 / 33.4 ms |          0 |   33.5 MB (0 MB) |                       72 kB |
+| RC sweep template (D, 3 × 3) |    9 |    304 ms |             16.7 / 16.8 / 16.8 ms |          0 |   33.5 MB (0 MB) |                      772 kB |
+
+The scheduler yields between runs and between simulation chunks: no long task (> 50 ms) occurred and the worst frame interval was 33 ms (one skipped frame). `performance.memory` is coarse-grained in Chromium and `navigator.storage.estimate()` is approximate, so heap and storage figures are indicative only. Campaigns this short do not establish behaviour for multi-hour campaigns; budgets (200 runs, 64 MB raw data by default) bound what a single campaign can do.
+
+### Not measured
+
+Concurrent runs (not supported in Phase 7: one run at a time), Web Worker execution (runs share the main thread, yielding), and campaigns approaching the 64 MB raw-data budget in the browser.

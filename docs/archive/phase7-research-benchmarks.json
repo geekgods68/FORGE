@@ -1,0 +1,199 @@
+{
+  "when": "2026-11-22T10:25:37.576Z",
+  "machine": {
+    "platform": "darwin 25.5.0",
+    "cpu": "Apple M3",
+    "cores": 8,
+    "memGB": 8,
+    "node": "v24.2.0",
+    "gcExposed": true
+  },
+  "note": "Single runs, Node; indicative, not guarantees. Browser figures are in phase7-browser-benchmarks.json.",
+  "campaigns": [
+    {
+      "label": "RC random sample, 10 runs",
+      "design": "random, 10 runs",
+      "completed": 10,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.56,
+      "wallMs": 115.1,
+      "runsPerS": 86.89,
+      "simulationShare": 0.886,
+      "schedulingOverheadMsPerRun": 1.31,
+      "analysisMs": 0.8,
+      "integrityCheckMs": 1.04,
+      "integrityOk": true,
+      "rawDataBytes": 86870,
+      "researchDocBytes": 32999,
+      "heapGrowthMB": 1.8,
+      "resume": {
+        "reused": 10,
+        "simulated": 0,
+        "wallMs": 4.5
+      }
+    },
+    {
+      "label": "RC random sample, 50 runs",
+      "design": "random, 50 runs",
+      "completed": 50,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.26,
+      "wallMs": 451.3,
+      "runsPerS": 110.8,
+      "simulationShare": 0.935,
+      "schedulingOverheadMsPerRun": 0.59,
+      "analysisMs": 0.3,
+      "integrityCheckMs": 5.16,
+      "integrityOk": true,
+      "rawDataBytes": 434350,
+      "researchDocBytes": 155860,
+      "heapGrowthMB": 0.6,
+      "resume": {
+        "reused": 50,
+        "simulated": 0,
+        "wallMs": 17.7
+      }
+    },
+    {
+      "label": "RC random sample, 100 runs",
+      "design": "random, 100 runs",
+      "completed": 100,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.45,
+      "wallMs": 875.5,
+      "runsPerS": 114.22,
+      "simulationShare": 0.941,
+      "schedulingOverheadMsPerRun": 0.52,
+      "analysisMs": 0.4,
+      "integrityCheckMs": 10.29,
+      "integrityOk": true,
+      "rawDataBytes": 868700,
+      "researchDocBytes": 309679,
+      "heapGrowthMB": 1,
+      "resume": {
+        "reused": 100,
+        "simulated": 0,
+        "wallMs": 33.8
+      }
+    },
+    {
+      "label": "RC 2-variable grid 5 × 5",
+      "design": "grid, 25 runs",
+      "completed": 25,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.23,
+      "wallMs": 695.4,
+      "runsPerS": 35.95,
+      "simulationShare": 0.973,
+      "schedulingOverheadMsPerRun": 0.74,
+      "analysisMs": 0.2,
+      "integrityCheckMs": 2.69,
+      "integrityOk": true,
+      "rawDataBytes": 3203775,
+      "researchDocBytes": 79056,
+      "heapGrowthMB": 0.1,
+      "resume": {
+        "reused": 25,
+        "simulated": 0,
+        "wallMs": 8.9
+      }
+    },
+    {
+      "label": "Ultrasonic controllers (paired seeds, co-sim)",
+      "design": "paired, 10 runs",
+      "completed": 10,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.09,
+      "wallMs": 886.9,
+      "runsPerS": 11.28,
+      "simulationShare": 0.977,
+      "schedulingOverheadMsPerRun": 2.02,
+      "analysisMs": 3.6,
+      "integrityCheckMs": 1.95,
+      "integrityOk": true,
+      "rawDataBytes": 141490,
+      "researchDocBytes": 51149,
+      "heapGrowthMB": 3.5,
+      "resume": {
+        "reused": 10,
+        "simulated": 0,
+        "wallMs": 14.6
+      }
+    },
+    {
+      "label": "Ultrasonic sensor-noise study (replicated, co-sim)",
+      "design": "oat, 9 runs",
+      "completed": 9,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.13,
+      "wallMs": 779.4,
+      "runsPerS": 11.55,
+      "simulationShare": 0.975,
+      "schedulingOverheadMsPerRun": 2.16,
+      "analysisMs": 3.3,
+      "integrityCheckMs": 1.8,
+      "integrityOk": true,
+      "rawDataBytes": 127341,
+      "researchDocBytes": 45790,
+      "heapGrowthMB": -3.4,
+      "resume": {
+        "reused": 9,
+        "simulated": 0,
+        "wallMs": 14.2
+      }
+    },
+    {
+      "label": "Arm payload study (physics)",
+      "design": "oat, 9 runs",
+      "completed": 9,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.1,
+      "wallMs": 606.7,
+      "runsPerS": 14.83,
+      "simulationShare": 0.965,
+      "schedulingOverheadMsPerRun": 2.38,
+      "analysisMs": 0.2,
+      "integrityCheckMs": 1.43,
+      "integrityOk": true,
+      "rawDataBytes": 234675,
+      "researchDocBytes": 47878,
+      "heapGrowthMB": 1,
+      "resume": {
+        "reused": 9,
+        "simulated": 0,
+        "wallMs": 22.8
+      }
+    },
+    {
+      "label": "Arm payload study, 64 signals recorded (protocol maximum)",
+      "design": "oat, 9 runs",
+      "completed": 9,
+      "failed": 0,
+      "errors": [],
+      "planMs": 0.21,
+      "wallMs": 2350.3,
+      "runsPerS": 3.83,
+      "simulationShare": 0.991,
+      "schedulingOverheadMsPerRun": 2.34,
+      "analysisMs": 0.4,
+      "integrityCheckMs": 2.25,
+      "integrityOk": true,
+      "rawDataBytes": 3745638,
+      "researchDocBytes": 66883,
+      "heapGrowthMB": 0.6,
+      "resume": {
+        "reused": 9,
+        "simulated": 0,
+        "wallMs": 21.8
+      },
+      "signalsRecorded": 64
+    }
+  ]
+}
