@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@forge/engineering-core": "workspace:*",
-    "@forge/facility": "workspace:*"
+    "@forge/facility": "workspace:*",
+    "@forge/research": "workspace:*"
   }
 }

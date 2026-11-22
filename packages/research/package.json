@@ -1,0 +1,21 @@
+{
+  "name": "@forge/research",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE scientific experimentation: experiment protocols, variables bound to real model parameters, run designs and seeds, an orchestrator over the existing physics/electronics simulations, measurements with units, statistics, sensitivity and uncertainty analysis, numerical verification, calibration, empirical validation and research reports. Pure domain logic — no UI.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/components": "workspace:*",
+    "@forge/electronics": "workspace:*",
+    "@forge/engineering-core": "workspace:*",
+    "@forge/mechanics": "workspace:*",
+    "@forge/physics": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

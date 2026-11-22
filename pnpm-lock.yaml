@@ -392,6 +392,9 @@ importers:
       '@forge/facility':
         specifier: workspace:*
         version: link:../facility
+      '@forge/research':
+        specifier: workspace:*
+        version: link:../research
 
   packages/physics:
     dependencies:
@@ -407,6 +410,27 @@ importers:
       '@forge/mechanics':
         specifier: workspace:*
         version: link:../mechanics
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+
+  packages/research:
+    dependencies:
+      '@forge/components':
+        specifier: workspace:*
+        version: link:../components
+      '@forge/electronics':
+        specifier: workspace:*
+        version: link:../electronics
+      '@forge/engineering-core':
+        specifier: workspace:*
+        version: link:../engineering-core
+      '@forge/mechanics':
+        specifier: workspace:*
+        version: link:../mechanics
+      '@forge/physics':
+        specifier: workspace:*
+        version: link:../physics
       zod:
         specifier: 4.6.7
         version: 4.6.7
