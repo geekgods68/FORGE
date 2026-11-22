@@ -18,6 +18,7 @@ import {
   SketchEntitySchema,
 } from '../scene/schemas';
 import { PHYSICS_PAYLOAD_SCHEMAS } from './physics-schemas';
+import { ELECTRICAL_PAYLOAD_SCHEMAS } from './electrical-schemas';
 
 /**
  * Command contract v1 for the engineering scene graph.
@@ -274,6 +275,7 @@ export const NODE_PAYLOAD_SCHEMAS = {
   'scene.component.configure': configurePayload,
   ...MECHANICAL_PAYLOAD_SCHEMAS,
   ...PHYSICS_PAYLOAD_SCHEMAS,
+  ...ELECTRICAL_PAYLOAD_SCHEMAS,
 } as const;
 
 export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
@@ -332,6 +334,22 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('physics.joint.set'),
   sub('physics.payload.set'),
   sub('physics.payload.delete'),
+  sub('electrical.circuit.create'),
+  sub('electrical.circuit.delete'),
+  sub('electrical.circuit.import'),
+  sub('electrical.configure'),
+  sub('electrical.part.add'),
+  sub('electrical.part.update'),
+  sub('electrical.part.remove'),
+  sub('electrical.wire.add'),
+  sub('electrical.wire.update'),
+  sub('electrical.wire.remove'),
+  sub('electrical.net.label'),
+  sub('electrical.net.unlabel'),
+  sub('electrical.group.set'),
+  sub('electrical.group.delete'),
+  sub('electrical.firmware.set'),
+  sub('electrical.firmware.delete'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -403,6 +421,22 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('physics.joint.set'),
   envelope('physics.payload.set'),
   envelope('physics.payload.delete'),
+  envelope('electrical.circuit.create'),
+  envelope('electrical.circuit.delete'),
+  envelope('electrical.circuit.import'),
+  envelope('electrical.configure'),
+  envelope('electrical.part.add'),
+  envelope('electrical.part.update'),
+  envelope('electrical.part.remove'),
+  envelope('electrical.wire.add'),
+  envelope('electrical.wire.update'),
+  envelope('electrical.wire.remove'),
+  envelope('electrical.net.label'),
+  envelope('electrical.net.unlabel'),
+  envelope('electrical.group.set'),
+  envelope('electrical.group.delete'),
+  envelope('electrical.firmware.set'),
+  envelope('electrical.firmware.delete'),
   envelope('scene.batch'),
 ]);
 

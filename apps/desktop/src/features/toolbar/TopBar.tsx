@@ -1,5 +1,6 @@
 import {
   Activity,
+  CircuitBoard,
   Building2,
   Sparkles,
   Download,
@@ -80,6 +81,13 @@ export function TopBar() {
       >
         <Toggle pressed={workMode === 'cad'} onClick={() => setWorkMode('cad')} testId="mode-cad">
           <Wrench /> CAD
+        </Toggle>
+        <Toggle
+          pressed={workMode === 'electronics'}
+          onClick={() => setWorkMode('electronics')}
+          testId="mode-electronics"
+        >
+          <CircuitBoard /> Electronics
         </Toggle>
         <Toggle
           pressed={workMode === 'simulation'}

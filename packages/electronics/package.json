@@ -1,0 +1,20 @@
+{
+  "name": "@forge/electronics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE electronics runtime: netlist compiler and design-rule checks, sparse MNA circuit solver (DC, transient, nonlinear), discrete-event digital logic, the Arduino-subset embedded runtime, sensor/actuator device models and electromechanical co-simulation with @forge/physics. Pure domain logic — no UI, no renderer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/components": "workspace:*",
+    "@forge/engineering-core": "workspace:*",
+    "@forge/mechanics": "workspace:*",
+    "@forge/physics": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

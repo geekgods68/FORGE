@@ -171,6 +171,23 @@ const SUMMARIES: Record<CommandType, string> = {
   'physics.joint.set': 'Set joint damping/friction and its actuator (limits, gains, mode, target)',
   'physics.payload.set': 'Add or replace a payload point mass attached to a body',
   'physics.payload.delete': 'Remove a payload',
+  'electrical.circuit.create': 'Create the project circuit (electrical definition only; no runtime state)',
+  'electrical.circuit.delete': 'Remove the project circuit',
+  'electrical.circuit.import': 'Replace the circuit with an imported, validated electrical definition',
+  'electrical.configure':
+    'Change circuit analysis settings (solver tolerances, transient step, co-simulation)',
+  'electrical.part.add': 'Add an electrical part (device model, optionally linked to a placed component)',
+  'electrical.part.update': 'Change an electrical part (parameters, label, schematic placement, 3D link)',
+  'electrical.part.remove': 'Remove an electrical part and its wires and labels',
+  'electrical.wire.add': 'Connect two pins with an explicit wire',
+  'electrical.wire.update': 'Change a wire’s schematic route or colour (connectivity unchanged)',
+  'electrical.wire.remove': 'Remove a wire',
+  'electrical.net.label': 'Name a net by labelling a pin (pins with the same label are connected)',
+  'electrical.net.unlabel': 'Remove a net label',
+  'electrical.group.set': 'Add or change a hierarchical circuit group (organisation only)',
+  'electrical.group.delete': 'Remove a circuit group',
+  'electrical.firmware.set': 'Add or edit a firmware source (revision increments)',
+  'electrical.firmware.delete': 'Remove a firmware source',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 

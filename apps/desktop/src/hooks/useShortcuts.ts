@@ -56,7 +56,10 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
     s.redo();
     return true;
   }
-  if (mod && key === 'd') {
+  // Outside CAD mode the mechanical design is read-only: CAD editing shortcuts (duplicate,
+  // snap mode, gizmo tools, delete) are off; undo/redo and view shortcuts still work.
+  const cad = s.workMode === 'cad';
+  if (mod && key === 'd' && cad) {
     if (selected) {
       const r = s.run(
         'scene.node.duplicate',
@@ -72,7 +75,7 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
     s.cancelMateSnap();
     return true;
   }
-  if (key === 's' && !e.shiftKey) {
+  if (key === 's' && !e.shiftKey && cad) {
     s.setMateSnapMode(!s.mateSnapMode);
     return true;
   }
@@ -85,7 +88,7 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
     else s.select(null);
     return true;
   }
-  if (key === 'w' || key === 'e' || key === 'r') {
+  if ((key === 'w' || key === 'e' || key === 'r') && cad) {
     s.setToolMode(key === 'w' ? 'translate' : key === 'e' ? 'rotate' : 'scale');
     return true;
   }
@@ -94,7 +97,7 @@ export function handleShortcut(e: KeyboardEvent, store: StoreApi<EditorState>): 
       s.runWorkspace('workspace.item.remove', { itemId: s.itemSelection }, { label: 'Remove equipment' });
     return true;
   }
-  if (key === 'delete' && selected) {
+  if (key === 'delete' && selected && cad) {
     s.run('scene.node.delete', { nodeId: selected }, { label: 'Delete', source: 'keyboard' });
     return true;
   }

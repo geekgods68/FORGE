@@ -12,3 +12,4 @@ export * from './resolver';
 export * from './schemas';
 export * from './search';
 export * from './taxonomy';
+export * from './electrical-pins';

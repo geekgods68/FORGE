@@ -88,14 +88,14 @@ describe('simulation definition commands (Phase 5)', () => {
     expect(run('physics.joint.set', { mateId: 'nope', settings: { damping: 1 } }).ok).toBe(false);
   });
 
-  it('persists in project files (schema v5); v4 files without a setup still load', () => {
+  it('persists in project files (current schema v6); v4 files without a setup still load', () => {
     const { engine, run, box } = makeEngine();
     box('b1');
     run('physics.simulation.create', {});
     run('physics.body.set', { nodeId: 'b1', settings: { mode: 'fixed', collider: 'bounds-box' } });
     const text = serializeProject(engine.getProject());
-    expect(JSON.parse(text).schemaVersion).toBe(5);
-    expect(PROJECT_SCHEMA_VERSION).toBe(5);
+    expect(JSON.parse(text).schemaVersion).toBe(6);
+    expect(PROJECT_SCHEMA_VERSION).toBe(6);
     const back = parseProjectFile(text);
     if (!back.ok) throw new Error(back.error.message);
     const r = back.project.scene.nodes[back.project.scene.rootId]!;

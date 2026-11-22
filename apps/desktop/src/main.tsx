@@ -7,6 +7,7 @@ import { transitions, zoneLifecycle } from './facility/zoneRuntime';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
+import { analyse, circuitDiagnostics, circuitOf } from './features/electronics/state';
 import { createEditorStore } from './app/store';
 import { createDefaultAssetStore } from './assets/assetStore';
 import './styles/index.css';
@@ -73,6 +74,25 @@ w.__forge = {
   transitions: () => transitions.map((t) => ({ ...t })),
   renderedSigns: () => renderedSigns(),
   signTextures: () => signTextureStats(),
+  /** Compiled circuit (read-only): parts, nets (explicit connectivity) and rule codes. */
+  circuit: () => {
+    const p = engine.getProject();
+    const def = circuitOf(p.scene);
+    if (!def) return null;
+    const { netlist, issues } = analyse(def, p.scene);
+    const label = (id: string) => netlist.partById.get(id)?.label ?? id;
+    return {
+      parts: def.parts.map((x) => ({ id: x.id, label: x.label, type: x.device.type, nodeId: x.nodeId })),
+      wires: def.wires.length,
+      firmware: def.firmware.map((f) => ({ id: f.id, revision: f.revision })),
+      nets: netlist.nets
+        .filter((n) => n.pins.length > 1)
+        .map((n) => ({ name: n.name, pins: n.pins.map((x) => `${label(x.partId)}.${x.pin}`) })),
+      issues: issues.map((i) => i.code),
+    };
+  },
+  /** World position of a drawn 3D circuit pin ("<partId>.<pin>"), or null. */
+  pin3d: (key: string) => circuitDiagnostics.pins.get(key) ?? null,
   itemFacilityPosition: (itemId: string) => {
     const it = store.getState().workspace.getItem(itemId);
     const zone = it && getZone(it.zoneId);

@@ -39,6 +39,7 @@ import { snapDiagnostics } from '@/features/snap/snapDiagnostics';
 import { SnapController } from './SnapDrag';
 import { SimulationLayer } from './SimulationLayer';
 import { simulationFor } from '@/features/simulation/controller';
+import { CircuitLayer3D } from '@/features/electronics/CircuitLayer3D';
 import { useStore } from 'zustand';
 import { bodyInterfaces } from '@forge/mechanics';
 
@@ -132,6 +133,7 @@ export function EngineeringViewport() {
           />
           <SelectedInterfaceMarkers registry={registry} />
           {workMode === 'simulation' && <SimulationLayer registry={registry} />}
+          {workMode !== 'cad' && <CircuitLayer3D registry={registry} />}
           <InterferenceHighlights />
           <DebugProbe />
         </Canvas>
@@ -453,7 +455,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
 
   const exploded = useEditor((s) => s.explode !== null);
   const snapMode = useEditor((s) => s.mateSnapMode);
-  const simulating = useEditor((s) => s.workMode === 'simulation');
+  const simulating = useEditor((s) => s.workMode !== 'cad');
   // Mate-driven bodies are placed by the solver (edit joints instead); the exploded view
   // is a display offset, so direct manipulation is paused while it is shown.
   const editable =
@@ -462,7 +464,7 @@ function Manipulator({ onDragEnd }: { onDragEnd: () => void }) {
     node.visible &&
     !exploded &&
     !snapMode && // drag-to-snap replaces the gizmo while its mode is on
-    !simulating && // Simulation mode: the CAD model is read-only (poses shown are simulated)
+    !simulating && // Simulation/Electronics mode: the CAD model is read-only
     !isMateDriven(scene, node.id) &&
     !isEffectivelyLocked(scene, node.id);
   // Resolve the rendered object each frame: it may register (via ref) in the same commit as the selection.

@@ -27,3 +27,6 @@ export * from './mechanics';
 export * from './simulation/schemas';
 export * from './commands/physics-schemas';
 export { DEFAULT_ACTUATOR } from './commands/physics-handlers';
+export * from './commands/electrical-schemas';
+export * from './electrical/schemas';
+export * from './electrical/devices';

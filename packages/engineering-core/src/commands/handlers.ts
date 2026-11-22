@@ -25,7 +25,9 @@ import {
   resolveOwner,
 } from './mechanical-handlers';
 import { PHYSICS_HANDLERS } from './physics-handlers';
+import { ELECTRICAL_HANDLERS } from './electrical-handlers';
 import type { PhysicsCommandType } from './physics-schemas';
+import type { ElectricalCommandType } from './electrical-schemas';
 import type { BatchSubCommand, MechanicalCommandType, NodeCommandType, PayloadOf } from './schemas';
 
 export interface ComponentResolveInput {
@@ -154,7 +156,10 @@ function detachChild(tx: GraphTransaction, parentId: string, childId: string): n
 
 const sameTransform = (a: NodeTransform, b: NodeTransform) => JSON.stringify(a) === JSON.stringify(b);
 
-type CoreCommandType = Exclude<NodeCommandType, MechanicalCommandType | PhysicsCommandType>;
+type CoreCommandType = Exclude<
+  NodeCommandType,
+  MechanicalCommandType | PhysicsCommandType | ElectricalCommandType
+>;
 const CORE_HANDLERS: { [K in CoreCommandType]: Handler<K> } = {
   'scene.node.create'(tx, { node: spec }, ctx) {
     const parentId = spec.parentId ?? tx.rootId;
@@ -485,6 +490,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   ...CORE_HANDLERS,
   ...MECHANICAL_HANDLERS,
   ...PHYSICS_HANDLERS,
+  ...ELECTRICAL_HANDLERS,
   'component.parameters.update': (tx, payload, ctx) =>
     CORE_HANDLERS['scene.component.configure'](tx, payload, ctx),
 };

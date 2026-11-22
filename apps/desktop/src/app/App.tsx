@@ -12,6 +12,8 @@ import { TopBar } from '@/features/toolbar/TopBar';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { EngineeringViewport } from '@/scenes/EngineeringViewport';
 import { SimulationPanel } from '@/features/simulation/SimulationPanel';
+import { ElectronicsPanel } from '@/features/electronics/ElectronicsPanel';
+import { SchematicOverlay } from '@/features/electronics/SchematicView';
 import { simulationFor } from '@/features/simulation/controller';
 import { useEffect } from 'react';
 import { EditorStoreContext, useEditor, type EditorState } from './store';
@@ -45,6 +47,7 @@ export function App({ store }: { store: StoreApi<EditorState> }) {
               <EngineeringViewport />
             </ErrorBoundary>
             <SnapPanel />
+            <SchematicOverlay />
             <WalkHud />
             <LibraryPanel />
           </main>
@@ -71,7 +74,9 @@ function FacilitySidebar() {
 function InspectorSwitch() {
   const layout = useEditor((s) => s.view === 'facility' && s.editLayer === 'layout');
   const simulating = useEditor((s) => s.workMode === 'simulation');
+  const electronics = useEditor((s) => s.workMode === 'electronics');
   if (simulating) return <SimulationPanel />;
+  if (electronics) return <ElectronicsPanel />;
   return layout ? <ItemInspector /> : <Inspector />;
 }
 
