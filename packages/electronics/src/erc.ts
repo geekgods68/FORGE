@@ -341,6 +341,22 @@ export function structuralChecks(def: ElectricalDefinition, nl: Netlist, scene?:
       }
   }
 
+  // Supplies feeding loads of unknown current: say plainly what is NOT checked.
+  for (const part of def.parts) {
+    const d = part.device;
+    if (d.type !== 'vsource' || d.purpose !== 'supply') continue;
+    const pos = nl.terminalNet(part.id, 'pos');
+    const loads = def.parts.filter((x) => x.device.type === 'servo' && nl.pinNet(x.id, 'vplus') === pos);
+    if (loads.length)
+      add({
+        code: 'unknown-rating',
+        severity: 'info',
+        message: `${part.label} supplies ${loads.map((l) => l.label).join(', ')}, whose currents are unknown${d.seriesResistanceOhm === 0 ? '; the source is modelled as ideal (no internal resistance, capacity or voltage drop)' : ''}. The supply design is not electrically validated.`,
+        parts: [part.id, ...loads.map((l) => l.id)],
+        nets: [nl.nets[pos!]!.name],
+      });
+  }
+
   // Controllers: power and shared ground with the devices they talk to.
   for (const mcu of mcus) {
     const d = mcu.device;

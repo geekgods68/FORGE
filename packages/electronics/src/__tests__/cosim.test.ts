@@ -126,3 +126,53 @@ describe('Arduino–HC-SR04–servo co-simulation (sample project)', () => {
     expect(r.angle).toBeGreaterThan(90);
   });
 });
+
+describe('four-joint arm electronic control (sample project)', () => {
+  it('firmware pose commands reach all four joints through servo pulses; supply domains are reported, not assumed', async () => {
+    const { createArmElectronicsSample } = await import('../samples/projects');
+    const { ARM_JOINTS } = await import('@forge/mechanics');
+    const p = createArmElectronicsSample(new Date('2026-11-22T00:00:00Z'));
+    const def = circuitOf(p);
+    const issues = structuralChecks(def, compileNetlist(def), p.scene);
+    expect(issues.map((i) => i.code)).not.toContain('incomplete-ground');
+    expect(issues.map((i) => i.code)).not.toContain('controller-rail-load');
+    expect(
+      issues.find((i) => i.code === 'unknown-rating' && /not electrically validated/.test(i.message)),
+    ).toBeDefined();
+    const { port, cs } = run(p);
+    cs.advanceTo(s(4.5)); // pose 0 (CAD pose) → pose 1 after 2 s → pose 2 after 4 s
+    const servos = cs.devices.filter((d) => d.part.device.type === 'servo') as ServoModel[];
+    expect(servos.every((v) => v.pulses > 50)).toBe(true);
+    const sv2 = servos.find((v) => v.part.label === 'SV2')!;
+    // Pose 2: shoulder 100° → target = CAD pose + 10°; the physical joint follows within ~2°.
+    expect((sv2.targetRad! * 180) / Math.PI).toBeCloseTo(10, 0);
+    expect(Math.abs(((port.jointQ(ARM_JOINTS.shoulder)! - sv2.targetRad!) * 180) / Math.PI)).toBeLessThan(
+      2.5,
+    );
+    // Servo supply measured from the circuit (6 V battery domain).
+    expect(cs.recorder.series('SV2.supply')!.v.at(-1)).toBeCloseTo(6, 6);
+    cs.dispose();
+  });
+
+  it('without the shared ground the servos have no reference: they go limp and the arm sags', async () => {
+    const { createArmElectronicsSample } = await import('../samples/projects');
+    const { ARM_JOINTS } = await import('@forge/mechanics');
+    const p = structuredClone(createArmElectronicsSample(new Date('2026-11-22T00:00:00Z')));
+    const def = circuitOf(p);
+    def.wires = def.wires.filter((w) => w.id !== 'w-shared-gnd' && w.id !== 'w-gnd-sym');
+    expect(structuralChecks(def, compileNetlist(def), p.scene).map((i) => i.code)).toContain(
+      'incomplete-ground',
+    );
+    const { port, cs } = run(p);
+    const q0 = port.jointQ(ARM_JOINTS.shoulder)!;
+    cs.advanceTo(s(1.5));
+    const sv2 = cs.devices.find((d) => d.part.label === 'SV2') as ServoModel;
+    expect(sv2.pulses).toBe(0); // no valid pulse is ever accepted without a supply reference
+    expect(
+      cs.events().some((e) => /actuator off|outside|no supply/.test(e.message)) ||
+        sv2.status().includes('unpowered'),
+    ).toBe(true);
+    expect(Math.abs(port.jointQ(ARM_JOINTS.shoulder)! - q0)).toBeGreaterThan(0.05); // gravity wins
+    cs.dispose();
+  });
+});
