@@ -1,6 +1,7 @@
 import { analogCircuitOf } from '../analog/build';
 import { VT_NOMINAL, type OpResult } from '../analog/circuit';
 import { CircuitBuilder } from '../builder';
+import { wallMs } from '../clock';
 import { check, lambertW, metric, result, type ElectricalValidationResult } from './record';
 
 /** Analog reference cases: resistive (DC), RC, RL, RLC transients, nonlinear devices, diagnostics. */
@@ -596,9 +597,9 @@ export function largeNetworks(): ElectricalValidationResult {
   m.label(node(0, 0), `${src}.pos`);
   m.label(node(n - 1, n - 1), `${gm}.gnd`);
   const c2 = analogCircuitOf(m.build());
-  const t0 = performance.now();
+  const t0 = wallMs();
   const r2 = op(c2.dc());
-  const solveMs = performance.now() - t0;
+  const solveMs = wallMs() - t0;
   const vOf = (name: string) => {
     const net = c2.netlist.netByName(name);
     return net ? (r2.v[net.index] ?? 0) : 0;
