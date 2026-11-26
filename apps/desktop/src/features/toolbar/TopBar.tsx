@@ -5,7 +5,9 @@ import {
   Sparkles,
   Download,
   Footprints,
+  FileUp,
   FlaskConical,
+  Radio,
   FilePlus2,
   FolderOpen,
   Redo2,
@@ -15,6 +17,8 @@ import {
   Upload,
   Wrench,
 } from 'lucide-react';
+import { useStore } from 'zustand';
+import { interopUi } from '@/features/interop/state';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { downloadText, MAX_BUNDLE_BYTES, MAX_IMPORT_BYTES } from '@/lib/download';
@@ -33,6 +37,7 @@ export function TopBar() {
   const navMode = useEditor((s) => s.navMode);
   const workMode = useEditor((s) => s.workMode);
   const setWorkMode = useEditor((s) => s.setWorkMode);
+  const interopOpen = useStore(interopUi, (s) => s.open);
   const libraryOpen = useEditor((s) => s.libraryOpen);
   const setLibraryOpen = useEditor((s) => s.setLibraryOpen);
   const layoutLayer = view === 'facility' && editLayer === 'layout';
@@ -104,6 +109,9 @@ export function TopBar() {
         >
           <FlaskConical /> Research
         </Toggle>
+        <Toggle pressed={workMode === 'twin'} onClick={() => setWorkMode('twin')} testId="mode-twin">
+          <Radio /> Digital twin
+        </Toggle>
       </div>
       {view === 'facility' && (
         <div
@@ -129,6 +137,13 @@ export function TopBar() {
       )}
       <Toggle pressed={libraryOpen} onClick={() => setLibraryOpen(!libraryOpen)} testId="library-toggle">
         <Sparkles /> Library
+      </Toggle>
+      <Toggle
+        pressed={interopOpen}
+        onClick={() => interopUi.setState({ open: !interopOpen, tab: 'import' })}
+        testId="interop-toggle"
+      >
+        <FileUp /> Import / Export
       </Toggle>
       {view === 'facility' && (
         <Toggle

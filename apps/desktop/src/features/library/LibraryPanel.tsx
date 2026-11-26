@@ -312,6 +312,14 @@ function Library() {
                 >
                   <CircuitBoard className="size-3.5 text-primary" /> Open research sample: RC charging circuit
                 </button>
+                <button
+                  type="button"
+                  data-testid="library-open-veyris-twin"
+                  className="flex w-full items-center gap-2 rounded border border-primary/40 px-2 py-1 text-left hover:bg-secondary"
+                  onClick={() => openResearchSample('veyris-twin')}
+                >
+                  <CircuitBoard className="size-3.5 text-primary" /> Open twin sample: VEYRIS arm digital twin
+                </button>
                 <ModelInspect />
                 {customModels.length > 0 && (
                   <>

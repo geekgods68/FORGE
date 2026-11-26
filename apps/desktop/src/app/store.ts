@@ -60,6 +60,7 @@ import {
   type ProjectSummary,
 } from '@forge/persistence';
 import { createRcStudyProject, createUltrasonicStudyProject } from '@forge/research';
+import { createVeyrisTwinProject } from '@forge/digital-twin';
 import { createContext, useContext } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -239,7 +240,7 @@ export interface EditorState {
    * CAD editing; Electronics (circuit editing — the mechanical design is read-only); or
    * Simulation (physics + electronics runtime; the CAD model is read-only there).
    */
-  workMode: 'cad' | 'electronics' | 'simulation' | 'research';
+  workMode: 'cad' | 'electronics' | 'simulation' | 'research' | 'twin';
   cameraPreset: CameraPreset | null;
   /** View-only exploded view of one assembly (never written to the model; 0 restores exactly). */
   explode: { assemblyId: string; factor: number } | null;
@@ -301,7 +302,7 @@ export interface EditorState {
   /** Phase 6 electronics samples. */
   openElectronicsSample(kind: 'ultrasonic' | 'arm'): void;
   /** Phase 7 research study samples (ultrasonic threshold controllers, RC charging circuit). */
-  openResearchSample(kind: 'ultrasonic-study' | 'rc-study'): void;
+  openResearchSample(kind: 'ultrasonic-study' | 'rc-study' | 'veyris-twin'): void;
   saveAssembly(groupId: string): boolean;
   insertAssembly(templateId: string): string | null;
   deleteAssembly(templateId: string): void;
@@ -335,7 +336,7 @@ export interface EditorState {
   /** Zone change while walking: lifecycle follows, camera stays with the walker. */
   setCurrentZone(zoneId: string): void;
   setNavMode(mode: 'orbit' | 'walk'): void;
-  setWorkMode(mode: 'cad' | 'electronics' | 'simulation' | 'research'): void;
+  setWorkMode(mode: 'cad' | 'electronics' | 'simulation' | 'research' | 'twin'): void;
   focusItem(itemId: string): void;
   runWorkspace<T extends WorkspaceCommandType>(
     type: T,
@@ -580,7 +581,9 @@ export function createEditorStore(
                   ? 'Electronics mode: edit the circuit (parts, wiring, firmware). The mechanical design is read-only here; every circuit change is undoable.'
                   : workMode === 'research'
                     ? 'Research mode: experiments run on copies of this project; the design itself is never changed by a run. Protocol edits are undoable in the Research panel.'
-                    : 'CAD mode: the design shows its engineering pose again.',
+                    : workMode === 'twin'
+                      ? 'Digital twin mode: observation only. FORGE never sends commands to hardware; telemetry never enters the undo history.'
+                      : 'CAD mode: the design shows its engineering pose again.',
           },
         });
       },
@@ -808,13 +811,22 @@ export function createEditorStore(
 
       openResearchSample(kind) {
         if (!confirmDiscard()) return;
-        replace(kind === 'ultrasonic-study' ? createUltrasonicStudyProject() : createRcStudyProject(), {
-          tone: 'success',
-          text:
-            kind === 'ultrasonic-study'
-              ? 'Opened the ultrasonic threshold study sample: the Phase 6 gauge with two alternative threshold firmwares for controlled comparison in Research mode.'
-              : 'Opened the RC charging study sample: a 5 V source charging a capacitor through a resistor, for circuit sweeps in Research mode.',
-        });
+        replace(
+          kind === 'ultrasonic-study'
+            ? createUltrasonicStudyProject()
+            : kind === 'veyris-twin'
+              ? createVeyrisTwinProject()
+              : createRcStudyProject(),
+          {
+            tone: 'success',
+            text:
+              kind === 'ultrasonic-study'
+                ? 'Opened the ultrasonic threshold study sample: the Phase 6 gauge with two alternative threshold firmwares for controlled comparison in Research mode.'
+                : kind === 'veyris-twin'
+                  ? 'Opened the VEYRIS arm digital-twin reference: the four-joint arm with its UNO running the FORGE telemetry firmware (see Digital twin mode).'
+                  : 'Opened the RC charging study sample: a 5 V source charging a capacitor through a resistor, for circuit sweeps in Research mode.',
+          },
+        );
       },
 
       saveAssembly(groupId) {

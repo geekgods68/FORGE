@@ -436,3 +436,54 @@ describe('export', () => {
     expect(new TextDecoder().decode(ascii.bytes)).toMatch(/^solid part/);
   });
 });
+
+describe('assembling an import with native components', () => {
+  it('welds the imported part to a native arm body with a fixed mate (moves with it)', async () => {
+    const { createRoboticArmSimulationSample, SceneBuilder, buildPhysicsModel, simulationOf } =
+      await import('@forge/physics');
+    const b = new SceneBuilder(createRoboticArmSimulationSample(AT));
+    const asm = Object.values(b.graph.nodes).find(
+      (n) => n.kind === 'assembly' && n.childIds.includes('gripper'),
+    )!;
+    const a = analyseGeometry({ name: 'bracket.stl', bytes: writeStl(boxSoup([30, 20, 5])) }, 'stl');
+    const p = planGeometryImport(
+      a,
+      {
+        frame: a.defaultFrame,
+        name: 'Bracket',
+        categoryId: 'complete-modules-assemblies',
+        split: false,
+        importId: 'imp-a',
+        newId: idGen('br'),
+        now: AT,
+        attach: { assemblyId: asm.id, bodyId: 'gripper', offsetM: [0, 0.02, 0] },
+        physics: { massKg: 0.05, note: 'scale', collider: 'bounds-box' },
+      },
+      b.engine.getProject(),
+    );
+    expect(p.ok).toBe(true);
+    b.batch(p.commands);
+    const g = b.graph;
+    const m = buildPhysicsModel(g, simulationOf(g)!);
+    expect(m.issues.filter((i) => i.severity === 'error')).toEqual([]);
+    const body = m.bodies.find((x) => x.unitIds.includes('gripper'))!;
+    expect(body.unitIds).toContain(p.nodeIds[0]); // welded into the gripper's rigid body
+    expect(body.massSources.some((s) => s.nodeId === p.nodeIds[0] && s.massKg === 0.05)).toBe(true);
+    expect(body.colliders.some((c) => c.nodeId === p.nodeIds[0])).toBe(true);
+    expect(
+      planGeometryImport(
+        a,
+        {
+          frame: a.defaultFrame,
+          name: 'x',
+          categoryId: 'complete-modules-assemblies',
+          split: false,
+          importId: 'i',
+          newId: idGen(),
+          attach: { assemblyId: asm.id, bodyId: 'nope', offsetM: [0, 0, 0] },
+        },
+        b.engine.getProject(),
+      ).ok,
+    ).toBe(false);
+  });
+});

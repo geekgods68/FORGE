@@ -299,6 +299,11 @@ export interface GeometryImportOptions {
   /** One model instance per top-level part (inside a new group) instead of one for all. */
   split: boolean;
   parentId?: string;
+  /**
+   * Assemble with a native body: the instance is created inside that body's assembly and
+   * welded to it by a FIXED mate at `offsetM` (in the body's frame). Single instance only.
+   */
+  attach?: { assemblyId: string; bodyId: string; offsetM: V3 } | null;
   /** Explicit physical properties (applied only if the project has a simulation setup). */
   physics?: { massKg: number; note: string; collider: 'bounds-box' | 'none' } | null;
   importId: string;
@@ -422,7 +427,14 @@ export function planGeometryImport(
     return fail(
       err('handedness', 'glTF is right-handed by specification; a left-handed override is not offered.'),
     );
-  const parentId = o.parentId ?? project.scene.rootId;
+  if (o.attach) {
+    const asm = project.scene.nodes[o.attach.assemblyId];
+    const body = project.scene.nodes[o.attach.bodyId];
+    if (asm?.kind !== 'assembly' || body?.parentId !== asm.id)
+      return fail(err('attach', 'The attachment body must be a direct member of the chosen assembly.'));
+    if (o.split) return fail(err('attach', 'Attach a single instance (turn off "one instance per part").'));
+  }
+  const parentId = o.attach ? o.attach.assemblyId : (o.parentId ?? project.scene.rootId);
   if (!project.scene.nodes[parentId]) return fail(err('parent', `Target node "${parentId}" does not exist.`));
   const keepOriginal = (a.format === 'glb' || a.format === 'gltf') && !o.split;
   const groups = o.split ? topParts(a.scene).map((p) => [p]) : [a.scene.roots];
@@ -528,6 +540,29 @@ export function planGeometryImport(
       model,
     } as unknown as SceneNode);
     nodeIds.push(id);
+  }
+  if (o.attach) {
+    const id = nodeIds[0]!;
+    commands.push({
+      type: 'assembly.mate.create',
+      payload: {
+        assemblyId: o.attach.assemblyId,
+        mate: {
+          name: `${o.name} on ${project.scene.nodes[o.attach.bodyId]!.name}`.slice(0, 200),
+          type: 'fixed',
+          a: {
+            nodeId: o.attach.bodyId,
+            ref: { kind: 'frame', origin: o.attach.offsetM, axis: [0, 0, 1], xRef: [1, 0, 0] },
+          },
+          b: { nodeId: id, ref: { kind: 'frame', origin: [0, 0, 0], axis: [0, 0, 1], xRef: [1, 0, 0] } },
+          alignment: 'aligned',
+          offsetRad: 0,
+        },
+      },
+    } as BatchSubCommand);
+    conversions.push(
+      `Attached to "${project.scene.nodes[o.attach.bodyId]!.name}" by a fixed mate at (${o.attach.offsetM.map((x) => (x * 1000).toFixed(1)).join(', ')}) mm in its frame`,
+    );
   }
   const root = project.scene.nodes[project.scene.rootId];
   const sim = root?.kind === 'root' ? root.simulation : undefined;

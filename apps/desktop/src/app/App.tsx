@@ -18,6 +18,8 @@ import { simulationFor } from '@/features/simulation/controller';
 import { cosimFor } from '@/features/electronics/cosim';
 import { ResearchPanel } from '@/features/research/ResearchPanel';
 import { ResearchOverlay } from '@/features/research/Workspace';
+import { InteropDialog } from '@/features/interop/InteropDialog';
+import { TwinPanel, TwinWorkspace } from '@/features/twin/TwinPanel';
 import { useEffect } from 'react';
 import { EditorStoreContext, useEditor, type EditorState } from './store';
 
@@ -52,6 +54,8 @@ export function App({ store }: { store: StoreApi<EditorState> }) {
             <SnapPanel />
             <SchematicOverlay />
             <ResearchOverlay />
+            <InteropDialog />
+            <TwinWorkspace />
             <WalkHud />
             <LibraryPanel />
           </main>
@@ -80,7 +84,9 @@ function InspectorSwitch() {
   const simulating = useEditor((s) => s.workMode === 'simulation');
   const electronics = useEditor((s) => s.workMode === 'electronics');
   const research = useEditor((s) => s.workMode === 'research');
+  const twin = useEditor((s) => s.workMode === 'twin');
   if (research) return <ResearchPanel />;
+  if (twin) return <TwinPanel />;
   if (simulating) return <SimulationPanel />;
   if (electronics) return <ElectronicsPanel />;
   return layout ? <ItemInspector /> : <Inspector />;

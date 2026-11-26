@@ -10,12 +10,17 @@ import { App } from './app/App';
 import { analyse, circuitDiagnostics, circuitOf } from './features/electronics/state';
 import { cosimFor } from './features/electronics/cosim';
 import { configureResearch, researchFor } from './features/research/controller';
+import { configureTwin, twinFor } from './features/twin/controller';
+import { lastImport } from './features/interop/state';
+import { importStatus } from '@forge/interop';
+import { ACTUATION_POLICY } from '@forge/digital-twin';
 import { createEditorStore } from './app/store';
 import { createDefaultAssetStore } from './assets/assetStore';
 import './styles/index.css';
 
 const namespace = import.meta.env.VITE_FORGE_STORAGE_NAMESPACE || 'forge';
 configureResearch({ storage: window.localStorage, namespace });
+configureTwin({ storage: window.localStorage, namespace });
 const store = createEditorStore(
   new BrowserStorageProjectRepository(window.localStorage, namespace),
   window.localStorage,
@@ -131,6 +136,59 @@ w.__forge = {
         };
       }),
       events: cs.events(50),
+    };
+  },
+  /** Import provenance records with their modification status (read-only). */
+  imports: () => {
+    const p = engine.getProject();
+    const root = p.scene.nodes[p.scene.rootId];
+    return (root?.kind === 'root' ? (root.imports ?? []) : []).map((r) => ({
+      ...r,
+      status: importStatus(r, p.scene),
+    }));
+  },
+  /** Last import analysis/plan in the dialog (read-only summary). */
+  importPreview: () => {
+    const { pending, plan } = lastImport;
+    return {
+      kind: pending?.kind ?? null,
+      format: pending?.detection.format ?? null,
+      ok: plan?.ok ?? null,
+      dryRun: plan?.dryRun ?? null,
+      commands: plan?.commands.length ?? 0,
+      diagnostics: plan?.diagnostics.map((d) => `${d.severity}:${d.code}`) ?? [],
+    };
+  },
+  /** Digital twin snapshot (read-only; no method here can send anything to a device). */
+  twin: () => {
+    const c = twinFor(store);
+    const u = c.ui.getState();
+    const p = c.pipeline;
+    return {
+      mode: u.mode,
+      adapter: u.adapter,
+      connected: u.connected,
+      link: u.link,
+      twin: c.twin
+        ? {
+            id: c.twin.id,
+            revision: c.twin.revision,
+            channels: c.twin.channels.map((m) => [m.channel, m.kind]),
+          }
+        : null,
+      device: p?.device ?? null,
+      channels: p ? [...p.channels.values()] : [],
+      samples: p ? Object.fromEntries([...p.series].map(([k, s]) => [k, s.t.length])) : {},
+      stats: p ? JSON.parse(JSON.stringify(p.stats)) : null,
+      clock: p?.clock ?? null,
+      recordings: u.recordings,
+      comparison:
+        u.comparison && !('error' in u.comparison)
+          ? { n: u.comparison.metrics.n, rmse: u.comparison.metrics.rmse, lagS: u.comparison.lag.bestS }
+          : u.comparison,
+      previewWristRad: u.previewWristRad,
+      mappingIssues: u.mappingIssues,
+      actuation: ACTUATION_POLICY,
     };
   },
   /** Research document summary (read-only). */

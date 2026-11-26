@@ -2,6 +2,7 @@ import { GroupInspector } from './GroupInspector';
 import { ComponentInspector } from './ComponentInspector';
 import { AssemblyInspector } from './AssemblyInspector';
 import { ModelInterfacesEditor } from './ModelInterfacesEditor';
+import { ProvenanceSection } from '@/features/interop/ProvenanceSection';
 import { PartInspector, SketchInspector } from './CadInspector';
 import {
   degToRad,
@@ -157,6 +158,7 @@ export function Inspector() {
               World position: {world.position.map((v) => formatNumber(v * 1000, 3)).join(', ')} mm
             </p>
           )}
+          <ProvenanceSection nodeId={node.id} />
           {node.kind === 'primitive' && <GeometrySummary g={node.geometry} />}
           {node.kind === 'component-instance' && node.component && (
             <ComponentInspector key={node.id} node={node} locked={locked} />

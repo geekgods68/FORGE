@@ -115,10 +115,12 @@ describe('serial bridge (read-only, loopback-only)', () => {
     const sub = subscribe(port);
     await sub.ready;
     d1.destroy(new Error('USB unplugged'));
-    await until(() => b.status.reconnects === 1 && b.status.connected);
-    const states = sub.events.filter((e) => e.event === 'state').map((e) => JSON.parse(e.data).connected);
-    expect(states).toContain(false);
-    expect(states.at(-1)).toBe(true);
+    const states = () =>
+      sub.events.filter((e) => e.event === 'state').map((e) => JSON.parse(e.data).connected as boolean);
+    // Wait for what the CLIENT receives (the SSE event can trail the bridge's own status).
+    await until(() => b.status.reconnects === 1 && states().includes(false) && states().at(-1) === true);
+    expect(states()).toContain(false);
+    expect(states().at(-1)).toBe(true);
     expect(b.status.lastError).toBe('USB unplugged');
     sub.close();
   });
