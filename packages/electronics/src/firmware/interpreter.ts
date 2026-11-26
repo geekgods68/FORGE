@@ -667,7 +667,21 @@ export class Interpreter {
           for (let i = 0; i < e.args.length; i++) {
             const a = e.args[i]!;
             if (f.params[i]?.array) {
-              if (a.k !== 'id') throw new FirmwareRuntimeError('Array arguments must be array names.', a);
+              // Phase 8: a string literal passed to a char[] parameter is a read-only,
+              // NUL-terminated temporary (as `const char[]` in C++); writes to it fail.
+              if (a.k === 'str' && f.params[i]!.t === 'char') {
+                const bytes = [...a.s].map((ch) => {
+                  const c = ch.charCodeAt(0) & 0xff;
+                  return c > 127 ? c - 256 : c;
+                });
+                args.push({ t: 'char', cls: null, isConst: true, v: 0, data: [...bytes, 0] });
+                continue;
+              }
+              if (a.k !== 'id')
+                throw new FirmwareRuntimeError(
+                  'Array arguments must be array names (or a string literal for char[]).',
+                  a,
+                );
               const s = this.find(a.name, env);
               if (!s?.data) throw new FirmwareRuntimeError(`"${a.name}" is not an array.`, a);
               args.push(s);

@@ -339,6 +339,24 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/digital-twin:
+    dependencies:
+      '@forge/electronics':
+        specifier: workspace:*
+        version: link:../electronics
+      '@forge/engineering-core':
+        specifier: workspace:*
+        version: link:../engineering-core
+      '@forge/physics':
+        specifier: workspace:*
+        version: link:../physics
+      '@forge/research':
+        specifier: workspace:*
+        version: link:../research
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+
   packages/electronics:
     dependencies:
       '@forge/components':
@@ -417,6 +435,9 @@ importers:
 
   packages/persistence:
     dependencies:
+      '@forge/digital-twin':
+        specifier: workspace:*
+        version: link:../digital-twin
       '@forge/engineering-core':
         specifier: workspace:*
         version: link:../engineering-core

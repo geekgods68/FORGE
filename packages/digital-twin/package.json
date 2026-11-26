@@ -1,0 +1,20 @@
+{
+  "name": "@forge/digital-twin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE digital twins: versioned twin documents linking a project to a physical device, the FORGE telemetry protocol (Arduino-friendly), an ingestion pipeline (sequence, duplicates, reordering, gaps, clock offset/drift, staleness), recordings and deterministic replay, simulation-versus-observation comparison, evidence-based twin designations, a deterministic synthetic adapter and an observation-only adapter boundary. Pure domain logic \u2014 no UI, no transport code.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/engineering-core": "workspace:*",
+    "@forge/research": "workspace:*",
+    "zod": "4.6.7",
+    "@forge/electronics": "workspace:*",
+    "@forge/physics": "workspace:*"
+  }
+}

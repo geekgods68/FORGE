@@ -260,3 +260,24 @@ describe('example sketches', () => {
     });
   });
 });
+
+describe('Phase 8: string literals as char[] arguments', () => {
+  it('passes a read-only NUL-terminated temporary (as const char[] in C++)', () => {
+    const { sim, mcu, out } = rig(
+      `int len(const char s[]) { int n = 0; while (s[n] != 0) n++; return n; }
+       void put(const char s[]) { for (int i = 0; s[i] != 0; i++) Serial.write(s[i]); }
+       void setup(){ Serial.begin(115200); put("ab,c"); Serial.println(len("hello")); }
+       void loop(){}`,
+    );
+    sim.runTo(ms(50));
+    expect(mcu.state).not.toBe('error');
+    expect(out()).toBe('ab,c5\r\n');
+    const w = rig(
+      `void poke(char s[]) { s[0] = 'x'; }
+       void setup(){ poke("abc"); }
+       void loop(){}`,
+    );
+    w.sim.runTo(ms(10));
+    expect(w.mcu.state).toBe('error');
+  });
+});
