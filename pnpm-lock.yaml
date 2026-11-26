@@ -178,12 +178,18 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.15.0(jiti@2.7.0))
+      '@forge/digital-twin':
+        specifier: workspace:*
+        version: link:packages/digital-twin
       '@forge/engineering-core':
         specifier: workspace:*
         version: link:packages/engineering-core
       '@forge/facility':
         specifier: workspace:*
         version: link:packages/facility
+      '@forge/interop':
+        specifier: workspace:*
+        version: link:packages/interop
       '@forge/persistence':
         specifier: workspace:*
         version: link:packages/persistence
@@ -235,6 +241,9 @@ importers:
       '@forge/components':
         specifier: workspace:*
         version: link:../../packages/components
+      '@forge/digital-twin':
+        specifier: workspace:*
+        version: link:../../packages/digital-twin
       '@forge/electronics':
         specifier: workspace:*
         version: link:../../packages/electronics
@@ -244,6 +253,9 @@ importers:
       '@forge/facility':
         specifier: workspace:*
         version: link:../../packages/facility
+      '@forge/interop':
+        specifier: workspace:*
+        version: link:../../packages/interop
       '@forge/mechanics':
         specifier: workspace:*
         version: link:../../packages/mechanics

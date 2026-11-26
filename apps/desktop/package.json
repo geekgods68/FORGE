@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "@forge/components": "workspace:*",
+    "@forge/digital-twin": "workspace:*",
     "@forge/electronics": "workspace:*",
     "@forge/engineering-core": "workspace:*",
     "@forge/facility": "workspace:*",
+    "@forge/interop": "workspace:*",
     "@forge/mechanics": "workspace:*",
     "@forge/persistence": "workspace:*",
     "@forge/physics": "workspace:*",
