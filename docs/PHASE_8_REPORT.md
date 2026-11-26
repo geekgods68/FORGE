@@ -399,12 +399,12 @@ Ready for owner review; Phase 9 has not been started. The interop and twin packa
 
 ## Final checks
 
-| Command                          |                      Exit |
-| -------------------------------- | ------------------------: |
-| `pnpm install --frozen-lockfile` |                         0 |
-| `pnpm lint`                      |                         0 |
-| `pnpm typecheck`                 |                         0 |
-| `pnpm format:check`              |                         0 |
-| `pnpm test`                      | 0 (474 passed, 6 skipped) |
-| `pnpm build`                     |                         0 |
-| `pnpm test:e2e`                  |                E2E_RESULT |
+| Command                          |                              Exit |
+| -------------------------------- | --------------------------------: |
+| `pnpm install --frozen-lockfile` |                                 0 |
+| `pnpm lint`                      |                                 0 |
+| `pnpm typecheck`                 |                                 0 |
+| `pnpm format:check`              |                                 0 |
+| `pnpm test`                      |         0 (474 passed, 6 skipped) |
+| `pnpm build`                     |                                 0 |
+| `pnpm test:e2e`                  | 0 (72 passed: 67 earlier + 5 new) |
