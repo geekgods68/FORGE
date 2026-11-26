@@ -143,7 +143,7 @@ export function TopBar() {
         onClick={() => interopUi.setState({ open: !interopOpen, tab: 'import' })}
         testId="interop-toggle"
       >
-        <FileUp /> Import / Export
+        <FileUp /> Data exchange
       </Toggle>
       {view === 'facility' && (
         <Toggle

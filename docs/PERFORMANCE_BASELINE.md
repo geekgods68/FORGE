@@ -258,3 +258,47 @@ The scheduler yields between runs and between simulation chunks: no long task (>
 ### Not measured
 
 Concurrent runs (not supported in Phase 7: one run at a time), Web Worker execution (runs share the main thread, yielding), and campaigns approaching the 64 MB raw-data budget in the browser.
+
+## Phase 8: interoperability and digital twins
+
+Apple M3, 8 GB (darwin 25.5.0, Node v24.2.0). Node benchmark `FORGE_BENCH=1` (`packages/interop/src/__tests__/benchmark.test.ts`, in memory, record `docs/archive/phase8-interop-benchmarks.json`) and browser benchmark `tests/end-to-end/phase8-performance.spec.ts` (headless Chromium, software WebGL; record `docs/archive/phase8-browser-benchmarks.json`). Single runs; indicative. **Free disk was 5.2–6.2 GiB during these runs (below the 8 GB floor):** only in-memory cases were run; no large files were written.
+
+### Import and export (Node)
+
+| Case              |                                  Size |                                Parse / analyse | Preview (metrics) | Plan (incl. GLB conversion) | Result                                              |
+| ----------------- | ------------------------------------: | ---------------------------------------------: | ----------------: | --------------------------: | --------------------------------------------------- |
+| STL binary        |             1 000 triangles (0.05 MB) |                                         4.0 ms |            3.3 ms |                     10.2 ms | GLB 0.06 MB                                         |
+| STL binary        |            100 000 triangles (4.8 MB) |                                         117 ms |            109 ms |                      486 ms | GLB 5.7 MB, heap +32 MB                             |
+| STL binary        |           500 000 triangles (23.8 MB) |                                         536 ms |            631 ms |                    1 283 ms | **refused**: converted asset > 16 MiB               |
+| glTF write / read |                     100 008 triangles |                               5.2 ms / 12.3 ms |                 — |                           — | —                                                   |
+| Export STL / GLB  |                     100 008 triangles |                                 101 ms / 86 ms |                 — |                           — | 4.8 MB / 4.6 MB                                     |
+| STEP (OCCT)       | 1 / 20 / 100 parts (8 / 137 / 705 KB) |                              82 / 115 / 506 ms |                 — |                           — | 12 / 240 / 1 200 triangles; kernel load 6 ms (warm) |
+| SPICE ladder      |                        2 001 elements |                 35 ms incl. connectivity check |                 — |                           — | ok                                                  |
+| KiCad netlist     |                        500 components |               12.8 ms incl. connectivity check |                 — |                           — | ok                                                  |
+| URDF chain        |                              30 links | plan 5.0 ms, apply 59 ms, physics model 2.4 ms |                 — |                           — | 31 bodies, 29 joints                                |
+
+### Telemetry (Node, synthetic)
+
+| Stream                                                    |  Lines | Ingest | Per line | Samples | Missing / duplicates | Drift estimate (true 0) |   Heap | Recording size |
+| --------------------------------------------------------- | -----: | -----: | -------: | ------: | -------------------: | ----------------------: | -----: | -------------: |
+| 20 Hz for 1 hour                                          | 74 160 | 315 ms |   4.2 µs |  72 000 |                0 / 0 |                +0.3 ppm | +37 MB |      51 KB/min |
+| 1 kHz for 60 s, 3 % drops, 3 % duplicates, 5 % reordering | 59 967 | 254 ms |   4.2 µs |  58 177 |        1 823 / 1 754 |                −0.8 ppm | +64 MB |     2.3 MB/min |
+
+≈ 236 000 lines/s, i.e. 20 Hz telemetry costs < 0.01 % of one core. (Before the rate-independent clock fit the same 1 kHz stream read 706 ppm and cost 48 µs per line.)
+
+### Simulation with imported geometry and simultaneous observation (Node)
+
+|   Arm (Phase 5) | + imported STL part welded to the gripper (bbox collider, 0.05 kg) | + 20 Hz telemetry ingested during the steps |
+| --------------: | -----------------------------------------------------------------: | ------------------------------------------: |
+| 0.175 ms / step |                                                    0.160 ms / step |                             0.157 ms / step |
+
+No measurable overhead (differences are run-to-run noise): imported meshes collide through a box, so their triangle count never enters the physics step.
+
+### Browser
+
+| Activity                                      |                          Duration | Frame interval median / p95 / max | Long tasks | JS heap |
+| --------------------------------------------- | --------------------------------: | --------------------------------: | ---------: | ------: |
+| 100-part STEP import (OCCT in a worker)       | 844 ms wall, 580 ms in the worker |             16.7 / 16.8 / 16.8 ms |          0 |   28 MB |
+| Digital twin live, 20 Hz synthetic, recording |                15 s (308 samples) |             16.7 / 16.8 / 33.2 ms |          0 |   28 MB |
+
+Twin latency p95 3.8 ms (synthetic transport), 0 missing messages; IndexedDB usage after the run ≈ 236 KB. OCCT's WebAssembly (7.6 MB) is fetched only when a STEP file is imported.

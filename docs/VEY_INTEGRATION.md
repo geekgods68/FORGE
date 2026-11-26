@@ -68,3 +68,7 @@ The result carries `commandId`, `status` (`accepted` · `rejected` · `awaiting-
 3. A permission and confirmation layer exists. The user approves destructive and compute operations.
 4. An audit log records `commandId`, caller, inputs, outcome and timestamp, kept locally.
 5. Vey can never execute arbitrary code, access the host filesystem, or reach the network through FORGE.
+
+## Phase 8: interoperability and digital-twin boundary (for a future VCI client)
+
+`packages/vey-api` (version 2) adds six PROPOSED contracts — `interop.capabilities`, `interop.assets`, `interop.import` (write, confirmation required), `interop.export` (compute, confirmation required), `twin.state`, `twin.recordings` — none callable yet (`AVAILABLE_COMMANDS` is still empty). The underlying pure functions exist (`@forge/interop`, `@forge/digital-twin`) and the desktop exposes read-only test hooks (`window.__forge.imports()`, `importPreview()`, `twin()`). There is deliberately **no device-actuation contract**: any future hardware command must pass FORGE's own explicit, separate user authorisation, whoever requests it. No LLM, agent or remote-control endpoint exists.

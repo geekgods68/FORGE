@@ -158,7 +158,76 @@ export const COMMAND_CONTRACTS = [
     implementationStatus: 'proposed',
     plannedPhase: 9,
   }),
+  // Phase 8 (interoperability, digital twins): read-mostly boundary for a future VCI client.
+  // Physical actuation is deliberately ABSENT: no contract may ever move hardware without the
+  // user's explicit, separate authorisation in FORGE's own UI (none exists in Phase 8).
+  c({
+    name: 'interop.capabilities',
+    summary: 'List supported exchange formats and exactly what each import/export preserves.',
+    permission: 'read',
+    requiresConfirmation: false,
+    safetyChecks: ['Report unsupported data per format; never claim support beyond the capability matrix'],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
+  c({
+    name: 'interop.assets',
+    summary:
+      'List imported assets with provenance (source hash, units, geometry class, modification status).',
+    permission: 'read',
+    requiresConfirmation: false,
+    safetyChecks: ['Distinguish native, imported and derived representations'],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
+  c({
+    name: 'interop.import',
+    summary: 'Import a user-provided engineering file as one undoable transaction.',
+    permission: 'write',
+    requiresConfirmation: true,
+    safetyChecks: [
+      'User selects the file; no network or file-system access by the importer',
+      'Preview and engine dry run shown before confirmation',
+      'Mass, materials and collision are never inferred',
+    ],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
+  c({
+    name: 'interop.export',
+    summary: 'Export supported geometry or circuit representations (the project is not modified).',
+    permission: 'compute',
+    requiresConfirmation: true,
+    safetyChecks: ['Report preserved and discarded information; never present a mesh as a CAD model'],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
+  c({
+    name: 'twin.state',
+    summary:
+      'Read a digital twin: mapping, link state, latest values with kind (measured/commanded/estimated) and evidence level.',
+    permission: 'read',
+    requiresConfirmation: false,
+    safetyChecks: [
+      'Label synthetic and replayed data',
+      'Never substitute simulated values for missing measurements',
+    ],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
+  c({
+    name: 'twin.recordings',
+    summary: 'Read twin recordings and their synchronisation diagnostics.',
+    permission: 'read',
+    requiresConfirmation: false,
+    safetyChecks: ['Integrity hash verified before use'],
+    implementationStatus: 'proposed',
+    plannedPhase: 11,
+  }),
 ] as const satisfies readonly CommandContract[];
+
+/** Version of this contract list (bump on any change visible to a client). */
+export const VEY_API_VERSION = 2;
 
 export type ProposedCommandName = (typeof COMMAND_CONTRACTS)[number]['name'];
 

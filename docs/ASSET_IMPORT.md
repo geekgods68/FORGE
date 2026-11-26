@@ -73,8 +73,7 @@ Phase 4.1 (`tests/end-to-end/model-interfaces.spec.ts`): a GLB saved as a custom
 
 ## Limits
 
-- Supported: GLB and self-contained glTF only. External `.bin` and texture URIs are not fetched.
-- No STEP / IGES / STL / OBJ.
+- This page covers the Library path (save a GLB/glTF as a reusable component). Phase 8 adds the **Data exchange** dialog for STEP, STL, glTF/GLB, URDF, SPICE and KiCad (docs/INTEROPERABILITY.md). External `.bin` and texture URIs are never fetched. IGES and OBJ are not supported.
 - No mesh repair, decimation or unit auto-detection. The user confirms the unit and up-axis.
 - The asset store is per browser profile: use bundles to move work between machines.
 - Interfaces are entered numerically; there is no click-to-place on the mesh surface, and declared dimensions are informational (fastener checks read the compatibility tags, e.g. `M4-clearance`, not the diameter field).

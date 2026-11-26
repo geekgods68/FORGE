@@ -1,10 +1,10 @@
 # CLAUDE.md: FORGE
 
-- **Phase discipline:** Phases 0–6 are complete and merged into `main`. Phase 7 (scientific experimentation, research automation and validation; package `@forge/research`, Research work mode) is implemented on `phase-7/scientific-experiments` and pending owner acceptance (docs/PHASE_7_REPORT.md). Phase 8 must NOT start without the owner's explicit go-ahead; never claim a later phase is done. Runs never mutate engineering state: setup changes are undoable `physics.*` / `electrical.*` commands; runtime lives in a `PhysicsSession` / `CoSimulation`; research campaigns apply conditions to a **copy** of the project and keep protocols, run records and raw data in the separate research document and run-data store (results append-only, integrity-hashed). Never generate synthetic observations and present them as measured data; never claim empirical validation without independent measured data.
+- **Phase discipline:** Phases 0–6 are complete and merged into `main`; Phase 7 is complete on `phase-7/scientific-experiments`. Phase 8 (CAD interoperability, engineering data exchange and digital twins; packages `@forge/interop` and `@forge/digital-twin`, Data exchange dialog, Digital twin mode, `tools/serial-bridge`) is implemented on `phase-8/interoperability-digital-twins` and pending owner acceptance (docs/PHASE_8_REPORT.md). Phase 9 must NOT start without the owner's explicit go-ahead; never claim a later phase is done. Runs never mutate engineering state: setup changes are undoable `physics.*` / `electrical.*` commands; runtime lives in a `PhysicsSession` / `CoSimulation`; research campaigns apply conditions to a **copy** of the project; imports are ONE atomic `scene.batch` ending with `interop.import.record`; twin telemetry never enters the project or its undo history (the viewport preview shows twin poses). Never generate synthetic observations and present them as measured data; never claim empirical validation without independent measured data; never infer mass, density or collision for imported geometry.
 - **Never:**
   - Push, publish, add remotes or tunnels, or bind beyond 127.0.0.1.
-  - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin).
-  - Control real hardware.
+  - Add LLM/model APIs, telemetry, analytics or remote runtime assets (the CSP enforces same-origin; the only extra connect-src is the local serial bridge on http://127.0.0.1:8765).
+  - Control real hardware. Phase 8 hardware access is OBSERVATION ONLY (receive-only adapters, no command message in the telemetry protocol, a read-only loopback bridge); do not add any write path to a device.
   - Commit secrets.
   - Rewrite git history.
 - **Architecture:**

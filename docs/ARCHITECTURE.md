@@ -324,9 +324,20 @@ All frames use metres, are right-handed, +Y up and −Z north, and every frame-t
 - **Separation:** engineering project (never written by research) / research document (protocols undoable, results append-only) / raw run data (write-once, hash-verified on load).
 - **Read-only test hooks:** `window.__forge.research()` (experiments, runs, progress, integrity report).
 
+## Phase 8: interoperability and digital twins
+
+- **`@forge/engineering-core` (project schema v7):** optional `imports` provenance records on the root, `interop.import.record` / `interop.import.forget` commands (the record's fingerprint is computed by the command from the nodes as created), and the `inertial` mass source (explicit mass, centre of mass, inertia tensor; realisability-checked). SHA-256 helpers moved here from `@forge/research`.
+- **`@forge/interop`** (new, pure): format detection; STL, glTF/GLB, STEP (header in TypeScript, tessellation by OCCT WebAssembly through an injected kernel), URDF (safe XML), SPICE, KiCad (S-expressions) readers; STL/GLB/SPICE writers; the canonical `MeshScene`, frames and geometry metrics; import plans as validated engine commands; provenance; the capability matrix. Details: INTEROPERABILITY.md.
+- **`@forge/digital-twin`** (new, pure): telemetry protocol, ingestion pipeline and clock synchronisation, twin documents, mapping validation, recordings/replay, comparison, designations, the synthetic adapter, the receive-only adapter interface and the actuation refusal; the VEYRIS arm reference. Details: DIGITAL_TWIN.md, TELEMETRY_PROTOCOL.md.
+- **`@forge/physics`:** honours the `inertial` mass source. **`@forge/electronics`:** SPICE export names (R1, not RR1); the UNO interpreter accepts string literals for `char[]` parameters. **`@forge/persistence`:** `BrowserStorageTwinRepository`.
+- **Desktop:** Data exchange dialog (STEP analysis in a module Web Worker; OCCT's 7.6 MB WebAssembly fetched only for STEP), Inspector provenance section, export from engineering data, **Digital twin** work mode (Web Serial and bridge transports, receive-only; recordings in IndexedDB; poses via the viewport preview scene, never commands).
+- **`tools/serial-bridge`:** Node (no dependencies) read-only serial → SSE bridge on 127.0.0.1 with token, origin allowlist and device-path allowlist.
+- **`packages/vey-api` v2:** six proposed (not callable) interop/twin contracts; no actuation contract.
+
 ## Security posture (local)
 
 - The CSP is same-origin, plus `'wasm-unsafe-eval'` for Rapier only. The e2e test verifies there are 0 requests to other origins.
 - The servers bind to 127.0.0.1.
-- `window.__forge` exposes **query methods only**: no execute, undo or replace (Phase 5 adds read-only `sim`, `simSeries`, `simUnitPosition`).
+- `window.__forge` exposes **query methods only**: no execute, undo or replace (Phase 5 adds read-only `sim`, `simSeries`, `simUnitPosition`; Phase 8 `imports`, `importPreview`, `twin` — none can reach a device).
+- Phase 8: CSP `connect-src` additionally allows only `http://127.0.0.1:8765` (the local serial bridge); `worker-src 'self'` runs the STEP worker.
 - Imported model bytes stay in this browser profile's IndexedDB; bundles are verified by SHA-256 before anything is stored.
