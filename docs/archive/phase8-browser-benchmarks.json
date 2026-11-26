@@ -1,0 +1,43 @@
+{
+  "when": "2026-11-26T05:20:42.564Z",
+  "note": "Headless Chromium (software WebGL); single runs; indicative.",
+  "stepImport": {
+    "parts": 100,
+    "fileKB": 705,
+    "wallMs": 844,
+    "workerAnalyseMs": 580,
+    "ui": {
+      "frames": 50,
+      "frameMs": {
+        "median": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "longTasks": 0,
+      "longestTaskMs": 0,
+      "jsHeapMB": 28
+    }
+  },
+  "twinLive": {
+    "seconds": 15,
+    "samples": {
+      "d": 308,
+      "a": 307
+    },
+    "latencyP95Ms": 3.83,
+    "driftPpm": -13.1,
+    "missingMessages": 0,
+    "ui": {
+      "frames": 899,
+      "frameMs": {
+        "median": 16.7,
+        "p95": 16.8,
+        "max": 33.2
+      },
+      "longTasks": 0,
+      "longestTaskMs": 0,
+      "jsHeapMB": 28
+    }
+  },
+  "storageUsageKB": 236
+}

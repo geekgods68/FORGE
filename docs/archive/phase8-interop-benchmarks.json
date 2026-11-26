@@ -1,0 +1,138 @@
+{
+  "when": "2026-11-26T05:19:47.344Z",
+  "machine": {
+    "platform": "darwin 25.5.0",
+    "cpu": "Apple M3",
+    "cores": 8,
+    "memGB": 8,
+    "node": "v24.2.0"
+  },
+  "freeDiskGiB": 6.2,
+  "note": "Single runs in memory; indicative, not guarantees.",
+  "stl": [
+    {
+      "triangles": 1000,
+      "fileMB": 0.05,
+      "parseMs": 3.99,
+      "previewMs": 3.25,
+      "planMs": 10.21,
+      "glbMB": 0.06,
+      "planOk": true,
+      "heapGrowthMB": 15.7,
+      "components": 85
+    },
+    {
+      "triangles": 100000,
+      "fileMB": 4.77,
+      "parseMs": 117.13,
+      "previewMs": 109.06,
+      "planMs": 485.69,
+      "glbMB": 5.72,
+      "planOk": true,
+      "heapGrowthMB": 31.6,
+      "components": 8335
+    },
+    {
+      "triangles": 500000,
+      "fileMB": 23.84,
+      "parseMs": 535.61,
+      "previewMs": 631.45,
+      "planMs": 1282.99,
+      "glbMB": null,
+      "planOk": false,
+      "heapGrowthMB": 226.2,
+      "components": 41667
+    }
+  ],
+  "gltf": {
+    "triangles": 100008,
+    "writeGlbMs": 5.22,
+    "readGlbMs": 12.26,
+    "exportStlMs": 101.41,
+    "exportStlMB": 4.77,
+    "exportGlbMs": 85.65,
+    "exportGlbMB": 4.58
+  },
+  "step": {
+    "kernelLoadMs": 6.09,
+    "assemblies": [
+      {
+        "parts": 1,
+        "fileKB": 7.7,
+        "analyseMs": 81.75,
+        "ok": true,
+        "triangles": 12
+      },
+      {
+        "parts": 20,
+        "fileKB": 137.2,
+        "analyseMs": 114.65,
+        "ok": true,
+        "triangles": 240
+      },
+      {
+        "parts": 100,
+        "fileKB": 704.9,
+        "analyseMs": 506.07,
+        "ok": true,
+        "triangles": 1200
+      }
+    ]
+  },
+  "circuits": {
+    "spice": {
+      "elements": 2001,
+      "parseVerifyMs": 35.08,
+      "ok": true
+    },
+    "kicad": {
+      "components": 500,
+      "importVerifyMs": 12.77,
+      "ok": true
+    }
+  },
+  "urdf": {
+    "links": 30,
+    "planMs": 5.04,
+    "applyMs": 59,
+    "physicsModelMs": 2.39,
+    "bodies": 31,
+    "joints": 29
+  },
+  "telemetry": [
+    {
+      "label": "20 Hz for 1 hour (nominal)",
+      "lines": 74160,
+      "ingestMs": 314.73,
+      "linesPerS": 235633,
+      "usPerLine": 4.24,
+      "seriesBuildMs": 3.16,
+      "samples": 72000,
+      "missingMessages": 0,
+      "duplicates": 0,
+      "driftPpm": 0.3,
+      "heapGrowthMB": 36.7,
+      "recordingKBPerMin": 50.9
+    },
+    {
+      "label": "1 kHz for 60 s (3 % drops, 3 % duplicates, 5 % reordering)",
+      "lines": 59967,
+      "ingestMs": 254.15,
+      "linesPerS": 235947,
+      "usPerLine": 4.24,
+      "seriesBuildMs": 2.33,
+      "samples": 58177,
+      "missingMessages": 1823,
+      "duplicates": 1754,
+      "driftPpm": -0.8,
+      "heapGrowthMB": 64.2,
+      "recordingKBPerMin": 2343.5
+    }
+  ],
+  "simulation": {
+    "armMsPerStep": 0.1748,
+    "withImportedPartMsPerStep": 0.1596,
+    "withImportedPartAndTelemetryMsPerStep": 0.1566,
+    "note": "Imported meshes use a bounding-box collider: their triangle count does not enter the physics step."
+  }
+}

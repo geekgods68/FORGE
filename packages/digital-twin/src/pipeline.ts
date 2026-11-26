@@ -23,15 +23,17 @@ export interface PipelineOptions {
   delayedAboveMs: number;
   /** Samples kept per channel (ring buffer; oldest dropped and counted). */
   capacity: number;
-  /** Messages used for the clock fit (sliding window). */
-  clockWindow: number;
+  /** Device-time span used for the clock fit (ms), and the bucket in which the least-delayed message is kept. */
+  clockWindowMs: number;
+  clockBucketMs: number;
 }
 export const DEFAULT_PIPELINE: PipelineOptions = {
   reorderWindowMs: 100,
   staleAfterMs: 500,
   delayedAboveMs: 250,
   capacity: 100_000,
-  clockWindow: 400,
+  clockWindowMs: 30_000,
+  clockBucketMs: 50,
 };
 
 export type Quality = 'ok' | 'missing' | 'late';
@@ -188,9 +190,7 @@ export class TelemetryPipeline {
     if (su < this.lastSeqU) this.stats.reordered++;
     this.lastSeqU = Math.max(this.lastSeqU, su);
     this.lastDevU = Math.max(this.lastDevU, du);
-    this.clockPts.push({ dev: du, host: hostMs });
-    if (this.clockPts.length > this.opts.clockWindow) this.clockPts.shift();
-    this.refit();
+    this.addClockPoint(du, hostMs);
     const p: Pending = { seq: su, dev: du, host: hostMs, m };
     if (su <= this.released) {
       this.stats.late++;
@@ -311,65 +311,85 @@ export class TelemetryPipeline {
     this.lastDevU = -1;
     this.devBase = 0;
     this.clockPts = [];
+    this.latencies = [];
+    this.lastDevForLatency = [];
     this.epochHostStart = hostMs;
   }
 
   /**
-   * Clock fit robust to transport jitter: the window is split into bins; in each bin the
-   * message with the SMALLEST host − device offset (least delayed) is kept, and the drift is
-   * the least-squares slope through those minima. The offset is the lower envelope, so
-   * latency = host − mapped ≥ 0.
+   * Clock fit robust to transport jitter and independent of the message rate: device time
+   * is divided into buckets (clockBucketMs); each bucket keeps its LEAST-delayed message
+   * (smallest host − device offset). Over a sliding clockWindowMs of device time, the drift
+   * is the least-squares slope through those minima and the offset is their lower
+   * envelope, so latency = host − mapped ≥ 0 for every message.
    */
+  private addClockPoint(dev: number, host: number) {
+    const b = Math.floor(dev / this.opts.clockBucketMs);
+    const last = this.clockPts[this.clockPts.length - 1];
+    const lastB = last ? Math.floor(last.dev / this.opts.clockBucketMs) : null;
+    if (last && lastB === b) {
+      if (host - dev < last.host - last.dev) this.clockPts[this.clockPts.length - 1] = { dev, host };
+    } else if (!last || dev > last.dev) this.clockPts.push({ dev, host });
+    // Late (out-of-order) messages are not used for the fit.
+    while (this.clockPts.length && this.clockPts[0]!.dev < dev - this.opts.clockWindowMs)
+      this.clockPts.shift();
+    this.latencies.push(host - dev);
+    if (this.latencies.length > 2000) this.latencies.shift();
+    this.lastDevForLatency.push(dev);
+    if (this.lastDevForLatency.length > 2000) this.lastDevForLatency.shift();
+    this.refit();
+  }
+  private latencies: number[] = [];
+  private lastDevForLatency: number[] = [];
   private refit() {
     const pts = this.clockPts;
     const n = pts.length;
     this.fitVersion++;
-    if (n < 2) {
-      this.fit = {
-        n,
-        offsetMs: n ? pts[0]!.host - pts[0]!.dev : 0,
-        driftPpm: 0,
-        latencyMeanMs: 0,
-        latencyP95Ms: 0,
-      };
-      return;
-    }
+    if (!n) return;
     let slope = 1;
-    const BIN = 20;
-    if (n >= 3 * BIN) {
-      const mins: { dev: number; off: number }[] = [];
-      for (let b = 0; b + BIN <= n; b += BIN) {
-        let best = pts[b]!;
-        for (let k = b; k < b + BIN; k++)
-          if (pts[k]!.host - pts[k]!.dev < best.host - best.dev) best = pts[k]!;
-        mins.push({ dev: best.dev, off: best.host - best.dev });
-      }
-      const md = mins.reduce((a, x) => a + x.dev, 0) / mins.length;
-      const mo = mins.reduce((a, x) => a + x.off, 0) / mins.length;
+    if (n >= 3) {
+      const md = pts.reduce((a, x) => a + x.dev, 0) / n;
+      const mo = pts.reduce((a, x) => a + (x.host - x.dev), 0) / n;
       let sxy = 0;
       let sxx = 0;
-      for (const x of mins) {
-        sxy += (x.dev - md) * (x.off - mo);
+      for (const x of pts) {
+        sxy += (x.dev - md) * (x.host - x.dev - mo);
         sxx += (x.dev - md) ** 2;
       }
       if (sxx > 0) slope = 1 + sxy / sxx;
     }
-    const offs = pts.map((p) => p.host - slope * p.dev);
-    const off = Math.min(...offs);
-    const lat = offs.map((o) => o - off).sort((a, b) => a - b);
+    let off = Infinity;
+    for (const p of pts) off = Math.min(off, p.host - slope * p.dev);
     this.fit = {
-      n,
+      n: this.latencies.length,
       offsetMs: off,
       driftPpm: (slope - 1) * 1e6,
-      latencyMeanMs: lat.reduce((a, b) => a + b, 0) / n,
-      latencyP95Ms: lat[Math.min(n - 1, Math.floor(0.95 * n))]!,
+      latencyMeanMs: 0,
+      latencyP95Ms: 0,
     };
+    this.latencyCache = null;
+  }
+  private latencyCache: { mean: number; p95: number } | null = null;
+  /** Latency of recent messages above the fitted lower envelope (computed on demand). */
+  private latencyStats() {
+    if (this.latencyCache) return this.latencyCache;
+    const k = 1 + this.fit.driftPpm * 1e-6;
+    const lat = this.latencies
+      .map((o, i) => o + this.lastDevForLatency[i]! * (1 - k) - this.fit.offsetMs)
+      .sort((a, b) => a - b);
+    const m = lat.length;
+    this.latencyCache = {
+      mean: m ? Math.max(0, lat.reduce((a, b) => a + b, 0) / m) : 0,
+      p95: m ? Math.max(0, lat[Math.min(m - 1, Math.floor(0.95 * m))]!) : 0,
+    };
+    return this.latencyCache;
   }
   toHost(devMs: number): number {
     return this.fit.offsetMs + (1 + this.fit.driftPpm * 1e-6) * devMs;
   }
   get clock(): ClockFit {
-    return this.fit;
+    const l = this.latencyStats();
+    return { ...this.fit, latencyMeanMs: l.mean, latencyP95Ms: l.p95 };
   }
 
   linkState(hostMs: number): LinkState {
@@ -377,7 +397,7 @@ export class TelemetryPipeline {
     if (!this.open) return 'disconnected';
     if (!this.device && this.lastHost === -Infinity) return 'waiting';
     if (hostMs - this.lastHost > this.opts.staleAfterMs) return 'stale';
-    if (this.fit.n >= 20 && this.fit.latencyP95Ms > this.opts.delayedAboveMs) return 'delayed';
+    if (this.fit.n >= 20 && this.latencyStats().p95 > this.opts.delayedAboveMs) return 'delayed';
     return 'live';
   }
   /** Latest valid sample of a channel, with its age; null when none. */
