@@ -188,6 +188,9 @@ const SUMMARIES: Record<CommandType, string> = {
   'electrical.group.delete': 'Remove a circuit group',
   'electrical.firmware.set': 'Add or edit a firmware source (revision increments)',
   'electrical.firmware.delete': 'Remove a firmware source',
+  'interop.import.record':
+    'Record the provenance of an external import (written in the same batch as the imported nodes)',
+  'interop.import.forget': 'Remove an import provenance record',
   'scene.batch': 'Apply up to 10,000 node commands atomically as one undoable step',
 };
 

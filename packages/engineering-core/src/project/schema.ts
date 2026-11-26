@@ -9,17 +9,19 @@ import { validateGraph } from '../scene/graph';
 import { SceneGraphSchema } from '../scene/schemas';
 
 /**
- * FORGE project document, schema version 6 (Phase 6: electrical definition).
+ * FORGE project document, schema version 7 (Phase 8: import provenance, inertial mass).
  * v1 (Phase 0), v2 (Phases 1–2), v3 (Phase 3), v4 (Phase 4) and v5 (Phase 5) documents are
  * migrated on load.
  * v3 added the optional `component` reference; v4 added `mechanical` on assembly nodes
  * (defaulted when absent) and the `sketch`, `part` and `model-instance` node kinds; v5 adds
  * the optional `simulation` definition on the root node (absent in older files = none); v6
- * adds the optional `electrical` definition (circuit, wiring, firmware) on the root node.
+ * adds the optional `electrical` definition (circuit, wiring, firmware) on the root node; v7
+ * (Phase 8) adds the optional `imports` provenance records on the root and the `inertial`
+ * mass source in the simulation definition.
  * Each bump makes an older build refuse a newer file instead of silently dropping data.
  */
-export const PROJECT_SCHEMA_VERSION = 6 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4, 5, 6] as const;
+export const PROJECT_SCHEMA_VERSION = 7 as const;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 export const ProjectSchema = z
   .object({

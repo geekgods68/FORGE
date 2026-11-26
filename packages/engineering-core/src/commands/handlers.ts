@@ -26,6 +26,8 @@ import {
 } from './mechanical-handlers';
 import { PHYSICS_HANDLERS } from './physics-handlers';
 import { ELECTRICAL_HANDLERS } from './electrical-handlers';
+import { INTEROP_HANDLERS } from './interop-handlers';
+import type { InteropCommandType } from './interop-schemas';
 import type { PhysicsCommandType } from './physics-schemas';
 import type { ElectricalCommandType } from './electrical-schemas';
 import type { BatchSubCommand, MechanicalCommandType, NodeCommandType, PayloadOf } from './schemas';
@@ -158,7 +160,7 @@ const sameTransform = (a: NodeTransform, b: NodeTransform) => JSON.stringify(a) 
 
 type CoreCommandType = Exclude<
   NodeCommandType,
-  MechanicalCommandType | PhysicsCommandType | ElectricalCommandType
+  MechanicalCommandType | PhysicsCommandType | ElectricalCommandType | InteropCommandType
 >;
 const CORE_HANDLERS: { [K in CoreCommandType]: Handler<K> } = {
   'scene.node.create'(tx, { node: spec }, ctx) {
@@ -491,6 +493,7 @@ export const HANDLERS: { [K in NodeCommandType]: Handler<K> } = {
   ...MECHANICAL_HANDLERS,
   ...PHYSICS_HANDLERS,
   ...ELECTRICAL_HANDLERS,
+  ...INTEROP_HANDLERS,
   'component.parameters.update': (tx, payload, ctx) =>
     CORE_HANDLERS['scene.component.configure'](tx, payload, ctx),
 };

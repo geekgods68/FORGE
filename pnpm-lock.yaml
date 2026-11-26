@@ -372,6 +372,34 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/interop:
+    dependencies:
+      '@forge/electronics':
+        specifier: workspace:*
+        version: link:../electronics
+      '@forge/engineering-core':
+        specifier: workspace:*
+        version: link:../engineering-core
+      occt-import-js:
+        specifier: 0.0.23
+        version: 0.0.23
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@forge/components':
+        specifier: workspace:*
+        version: link:../components
+      '@forge/mechanics':
+        specifier: workspace:*
+        version: link:../mechanics
+      '@forge/physics':
+        specifier: workspace:*
+        version: link:../physics
+      '@forge/research':
+        specifier: workspace:*
+        version: link:../research
+
   packages/mechanics:
     dependencies:
       '@forge/components':
@@ -1679,6 +1707,9 @@ packages:
   obug@3.0.0:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
+
+  occt-import-js@0.0.23:
+    resolution: {integrity: sha512-RFfYQXYFX5C1mB1Aywm0ShcUKzXOr/VzTnlzhBSDJOR6YCAPt1HYCzeXWg1vwwjn/cUxwqRNhhtf1dlewoZYCQ==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -3313,6 +3344,8 @@ snapshots:
   node-releases@2.0.65: {}
 
   obug@3.0.0: {}
+
+  occt-import-js@0.0.23: {}
 
   optionator@0.9.4:
     dependencies:

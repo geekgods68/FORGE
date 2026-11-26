@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ImportRecordSchema } from '../interop/schemas';
 import { SimulationDefinitionSchema } from '../simulation/schemas';
 import { ElectricalDefinitionSchema } from '../electrical/schemas';
 import { COMPONENT_CATEGORY_IDS } from '../categories';
@@ -381,6 +382,8 @@ export const SceneNodeSchema = z.discriminatedUnion('kind', [
     simulation: SimulationDefinitionSchema.optional(),
     /** Phase 6: optionally carries the electrical definition (circuit, firmware; never runtime state). */
     electrical: ElectricalDefinitionSchema.optional(),
+    /** Phase 8: provenance records of external imports (absent in older files = none). */
+    imports: z.array(ImportRecordSchema).max(1000).optional(),
   }),
   z.object({ ...nodeBase, kind: z.literal('group') }),
   z.object({ ...nodeBase, kind: z.literal('primitive'), geometry: PrimitiveGeometrySchema, color: hexColor }),

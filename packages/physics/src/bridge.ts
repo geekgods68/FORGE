@@ -85,7 +85,7 @@ export interface MassSource {
   nodeId: string;
   name: string;
   massKg: number;
-  source: 'geometry-density' | 'published' | 'user' | 'material';
+  source: 'geometry-density' | 'published' | 'user' | 'material' | 'inertial';
   status: Status;
   note: string;
 }
@@ -660,6 +660,33 @@ export function buildPhysicsModel(sourceGraph: SceneGraph, definition: Simulatio
     if (mode === 'dynamic') {
       for (const u of members) {
         const own = geometry.filter((g) => g.unit === u);
+        // Phase 8: complete mass properties supplied by a source document (e.g. URDF
+        // <inertial>) or the user, in the unit node's local frame — used as given.
+        if (u.settings.mass.source === 'inertial') {
+          const Wu = worldOf(u.nodeId);
+          if (!Wu) {
+            massOk = false;
+            continue;
+          }
+          const ms = u.settings.mass;
+          const [ixx, iyy, izz, ixy, ixz, iyz] = ms.inertia;
+          const local: MassProps = {
+            massKg: ms.massKg,
+            com: [...ms.comM],
+            inertia: [ixx, ixy, ixz, ixy, iyy, iyz, ixz, iyz, izz],
+          };
+          const mp = transformMass(local, rotationOf(Wu), originOf(Wu));
+          parts.push(mp);
+          massSources.push({
+            nodeId: u.nodeId,
+            name: u.name,
+            massKg: mp.massKg,
+            source: 'inertial',
+            status: 'approximate',
+            note: `Mass, centre of mass and inertia tensor supplied explicitly${ms.note ? ` (${ms.note})` : ''}; used as given, not derived from geometry.`,
+          });
+          continue;
+        }
         // A user mass on a composite unit is shared among its leaves by volume.
         const vols = own.map((g) => g.solids.reduce((s, x) => s + solidVolume(x), 0));
         const totalVol = vols.reduce((a, b) => a + b, 0);

@@ -68,7 +68,44 @@ export const MassSettingSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('user'), massKg: positive.max(1e6), note: Note }),
   /** Geometry × the density of a selected library material (an explicit approximate model). */
   z.object({ source: z.literal('material'), materialId: z.string().min(1).max(96) }),
+  /**
+   * Phase 8: complete rigid-body mass properties supplied by a source document (e.g. a URDF
+   * <inertial>) or the user: mass, centre of mass and the inertia tensor about the centre of
+   * mass, all in the body node's LOCAL frame (m, kg·m²). Used as given — not derived from
+   * geometry. The tensor must be physically realisable (positive principal moments that
+   * satisfy the triangle inequalities).
+   */
+  z
+    .object({
+      source: z.literal('inertial'),
+      massKg: positive.max(1e6),
+      comM: z.tuple([finite, finite, finite]),
+      /** [ixx, iyy, izz, ixy, ixz, iyz] about the centre of mass. */
+      inertia: z.tuple([finite, finite, finite, finite, finite, finite]),
+      note: Note,
+    })
+    .superRefine((m, ctx) => {
+      const p = inertiaIssue(m.inertia);
+      if (p) ctx.addIssue({ code: 'custom', path: ['inertia'], message: p });
+    }),
 ]);
+
+/**
+ * Physical realisability of an inertia tensor [ixx, iyy, izz, ixy, ixz, iyz]: symmetric
+ * positive definite (Sylvester's criterion) with principal moments obeying the triangle
+ * inequality (relative tolerance 1e-6). Returns a message, or null when valid.
+ */
+export function inertiaIssue(t: readonly number[]): string | null {
+  const [a, b, c, d, e, f] = t as [number, number, number, number, number, number];
+  const m1 = a;
+  const m2 = a * b - d * d;
+  const m3 = a * (b * c - f * f) - d * (d * c - f * e) + e * (d * f - b * e);
+  if (!(m1 > 0 && m2 > 0 && m3 > 0)) return 'inertia tensor is not positive definite';
+  const tol = 1e-6 * (a + b + c);
+  if (a + b < c - tol || a + c < b - tol || b + c < a - tol)
+    return 'inertia moments violate the triangle inequality (not a physical rigid body)';
+  return null;
+}
 export type MassSetting = z.infer<typeof MassSettingSchema>;
 
 export const BODY_MODES = ['auto', 'dynamic', 'fixed', 'kinematic', 'excluded'] as const;

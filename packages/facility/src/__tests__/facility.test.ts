@@ -246,7 +246,7 @@ describe('WorkspaceEngine', () => {
 describe('persistence boundaries', () => {
   it('engineering project files carry no facility or workspace data (Phase 1 format unchanged)', () => {
     const text = serializeProject(createProject());
-    expect(JSON.parse(text).schemaVersion).toBe(6); // Phase 6 schema; still no layout data
+    expect(JSON.parse(text).schemaVersion).toBe(7); // Phase 8 schema; still no layout data
     for (const key of ['workspace', 'facility', 'zone', 'mountedProjectId', 'bench'])
       expect(text).not.toContain(`"${key}`);
   });

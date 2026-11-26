@@ -94,8 +94,8 @@ describe('simulation definition commands (Phase 5)', () => {
     run('physics.simulation.create', {});
     run('physics.body.set', { nodeId: 'b1', settings: { mode: 'fixed', collider: 'bounds-box' } });
     const text = serializeProject(engine.getProject());
-    expect(JSON.parse(text).schemaVersion).toBe(6);
-    expect(PROJECT_SCHEMA_VERSION).toBe(6);
+    expect(JSON.parse(text).schemaVersion).toBe(7);
+    expect(PROJECT_SCHEMA_VERSION).toBe(7);
     const back = parseProjectFile(text);
     if (!back.ok) throw new Error(back.error.message);
     const r = back.project.scene.nodes[back.project.scene.rootId]!;

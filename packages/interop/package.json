@@ -1,0 +1,25 @@
+{
+  "name": "@forge/interop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FORGE engineering data exchange: format detection, safe parsers and writers (STL, glTF/GLB, STEP via OCCT WebAssembly, URDF, SPICE, KiCad), unit/axis normalisation, geometry metrics, provenance records, capability declarations and transactional import plans built from validated engine commands. Pure domain logic \u2014 no UI.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/electronics": "workspace:*",
+    "@forge/engineering-core": "workspace:*",
+    "occt-import-js": "0.0.23",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@forge/components": "workspace:*",
+    "@forge/mechanics": "workspace:*",
+    "@forge/physics": "workspace:*",
+    "@forge/research": "workspace:*"
+  }
+}

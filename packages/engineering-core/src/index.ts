@@ -30,3 +30,6 @@ export { DEFAULT_ACTUATOR } from './commands/physics-handlers';
 export * from './commands/electrical-schemas';
 export * from './electrical/schemas';
 export * from './electrical/devices';
+export * from './hash';
+export * from './interop/schemas';
+export * from './commands/interop-schemas';

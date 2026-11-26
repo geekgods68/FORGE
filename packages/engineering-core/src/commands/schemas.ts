@@ -19,6 +19,7 @@ import {
 } from '../scene/schemas';
 import { PHYSICS_PAYLOAD_SCHEMAS } from './physics-schemas';
 import { ELECTRICAL_PAYLOAD_SCHEMAS } from './electrical-schemas';
+import { INTEROP_PAYLOAD_SCHEMAS } from './interop-schemas';
 
 /**
  * Command contract v1 for the engineering scene graph.
@@ -276,6 +277,7 @@ export const NODE_PAYLOAD_SCHEMAS = {
   ...MECHANICAL_PAYLOAD_SCHEMAS,
   ...PHYSICS_PAYLOAD_SCHEMAS,
   ...ELECTRICAL_PAYLOAD_SCHEMAS,
+  ...INTEROP_PAYLOAD_SCHEMAS,
 } as const;
 
 export type NodeCommandType = keyof typeof NODE_PAYLOAD_SCHEMAS;
@@ -350,6 +352,8 @@ export const BatchSubCommandSchema = z.discriminatedUnion('type', [
   sub('electrical.group.delete'),
   sub('electrical.firmware.set'),
   sub('electrical.firmware.delete'),
+  sub('interop.import.record'),
+  sub('interop.import.forget'),
 ]);
 export type BatchSubCommand = z.output<typeof BatchSubCommandSchema>;
 
@@ -437,6 +441,8 @@ export const CommandEnvelopeSchema = z.discriminatedUnion('type', [
   envelope('electrical.group.delete'),
   envelope('electrical.firmware.set'),
   envelope('electrical.firmware.delete'),
+  envelope('interop.import.record'),
+  envelope('interop.import.forget'),
   envelope('scene.batch'),
 ]);
 
