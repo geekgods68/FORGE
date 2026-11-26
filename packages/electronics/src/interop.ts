@@ -8,7 +8,9 @@ import { compileNetlist } from './netlist';
  *  - SPICE-style netlist EXPORT of the analog subset (R, C, L, V, I, E, G, D, Q, M). It is a
  *    preparation for interoperability, NOT a verified SPICE translation: it has not been
  *    checked against a SPICE simulator, and devices without a SPICE equivalent are listed as
- *    comments. Import of SPICE or KiCad files is not supported.
+ *    comments. Phase 8: SPICE and KiCad IMPORT live in @forge/interop (round-trip tested
+ *    against this exporter); element names keep the label when it already starts with the
+ *    SPICE letter (R1, not RR1).
  */
 export const ELECTRICAL_BUNDLE_FORMAT = 'forge-electrical-bundle';
 export const ELECTRICAL_BUNDLE_VERSION = 1;
@@ -61,6 +63,11 @@ export function parseElectricalBundle(text: string): BundleResult {
 }
 
 const spiceName = (s: string) => s.replace(/[^A-Za-z0-9_]/g, '_');
+/** Element name: the label when it already starts with the SPICE letter (R1 → R1), else letter + label. */
+const el = (letter: string, label: string) => {
+  const n = spiceName(label);
+  return n[0]?.toUpperCase() === letter ? n : `${letter}${n}`;
+};
 
 export function exportSpiceNetlist(def: ElectricalDefinition): string {
   const nl = compileNetlist(def);
@@ -93,66 +100,67 @@ export function exportSpiceNetlist(def: ElectricalDefinition): string {
     const d = p.device;
     const n = (t: string) => node(p.id, t);
     const id = spiceName(p.label);
+    const E = (letter: string) => el(letter, p.label);
     switch (d.type) {
       case 'resistor':
-        lines.push(`R${id} ${n('p1')} ${n('p2')} ${d.resistanceOhm}`);
+        lines.push(`${E('R')} ${n('p1')} ${n('p2')} ${d.resistanceOhm}`);
         break;
       case 'capacitor': {
         const [a, b] = d.polarized ? ['pos', 'neg'] : ['p1', 'p2'];
         lines.push(
-          `C${id} ${n(a)} ${n(b)} ${d.capacitanceF}${d.initialVoltageV !== null ? ` IC=${d.initialVoltageV}` : ''}`,
+          `${E('C')} ${n(a)} ${n(b)} ${d.capacitanceF}${d.initialVoltageV !== null ? ` IC=${d.initialVoltageV}` : ''}`,
         );
         break;
       }
       case 'inductor':
         lines.push(
-          `L${id} ${n('p1')} ${n('p2')} ${d.inductanceH}${d.initialCurrentA !== null ? ` IC=${d.initialCurrentA}` : ''}`,
+          `${E('L')} ${n('p1')} ${n('p2')} ${d.inductanceH}${d.initialCurrentA !== null ? ` IC=${d.initialCurrentA}` : ''}`,
         );
         break;
       case 'vsource':
         if (d.seriesResistanceOhm > 0) {
           lines.push(
-            `V${id} ${n('pos')}_int ${n('neg')} ${wave(d)}`,
-            `R${id}_s ${n('pos')}_int ${n('pos')} ${d.seriesResistanceOhm}`,
+            `${E('V')} ${n('pos')}_int ${n('neg')} ${wave(d)}`,
+            `${E('R')}_s ${n('pos')}_int ${n('pos')} ${d.seriesResistanceOhm}`,
           );
-        } else lines.push(`V${id} ${n('pos')} ${n('neg')} ${wave(d)}`);
+        } else lines.push(`${E('V')} ${n('pos')} ${n('neg')} ${wave(d)}`);
         break;
       case 'isource':
         // SPICE: current flows from n+ through the source to n−; FORGE: out of "pos" into the circuit.
-        lines.push(`I${id} ${n('neg')} ${n('pos')} ${wave(d)}`);
+        lines.push(`${E('I')} ${n('neg')} ${n('pos')} ${wave(d)}`);
         break;
       case 'vcvs':
-        lines.push(`E${id} ${n('out+')} ${n('out-')} ${n('ctl+')} ${n('ctl-')} ${d.gain}`);
+        lines.push(`${E('E')} ${n('out+')} ${n('out-')} ${n('ctl+')} ${n('ctl-')} ${d.gain}`);
         break;
       case 'vccs':
-        lines.push(`G${id} ${n('out+')} ${n('out-')} ${n('ctl+')} ${n('ctl-')} ${d.transconductanceS}`);
+        lines.push(`${E('G')} ${n('out+')} ${n('out-')} ${n('ctl+')} ${n('ctl-')} ${d.transconductanceS}`);
         break;
       case 'diode':
       case 'led':
-        lines.push(`D${id} ${n('a')} ${n('k')} DM_${id}`);
+        lines.push(`${E('D')} ${n('a')} ${n('k')} DM_${id}`);
         models.push(
           `.model DM_${id} D(IS=${d.model.saturationCurrentA} N=${d.model.emissionCoefficient} RS=${d.model.seriesResistanceOhm})`,
         );
         break;
       case 'npn':
-        lines.push(`Q${id} ${n('c')} ${n('b')} ${n('e')} QM_${id}`);
+        lines.push(`${E('Q')} ${n('c')} ${n('b')} ${n('e')} QM_${id}`);
         models.push(`.model QM_${id} NPN(IS=${d.saturationCurrentA} BF=${d.betaF} BR=${d.betaR})`);
         break;
       case 'nmos':
         // Level 1 with KP·W/L = K (W = L = 1 µm).
-        lines.push(`M${id} ${n('d')} ${n('g')} ${n('s')} ${n('s')} MM_${id} W=1u L=1u`);
+        lines.push(`${E('M')} ${n('d')} ${n('g')} ${n('s')} ${n('s')} MM_${id} W=1u L=1u`);
         models.push(
           `.model MM_${id} NMOS(LEVEL=1 VTO=${d.thresholdV} KP=${d.transconductanceAPerV2} LAMBDA=${d.lambdaPerV})`,
         );
         break;
       case 'potentiometer':
         lines.push(
-          `R${id}_aw ${n('a')} ${n('w')} ${d.resistanceOhm * Math.max(1e-4, d.position)}`,
-          `R${id}_wb ${n('w')} ${n('b')} ${d.resistanceOhm * Math.max(1e-4, 1 - d.position)}`,
+          `${E('R')}_aw ${n('a')} ${n('w')} ${d.resistanceOhm * Math.max(1e-4, d.position)}`,
+          `${E('R')}_wb ${n('w')} ${n('b')} ${d.resistanceOhm * Math.max(1e-4, 1 - d.position)}`,
         );
         break;
       case 'switch':
-        if (d.closed) lines.push(`R${id} ${n('p1')} ${n('p2')} ${d.onResistanceOhm} ; closed switch`);
+        if (d.closed) lines.push(`${E('R')} ${n('p1')} ${n('p2')} ${d.onResistanceOhm} ; closed switch`);
         else lines.push(`* ${p.label}: open switch (no element)`);
         break;
       case 'ground':

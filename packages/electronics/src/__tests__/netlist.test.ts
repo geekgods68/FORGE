@@ -210,8 +210,8 @@ describe('interchange', () => {
     b.wire(`${v}.pos`, `${r}.p1`).wire(`${r}.p2`, `${g}.gnd`).wire(`${v}.neg`, `${g}.gnd`);
     void u;
     const text = exportSpiceNetlist(b.build());
-    expect(text).toMatch(/^RR1 \S+ 0 220$/m);
-    expect(text).toMatch(/^VV1 \S+ 0 DC 5$/m);
+    expect(text).toMatch(/^R1 \S+ 0 220$/m); // label R1 already starts with R (Phase 8: no RR1)
+    expect(text).toMatch(/^V1 \S+ 0 DC 5$/m);
     expect(text).toMatch(/\* U1 \(mcu\): no SPICE equivalent/);
     expect(text).toMatch(/not verified against a SPICE simulator/);
   });

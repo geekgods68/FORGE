@@ -1,3 +1,4 @@
+import { CIRCUIT_IMPORT_FORMATS, circuitFingerprint, importFingerprint } from '../interop/schemas';
 import type { SceneNode } from '../scene/schemas';
 import { CommandError, type GraphTransaction } from '../scene/transaction';
 import type { HandlerContext } from './handlers';
@@ -24,10 +25,16 @@ export const INTEROP_HANDLERS: { [K in InteropCommandType]: IHandler<K> } = {
     if (list.some((x) => x.id === record.id))
       throw new CommandError('invalid-operation', `Import record "${record.id}" already exists.`);
     // A record may only describe nodes that exist (it is written after them in the same batch).
-    for (const id of record.nodeIds)
-      if (!tx.graph.nodes[id])
-        throw new CommandError('not-found', `Import record lists node "${id}", which does not exist.`);
-    tx.put({ ...r, imports: [...list, record] });
+    const nodes = record.nodeIds.map((id) => {
+      const n = tx.graph.nodes[id];
+      if (!n) throw new CommandError('not-found', `Import record lists node "${id}", which does not exist.`);
+      return n;
+    });
+    // The fingerprint is computed here, from the nodes as created, never taken from the caller.
+    const fingerprint = CIRCUIT_IMPORT_FORMATS.includes(record.format)
+      ? circuitFingerprint(r.electrical ?? null)
+      : importFingerprint(nodes);
+    tx.put({ ...r, imports: [...list, { ...record, nodesFingerprint: fingerprint }] });
     return [r.id];
   },
   'interop.import.forget'(tx, { importId }) {

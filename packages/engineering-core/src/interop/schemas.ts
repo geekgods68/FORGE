@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { canonicalJson, sha256 } from '../hash';
+import type { SceneNode } from '../scene/schemas';
 import { IdSchema } from '../schemas';
 
 /**
@@ -69,3 +71,32 @@ export const ImportRecordSchema = z.object({
   nodesFingerprint: z.string().regex(/^sha256-[0-9a-f]{64}$/),
 });
 export type ImportRecord = z.infer<typeof ImportRecordSchema>;
+
+/**
+ * Modification fingerprint of imported nodes: kind, name, parent, transform and the
+ * geometry/model/mechanical payload. Computed by the `interop.import.record` handler from
+ * the nodes as they exist at the end of the import batch (so it is exact by construction).
+ */
+export function importFingerprint(nodes: readonly SceneNode[]): string {
+  const essence = [...nodes]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((n) => {
+      const base = { id: n.id, kind: n.kind, name: n.name, parentId: n.parentId, transform: n.transform };
+      if (n.kind === 'model-instance') return { ...base, model: n.model };
+      if (n.kind === 'primitive') return { ...base, geometry: n.geometry };
+      if (n.kind === 'assembly') return { ...base, mechanical: n.mechanical };
+      return base;
+    });
+  return `sha256-${sha256(canonicalJson(essence))}`;
+}
+
+/** Electrical imports (SPICE, KiCad) create no scene nodes: their fingerprint is the circuit's. */
+export const CIRCUIT_IMPORT_FORMATS: readonly string[] = [
+  'spice',
+  'kicad-netlist',
+  'kicad-pcb',
+  'kicad-schematic',
+];
+export function circuitFingerprint(def: unknown): string {
+  return `sha256-${sha256(canonicalJson(def ?? null))}`;
+}

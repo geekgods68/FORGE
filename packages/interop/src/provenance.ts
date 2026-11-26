@@ -1,36 +1,25 @@
 import {
-  canonicalJson,
-  sha256,
+  CIRCUIT_IMPORT_FORMATS,
+  circuitFingerprint,
+  importFingerprint,
   type ImportRecord,
   type SceneGraph,
   type SceneNode,
 } from '@forge/engineering-core';
 
-/**
- * Modification detection for imported nodes. The fingerprint covers what an import sets —
- * kind, name, parent, transform and the node's geometry/model payload — so a later edit in
- * FORGE (move, rename, re-parent, geometry change) changes it, while unrelated project
- * changes do not.
- */
-export function nodeEssence(n: SceneNode): unknown {
-  const base = { id: n.id, kind: n.kind, name: n.name, parentId: n.parentId, transform: n.transform };
-  switch (n.kind) {
-    case 'model-instance':
-      return { ...base, model: n.model };
-    case 'primitive':
-      return { ...base, geometry: n.geometry };
-    case 'assembly':
-      return { ...base, mechanical: n.mechanical };
-    default:
-      return base;
-  }
-}
+/** Fingerprint of imported nodes (the same function the record command uses). */
 export function nodesFingerprint(nodes: readonly SceneNode[]): string {
-  return `sha256-${sha256(canonicalJson([...nodes].sort((a, b) => a.id.localeCompare(b.id)).map(nodeEssence)))}`;
+  return importFingerprint(nodes);
 }
 
 export type ImportStatus = 'unmodified' | 'modified' | 'partially-deleted' | 'deleted';
 export function importStatus(rec: ImportRecord, graph: SceneGraph): ImportStatus {
+  if (CIRCUIT_IMPORT_FORMATS.includes(rec.format)) {
+    const root = graph.nodes[graph.rootId];
+    const el = root?.kind === 'root' ? root.electrical : undefined;
+    if (!el) return 'deleted';
+    return circuitFingerprint(el) === rec.nodesFingerprint ? 'unmodified' : 'modified';
+  }
   const present = rec.nodeIds.map((id) => graph.nodes[id]).filter((n): n is SceneNode => !!n);
   if (!present.length) return 'deleted';
   if (present.length < rec.nodeIds.length) return 'partially-deleted';
