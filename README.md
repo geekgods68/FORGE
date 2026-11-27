@@ -2,7 +2,7 @@
 
 Engineering research simulation platform within Project VEYRIS. It is local-first and desktop-first; Meta Quest 2 (WebXR) support comes later.
 
-**Status: Maintenance in Progress.
+**Status: Maintenance in Progress.**
 
 The app is a desktop engineering editor with:
 
